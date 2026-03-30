@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Google Mobile Services font provider certificates.
+        To enable live font downloads, replace the placeholder below with the actual certs.
+        Get them from: https://developers.google.com/fonts/docs/android
+        Or via Android Studio: File > New > More > Downloadable Font
+
+        Until certs are added, fonts fall back to system defaults — the app still runs normally.
+    -->
+    <array name="com_google_android_gms_fonts_certs">
+        <item>@array/com_google_android_gms_fonts_certs_prod</item>
+    </array>
+
+    <string-array name="com_google_android_gms_fonts_certs_prod">
+        <!-- TODO: paste production certificate string here -->
+    </string-array>
+</resources>

@@ -1,0 +1,356 @@
+<resources>
+    <string name="app_name">GP Leader</string>
+
+    <!-- ── Login ─────────────────────────────────────────────────────────── -->
+    <string name="login_header_subtitle">Gestión de grupos pequeños SDA</string>
+    <string name="login_title">Iniciar sesión</string>
+    <string name="login_subtitle">Tu cuenta fue creada por tu pastor o administrador.</string>
+    <string name="login_label_correo">CORREO ELECTRÓNICO</string>
+    <string name="login_placeholder_correo">correo@iglesia.org</string>
+    <string name="login_label_contrasena">CONTRASEÑA</string>
+    <string name="login_olvide_contrasena">¿Olvidaste tu contraseña?</string>
+    <string name="login_notice_prefix">Si no tienes acceso, contacta a tu </string>
+    <string name="login_notice_bold">pastor o administrador</string>
+    <string name="login_notice_suffix"> para que te asigne una cuenta.</string>
+    <string name="login_btn_entrar">Entrar</string>
+    <string name="login_separator_o">o</string>
+    <string name="login_btn_suplente">Ingresar como suplente</string>
+
+    <!-- ── Home ──────────────────────────────────────────────────────────── -->
+    <string name="home_label_bienvenida">BIENVENIDA</string>
+    <string name="home_btn_suplente">Suplente</string>
+    <string name="home_btn_registrar">+ Registrar</string>
+    <string name="home_label_tu_grupo">TU GRUPO PEQUEÑO</string>
+    <string name="home_label_asistencia_periodo">Asistencia periodo actual</string>
+    <string name="home_label_asistencia">ASISTENCIA</string>
+    <string name="home_label_presentes">PRESENTES</string>
+    <string name="home_label_ausentes">AUSENTES</string>
+    <string name="home_section_recientes">REUNIONES RECIENTES</string>
+    <string name="home_reunion_titulo">Reunión Semanal</string>
+    <string name="home_btn_ver_todas">Ver todas las reuniones →</string>
+    <string name="home_empty_titulo">Aún no hay reuniones registradas.</string>
+    <string name="home_empty_subtitulo">¡Registra la primera!</string>
+    <string name="home_nav_inicio">INICIO</string>
+    <string name="home_nav_historial">HISTORIAL</string>
+    <string name="home_nav_perfil">PERFIL</string>
+    <string name="home_badge_enviada">Enviada</string>
+    <string name="home_badge_aprobada">Aprobada</string>
+    <string name="home_badge_pendiente">Pendiente</string>
+    <string name="home_badge_borrador">Borrador</string>
+    <string name="home_badge_presentes">%d pres.</string>
+    <string name="home_sheet_suplente_titulo">Código de suplente</string>
+    <string name="home_sheet_suplente_subtitulo">Comparte este código con tu suplente. Válido por 24 horas.</string>
+
+    <!-- ── Registro ───────────────────────────────────────────────────────── -->
+    <string name="registro_titulo">Registrar reunión</string>
+    <string name="registro_badge_paso">1/3</string>
+    <string name="registro_step_asistencia">1 Asistencia</string>
+    <string name="registro_step_actividades">2 Actividades</string>
+    <string name="registro_step_resumen">3 Resumen</string>
+    <string name="registro_banner_suplente">MODO SUPLENTE</string>
+    <string name="registro_label_fecha">FECHA DE REUNIÓN</string>
+    <string name="registro_btn_no_hubo">No hubo reunión</string>
+    <string name="registro_label_miembros">MIEMBROS</string>
+    <string name="registro_sel_todos">Sel. todos</string>
+    <string name="registro_sel_presentes">Presentes</string>
+    <string name="registro_sel_ausentes">Ausentes</string>
+    <string name="registro_sel_justificados">Justificados</string>
+    <string name="registro_menu_presente">Presente</string>
+    <string name="registro_menu_ausente">Ausente</string>
+    <string name="registro_menu_justificado">Justificado</string>
+    <string name="registro_p">P</string>
+    <string name="registro_a">A</string>
+    <string name="registro_j">J</string>
+    <string name="registro_agregar_miembro">+ Agregar miembro al grupo</string>
+    <string name="registro_visitas_anteriores">VISITAS ANTERIORES (%d)</string>
+    <string name="registro_visitas_hoy">VISITAS DE HOY</string>
+    <string name="registro_btn_agregar">+ Agregar</string>
+    <string name="registro_visita_quitar">Quitar</string>
+    <string name="registro_badge_visita">Visita</string>
+    <string name="registro_placeholder_visita">+ Agregar visita…</string>
+    <string name="registro_btn_continuar">Continuar → Actividades</string>
+    <string name="registro_error_sin_asistencia">Marca la asistencia de al menos un miembro para continuar.</string>
+    <string name="registro_confirm_ausentes_titulo">Todos ausentes</string>
+    <string name="registro_confirm_ausentes_cuerpo">Marcaste a todos los miembros como Ausente. ¿Es correcto?</string>
+    <string name="registro_confirm_no_hubo_titulo">No hubo reunión</string>
+    <string name="registro_confirm_no_hubo_cuerpo">¿Confirmas que no se realizó la reunión? Se enviará un reporte sin asistencia.</string>
+    <string name="registro_confirm_confirmar">Confirmar</string>
+    <string name="registro_confirm_cancelar">Cancelar</string>
+    <string name="registro_confirm_entendido">Entendido</string>
+    <string name="registro_sheet_titulo">Agregar visita</string>
+    <string name="registro_sheet_label_nombre">NOMBRE *</string>
+    <string name="registro_sheet_hint_nombre">Primer nombre</string>
+    <string name="registro_sheet_label_apellido">APELLIDO *</string>
+    <string name="registro_sheet_hint_apellido">Primer apellido</string>
+    <string name="registro_sheet_ultima_visita">Última visita: %1$d %2$s</string>
+    <string name="registro_sheet_seleccionar">Seleccionar</string>
+    <string name="registro_sheet_nota_presente">Se registrará como Presente automáticamente</string>
+    <string name="registro_sheet_btn_agregar">Agregar visita</string>
+
+    <!-- ── Registro Paso 2 ────────────────────────────────────────────────── -->
+    <string name="registro_badge_paso2">2/3</string>
+    <string name="registro_badge_paso3">3/3</string>
+    <string name="registro_nivel_union">UNIÓN</string>
+    <string name="registro_nivel_pastor">PASTOR</string>
+    <string name="registro_nivel_mi_gp">MI GP</string>
+    <string name="registro_badge_oficial">Oficial</string>
+    <string name="registro_btn_siguiente">Siguiente → Resumen</string>
+    <string name="registro_agregar_extra">+ Agregar actividad extra</string>
+    <string name="registro_error_obligatorias">Completa las actividades marcadas antes de continuar.</string>
+    <string name="paso2_contador_requiere_desglose">Este contador se llena desde el detalle de la actividad, asignando un valor por cada miembro.</string>
+
+    <!-- ── Detalle Actividad ──────────────────────────────────────────────── -->
+    <string name="detalle_actividad_titulo">Detalle actividad</string>
+    <string name="detalle_actividad_label_total">TOTAL</string>
+    <string name="detalle_actividad_label_total_calculado">TOTAL (SUMA DEL DESGLOSE)</string>
+    <string name="detalle_actividad_label_desglose">DESGLOSE POR MIEMBRO (OPCIONAL)</string>
+    <string name="detalle_actividad_label_notas">NOTAS (OPCIONAL)</string>
+    <string name="detalle_actividad_hint_notas">Agrega contexto o detalles…</string>
+    <string name="detalle_actividad_btn_guardar">Guardar</string>
+    <string name="detalle_actividad_unidad">Unidad: %s</string>
+    <string name="detalle_actividad_nivel_union">NIVEL UNIÓN</string>
+    <string name="detalle_actividad_nivel_pastor">NIVEL PASTOR</string>
+    <string name="detalle_actividad_nivel_gp">NIVEL MI GP</string>
+
+    <!-- ── Agregar Actividad ──────────────────────────────────────────────── -->
+    <string name="agregar_actividad_titulo">Agregar actividad extra</string>
+    <string name="agregar_actividad_label_nombre">NOMBRE DE LA ACTIVIDAD *</string>
+    <string name="agregar_actividad_hint_nombre">Escribe el nombre de la actividad</string>
+    <string name="agregar_actividad_label_cantidad">CANTIDAD</string>
+    <string name="agregar_actividad_label_unidad">UNIDAD</string>
+    <string name="agregar_actividad_unidad_personas">personas</string>
+    <string name="agregar_actividad_unidad_visitas">visitas</string>
+    <string name="agregar_actividad_unidad_sesiones">sesiones</string>
+    <string name="agregar_actividad_unidad_otro">otro</string>
+    <string name="agregar_actividad_btn_agregar">Agregar actividad</string>
+
+    <!-- ── Registro Paso 3 ────────────────────────────────────────────────── -->
+    <string name="paso3_label_resumen">Resumen</string>
+    <string name="paso3_label_grupo_header">GP Los Olivos</string>
+    <string name="paso3_label_fecha">FECHA</string>
+    <string name="paso3_label_miembros">MIEMBROS</string>
+    <string name="paso3_label_asistencia">% ASISTENCIA</string>
+    <string name="paso3_label_visitas">VISITAS</string>
+    <string name="paso3_label_actividades">ACTIVIDADES</string>
+    <string name="paso3_badge_presentes">%dP</string>
+    <string name="paso3_badge_ausentes">%dA</string>
+    <string name="paso3_badge_justificados">%dJ</string>
+    <string name="paso3_visitas_singular">%d persona</string>
+    <string name="paso3_visitas_plural">%d personas</string>
+    <string name="paso3_asistencia_pct">%d%%</string>
+    <string name="paso3_sin_actividades">Sin actividades registradas</string>
+    <string name="paso3_btn_enviar">Enviar al pastor</string>
+    <string name="paso3_btn_editar">← Editar actividades</string>
+
+    <!-- ── Éxito enviado ──────────────────────────────────────────────────── -->
+    <string name="exito_enviado_titulo">¡Reporte enviado!</string>
+    <string name="exito_enviado_timestamp">Enviado hoy, %1$s · %2$s</string>
+    <string name="exito_pastor_nombre">Pr. Roberto Méndez</string>
+    <string name="exito_pastor_rol">Pastor · Iglesia Central</string>
+    <string name="exito_resumen_presentes">Presentes</string>
+    <string name="exito_resumen_ausentes">Ausentes</string>
+    <string name="exito_stats_justificados">Justificados</string>
+    <string name="exito_stats_asistencia">Asistencia</string>
+    <string name="exito_stats_visitas">Visitas</string>
+    <string name="exito_enviado_btn">Volver al inicio</string>
+    <string name="exito_enviado_btn_historial">Ver historial</string>
+
+    <!-- ── Historial ─────────────────────────────────────────────────────── -->
+    <string name="historial_titulo">Historial</string>
+    <string name="historial_btn_buscar">Buscar</string>
+    <string name="historial_tab_ver_todo">Ver todo</string>
+    <string name="historial_stat_promedio">PROMEDIO</string>
+    <string name="historial_stat_reuniones">REUNIONES</string>
+    <string name="historial_stat_enviadas">ENVIADAS</string>
+    <string name="historial_stat_pendiente">PENDIENTE</string>
+    <string name="historial_reunion_titulo">Reunión Semanal</string>
+    <string name="historial_badge_enviada">Enviada</string>
+    <string name="historial_badge_pendiente">Pendiente</string>
+    <string name="historial_badge_editar">Editar</string>
+    <string name="historial_accion_editar">Editar</string>
+    <string name="historial_dots_presentes">%dP</string>
+    <string name="historial_dots_ausentes">%dA</string>
+    <string name="historial_dots_justificados">%dJ</string>
+    <string name="historial_pct">%d%%</string>
+
+    <!-- ── Perfil ─────────────────────────────────────────────────────────── -->
+    <string name="perfil_titulo">Perfil</string>
+    <string name="perfil_editar_avatar">Editar avatar</string>
+    <string name="perfil_seccion_cuenta">MI CUENTA</string>
+    <string name="perfil_datos_personales">Datos personales</string>
+    <string name="perfil_cambiar_contrasena">Cambiar contraseña</string>
+    <string name="perfil_seccion_grupo">MI GRUPO</string>
+    <string name="perfil_datos_grupo">Datos del grupo</string>
+    <string name="perfil_miembros">Miembros</string>
+    <string name="perfil_seccion_preferencias">PREFERENCIAS</string>
+    <string name="perfil_notificaciones">Notificaciones</string>
+    <string name="perfil_cerrar_sesion">Cerrar sesión</string>
+    <string name="perfil_cerrar_sesion_titulo">¿Cerrar sesión?</string>
+    <string name="perfil_cerrar_sesion_cuerpo">Tu progreso sin sincronizar se mantendrá guardado en el dispositivo.</string>
+    <string name="perfil_cerrar_sesion_confirmar">Cerrar sesión</string>
+    <string name="perfil_cerrar_sesion_cancelar">Cancelar</string>
+    <string name="perfil_footer">GP Leader v1.0.0</string>
+
+    <!-- ── Cambiar Contraseña ────────────────────────────────────────────── -->
+    <string name="cambiar_contrasena_titulo">Cambiar contraseña</string>
+    <string name="cambiar_contrasena_hero_titulo">Nueva contraseña</string>
+    <string name="cambiar_contrasena_hero_subtitulo">Ingresa tu contraseña actual y luego elige una nueva contraseña segura.</string>
+    <string name="cambiar_contrasena_label_actual">CONTRASEÑA ACTUAL *</string>
+    <string name="cambiar_contrasena_label_nueva">NUEVA CONTRASEÑA *</string>
+    <string name="cambiar_contrasena_placeholder_nueva">Mínimo 8 caracteres</string>
+    <string name="cambiar_contrasena_label_confirmar">CONFIRMAR NUEVA CONTRASEÑA *</string>
+    <string name="cambiar_contrasena_placeholder_confirmar">Repite la nueva contraseña</string>
+    <string name="cambiar_contrasena_checklist_header">LA CONTRASEÑA DEBE TENER</string>
+    <string name="cambiar_contrasena_req_8_chars">Al menos 8 caracteres</string>
+    <string name="cambiar_contrasena_req_mayuscula">Una letra mayúscula</string>
+    <string name="cambiar_contrasena_req_numero">Un número</string>
+    <string name="cambiar_contrasena_req_coinciden">Las contraseñas coinciden</string>
+    <string name="cambiar_contrasena_btn_actualizar">Actualizar contraseña</string>
+    <string name="cambiar_contrasena_success">Contraseña actualizada</string>
+
+    <!-- ── Datos Personales ──────────────────────────────────────────────── -->
+    <string name="datos_personales_titulo">Datos personales</string>
+    <string name="datos_personales_btn_guardar">Guardar</string>
+    <string name="datos_personales_btn_guardar_cambios">Guardar cambios</string>
+    <string name="datos_personales_foto_hint">Toca para cambiar la foto</string>
+    <string name="datos_personales_seccion_nombre">NOMBRE</string>
+    <string name="datos_personales_label_primer_nombre">PRIMER NOMBRE *</string>
+    <string name="datos_personales_label_segundo_nombre">SEGUNDO NOMBRE</string>
+    <string name="datos_personales_expandir_segundo_nombre">Segundo nombre (opcional)</string>
+    <string name="datos_personales_expandir_segundo_apellido">Segundo apellido (opcional)</string>
+    <string name="datos_personales_label_primer_apellido">PRIMER APELLIDO *</string>
+    <string name="datos_personales_label_segundo_apellido">SEGUNDO APELLIDO</string>
+    <string name="datos_personales_error_primer_nombre">El primer nombre es obligatorio</string>
+    <string name="datos_personales_error_primer_apellido">El primer apellido es obligatorio</string>
+    <string name="datos_personales_seccion_contacto">CONTACTO</string>
+    <string name="datos_personales_label_telefono">TELÉFONO</string>
+    <string name="datos_personales_prefijo_telefono">+506</string>
+    <string name="datos_personales_label_correo">CORREO ELECTRÓNICO</string>
+    <string name="datos_personales_nota_correo">Usado para iniciar sesión</string>
+    <string name="datos_personales_label_direccion">DIRECCIÓN</string>
+    <string name="datos_personales_seccion_iglesia">IGLESIA</string>
+    <string name="datos_personales_nota_iglesia">Contacta a tu pastor para cambiar esto</string>
+
+    <!-- ── Miembros ─────────────────────────────────────────────────────── -->
+    <string name="miembros_titulo">Miembros</string>
+    <string name="miembros_btn_agregar">+ Agregar</string>
+    <string name="miembros_search_placeholder">Buscar miembro…</string>
+    <string name="miembros_seccion_activos">ACTIVOS (%d)</string>
+    <string name="miembros_seccion_archivados">ARCHIVADOS (%d)</string>
+    <string name="miembros_badge_archivado">Archivado</string>
+    <string name="miembros_accion_archivar">Archivar</string>
+    <string name="miembros_accion_activar">Activar</string>
+    <string name="miembros_detalle_titulo">Detalle miembro</string>
+    <string name="miembros_btn_editar">Editar</string>
+    <string name="miembros_desde">Miembro desde %s</string>
+    <string name="miembros_estado_activo">Activo</string>
+    <string name="miembros_estado_archivado">Archivado</string>
+    <string name="miembros_label_primer_nombre">PRIMER NOMBRE</string>
+    <string name="miembros_label_segundo_nombre">SEGUNDO NOMBRE</string>
+    <string name="miembros_label_primer_apellido">PRIMER APELLIDO</string>
+    <string name="miembros_label_segundo_apellido">SEGUNDO APELLIDO</string>
+    <string name="miembros_label_telefono">TELÉFONO</string>
+    <string name="miembros_label_correo">CORREO ELECTRÓNICO</string>
+    <string name="miembros_label_direccion">DIRECCIÓN</string>
+    <string name="miembros_historial_titulo">HISTORIAL DE ASISTENCIA</string>
+    <string name="miembros_editar_titulo">Editar miembro</string>
+    <string name="miembros_btn_guardar">Guardar</string>
+    <string name="miembros_btn_guardar_cambios">Guardar cambios</string>
+    <string name="miembros_seccion_nombre">NOMBRE</string>
+    <string name="miembros_seccion_contacto">CONTACTO</string>
+    <string name="miembros_seccion_estado">ESTADO</string>
+    <string name="miembros_expandir_segundo_nombre">Segundo nombre (opcional)</string>
+    <string name="miembros_expandir_segundo_apellido">Segundo apellido (opcional)</string>
+    <string name="miembros_label_segundo_nombre_expanded">SEGUNDO NOMBRE</string>
+    <string name="miembros_label_segundo_apellido_expanded">SEGUNDO APELLIDO</string>
+    <string name="miembros_error_primer_nombre">El primer nombre es obligatorio</string>
+    <string name="miembros_error_primer_apellido">El primer apellido es obligatorio</string>
+    <string name="miembros_prefijo_telefono">+506</string>
+
+    <!-- ── Agregar Miembro ───────────────────────────────────────────────── -->
+    <string name="agregar_miembro_titulo">Agregar miembro</string>
+    <string name="agregar_miembro_avatar_hint">Las iniciales se generan automáticamente</string>
+    <string name="agregar_miembro_seccion_nombre">NOMBRE</string>
+    <string name="agregar_miembro_label_primer_nombre">PRIMER NOMBRE *</string>
+    <string name="agregar_miembro_label_primer_apellido">PRIMER APELLIDO *</string>
+    <string name="agregar_miembro_error_primer_nombre">El primer nombre es obligatorio</string>
+    <string name="agregar_miembro_error_primer_apellido">El primer apellido es obligatorio</string>
+    <string name="agregar_miembro_expandir_segundo_nombre">Agregar segundo nombre (opcional)</string>
+    <string name="agregar_miembro_expandir_segundo_apellido">Agregar segundo apellido (opcional)</string>
+    <string name="agregar_miembro_label_segundo_nombre">SEGUNDO NOMBRE</string>
+    <string name="agregar_miembro_label_segundo_apellido">SEGUNDO APELLIDO</string>
+    <string name="agregar_miembro_nota_activo">El miembro se agregará como Activo automáticamente</string>
+    <string name="agregar_miembro_seccion_contacto">CONTACTO</string>
+    <string name="agregar_miembro_label_telefono">TELÉFONO</string>
+    <string name="agregar_miembro_placeholder_telefono">____-____</string>
+    <string name="agregar_miembro_prefijo_telefono">+506</string>
+    <string name="agregar_miembro_label_correo">CORREO (opcional)</string>
+    <string name="agregar_miembro_placeholder_correo">correo@ejemplo.com</string>
+    <string name="agregar_miembro_label_direccion">DIRECCIÓN</string>
+    <string name="agregar_miembro_placeholder_direccion">Barrio, ciudad…</string>
+    <string name="agregar_miembro_btn_agregar">+ Agregar al grupo</string>
+    <string name="agregar_miembro_btn_cancelar">Cancelar</string>
+
+    <!-- ── Datos del Grupo ──────────────────────────────────────────────── -->
+    <string name="datos_grupo_titulo">Datos del grupo</string>
+    <string name="datos_grupo_btn_guardar">Guardar</string>
+    <string name="datos_grupo_btn_guardar_cambios">Guardar cambios</string>
+    <string name="datos_grupo_seccion_identificacion">IDENTIFICACIÓN</string>
+    <string name="datos_grupo_label_nombre">NOMBRE DEL GRUPO *</string>
+    <string name="datos_grupo_error_nombre">El nombre del grupo es obligatorio</string>
+    <string name="datos_grupo_label_descripcion">DESCRIPCIÓN</string>
+    <string name="datos_grupo_placeholder_descripcion">Ej. Grupo jóvenes adultos zona norte</string>
+    <string name="datos_grupo_label_lugar">LUGAR DE REUNIÓN</string>
+    <string name="datos_grupo_placeholder_lugar">Ej. Casa de Maria Garcia, San José</string>
+    <string name="datos_grupo_label_canto">CANTO FAVORITO</string>
+    <string name="datos_grupo_placeholder_canto">Nombre del himno o canción</string>
+    <string name="datos_grupo_label_versiculo">VERSÍCULO FAVORITO</string>
+    <string name="datos_grupo_placeholder_versiculo">Ej. Filipenses 4:13</string>
+    <string name="datos_grupo_label_personaje">PERSONAJE BÍBLICO FAVORITO</string>
+    <string name="datos_grupo_placeholder_personaje">Ej. Pablo de Tarso</string>
+    <string name="datos_grupo_seccion_ubicacion">UBICACIÓN ECLESIÁSTICA</string>
+    <string name="datos_grupo_label_iglesia">IGLESIA</string>
+    <string name="datos_grupo_label_campo">CAMPO</string>
+    <string name="datos_grupo_label_distrito">DISTRITO</string>
+    <string name="datos_grupo_nota_ubicacion">Contacta a tu pastor para cambiar la ubicación eclesiástica</string>
+    <string name="datos_grupo_seccion_horario">HORARIO DE REUNIÓN</string>
+    <string name="datos_grupo_label_dia">DÍA DE LA SEMANA</string>
+    <string name="datos_grupo_label_hora_inicio">HORA INICIO</string>
+    <string name="datos_grupo_label_hora_fin">HORA FIN</string>
+
+    <!-- ── Suplente ─────────────────────────────────────────────────────── -->
+    <string name="suplente_codigo_titulo">Código suplente</string>
+    <string name="suplente_codigo_instruccion">Ingresa el código de 6 dígitos que te compartió tu líder.</string>
+    <string name="suplente_codigo_validando">Validando…</string>
+
+    <!-- ── Bienvenida suplente ───────────────────────────────────────────── -->
+    <string name="suplente_bienvenida_titulo">¡Bienvenido!</string>
+    <string name="suplente_bienvenida_subtitulo">Modo suplente activado</string>
+    <string name="suplente_bienvenida_grupo_label">TU GRUPO HOY</string>
+    <string name="suplente_bienvenida_lider_label">LÍDER</string>
+    <string name="suplente_bienvenida_nota">El líder recibirá una copia del registro para revisarlo y aprobarlo antes de enviarlo al pastor.</string>
+    <string name="suplente_bienvenida_label_nombre">TU NOMBRE COMPLETO *</string>
+    <string name="suplente_bienvenida_hint_nombre">Como aparecerá en el reporte</string>
+    <string name="suplente_bienvenida_btn">Comenzar registro</string>
+
+    <!-- ── Sheet generar código ──────────────────────────────────────────── -->
+    <string name="sheet_codigo_titulo">Código de suplente</string>
+    <string name="sheet_codigo_subtitulo">Comparte este código con tu suplente. Válido por 24 horas.</string>
+    <string name="sheet_codigo_vigencia">VIGENCIA</string>
+    <string name="sheet_codigo_nota">Este código permite registrar una sola reunión. Expira automáticamente después de 24 horas o al revocarlo.</string>
+    <string name="sheet_codigo_btn_compartir">Compartir código</string>
+    <string name="sheet_codigo_btn_generar_nuevo">Generar nuevo código</string>
+    <string name="sheet_codigo_btn_revocar">Revocar código</string>
+    <string name="sheet_codigo_revocar_titulo">¿Revocar código?</string>
+    <string name="sheet_codigo_revocar_cuerpo">El código dejará de funcionar inmediatamente. Si ya lo compartiste, tu suplente no podrá ingresar.</string>
+    <string name="sheet_codigo_revocar_confirmar">Revocar</string>
+    <string name="sheet_codigo_revocar_cancelar">Cancelar</string>
+
+    <!-- ── Éxito offline ──────────────────────────────────────────────────── -->
+    <string name="exito_offline_titulo">Reporte guardado</string>
+    <string name="exito_offline_subtitulo">Sin conexión. Se enviará automáticamente cuando recuperes la señal.</string>
+    <string name="exito_offline_pendiente">Pendiente de envío</string>
+    <string name="exito_offline_esperando">%s · Esperando conexión</string>
+    <string name="exito_offline_nota">Tu reporte está seguro. No necesitas hacer nada, se enviará solo cuando vuelva la conexión.</string>
+    <string name="exito_offline_btn">Volver al inicio</string>
+</resources>
