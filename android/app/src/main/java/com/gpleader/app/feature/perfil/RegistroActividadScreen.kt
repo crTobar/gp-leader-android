@@ -28,9 +28,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.gpleader.app.R
 import com.gpleader.app.core.ui.components.NeuCard
 import com.gpleader.app.core.ui.theme.Accent
 import com.gpleader.app.core.ui.theme.Background
@@ -111,14 +113,14 @@ private fun RegistroActividadContent(
             ) {
                 Icon(
                     imageVector        = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Volver",
+                    contentDescription = stringResource(R.string.common_back),
                     tint               = Ink,
                     modifier           = Modifier.size(22.dp),
                 )
             }
             Spacer(Modifier.width(12.dp))
             Text(
-                text  = "Registro de actividad",
+                text  = stringResource(R.string.perfil_registro_actividad),
                 style = MaterialTheme.typography.titleLarge,
                 color = Ink,
                 fontWeight = FontWeight.SemiBold,

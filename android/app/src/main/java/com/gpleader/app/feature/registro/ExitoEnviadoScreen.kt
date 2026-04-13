@@ -29,7 +29,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,7 +56,6 @@ import com.gpleader.app.core.ui.theme.Sage
 import com.gpleader.app.core.ui.theme.neuElevated
 import java.time.DayOfWeek
 import java.time.LocalDate
-import java.time.LocalTime
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
@@ -90,11 +88,7 @@ private fun ExitoEnviadoContent(
     val justificados = uiState.miembros.count { it.estado == EstadoAsistencia.JUSTIFICADO }
     val total        = uiState.miembros.size + uiState.visitasDeHoy.size
     val pct          = if (total > 0) presentes * 100 / total else 0
-    val visitasCount = uiState.visitasDeHoy.size
-
     val fechaLarga   = uiState.fecha.formatoLargoES()
-    val fechaCorta   = uiState.fecha.formatoResumen()   // "Lun 16 Mar 2026"
-    val hora         = remember { horaActual() }
 
     Column(
         modifier = Modifier
@@ -300,7 +294,7 @@ private fun StatFilaActividad(nombre: String, cantidad: Int, unidad: String) {
         )
         Spacer(Modifier.width(8.dp))
         Text(
-            text       = "Completada",
+            text       = stringResource(R.string.exito_stats_completada),
             style      = MaterialTheme.typography.labelSmall,
             color      = Sage,
         )
@@ -320,17 +314,6 @@ private val MESES_CORTOS_ES = arrayOf("Ene","Feb","Mar","Abr","May","Jun","Jul",
 private fun LocalDate.formatoLargoES(): String {
     val idx = if (dayOfWeek == DayOfWeek.SUNDAY) 0 else dayOfWeek.value
     return "${DIAS_LARGOS_ES[idx]} $dayOfMonth ${MESES_CORTOS_ES[monthValue - 1]} $year"
-}
-
-private fun horaActual(): String {
-    val t = LocalTime.now()
-    val h = when {
-        t.hour == 0  -> 12
-        t.hour > 12  -> t.hour - 12
-        else         -> t.hour
-    }
-    val m = t.minute.toString().padStart(2, '0')
-    return "$h:$m ${if (t.hour < 12) "AM" else "PM"}"
 }
 
 // ── Preview ───────────────────────────────────────────────────────────────────
