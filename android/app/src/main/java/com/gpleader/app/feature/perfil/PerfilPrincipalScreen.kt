@@ -76,6 +76,7 @@ fun PerfilPrincipalScreen(
     onNavigateToLogin:             () -> Unit,
     onNavigateToQuienEres:         () -> Unit = {},
     onNavigateToRegistroActividad: () -> Unit = {},
+    onNavigateToReportes:          () -> Unit = {},
     viewModel: PerfilViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -122,6 +123,12 @@ fun PerfilPrincipalScreen(
             onNavigateToRegistroActividad()
         }
     }
+    LaunchedEffect(uiState.navigateToReportes) {
+        if (uiState.navigateToReportes) {
+            viewModel.consumeReportesNavigation()
+            onNavigateToReportes()
+        }
+    }
 
     PerfilContent(
         uiState                      = uiState,
@@ -131,6 +138,7 @@ fun PerfilPrincipalScreen(
         onMiembrosClick              = viewModel::onMiembrosClick,
         onCambiarQuienUsaClick       = viewModel::onCambiarQuienUsaClick,
         onRegistroActividadClick     = viewModel::onRegistroActividadClick,
+        onReportesClick              = viewModel::onReportesClick,
         onCerrarSesionClick          = viewModel::onCerrarSesionClick,
         onDismissCerrarSesion        = viewModel::onDismissCerrarSesionDialog,
         onConfirmarCerrarSesion      = viewModel::onConfirmarCerrarSesion,
@@ -149,6 +157,7 @@ private fun PerfilContent(
     onMiembrosClick:          () -> Unit,
     onCambiarQuienUsaClick:   () -> Unit,
     onRegistroActividadClick: () -> Unit,
+    onReportesClick:          () -> Unit,
     onCerrarSesionClick:      () -> Unit,
     onDismissCerrarSesion:    () -> Unit,
     onConfirmarCerrarSesion:  () -> Unit,
@@ -225,6 +234,12 @@ private fun PerfilContent(
                         FilaMenu(
                             label   = stringResource(R.string.perfil_registro_actividad),
                             onClick = onRegistroActividadClick,
+                            shape   = FilaShape.MIDDLE,
+                        )
+                        HorizontalDivider(color = Shadow, thickness = 1.dp)
+                        FilaMenu(
+                            label   = stringResource(R.string.perfil_reportes),
+                            onClick = onReportesClick,
                             shape   = FilaShape.BOTTOM,
                         )
                     }
@@ -626,6 +641,7 @@ private fun PerfilPreview() {
             onMiembrosClick           = {},
             onCambiarQuienUsaClick    = {},
             onRegistroActividadClick  = {},
+            onReportesClick           = {},
             onCerrarSesionClick       = {},
             onDismissCerrarSesion     = {},
             onConfirmarCerrarSesion   = {},
@@ -653,6 +669,7 @@ private fun PerfilDialogPreview() {
             onMiembrosClick           = {},
             onCambiarQuienUsaClick    = {},
             onRegistroActividadClick  = {},
+            onReportesClick           = {},
             onCerrarSesionClick       = {},
             onDismissCerrarSesion     = {},
             onConfirmarCerrarSesion   = {},

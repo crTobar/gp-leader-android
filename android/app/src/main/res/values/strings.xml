@@ -208,6 +208,7 @@
     <string name="perfil_editar_miembros">Editar información de miembros</string>
     <string name="perfil_editar_datos_grupo">Editar datos del grupo pequeño</string>
     <string name="perfil_registro_actividad">Registro de actividad</string>
+    <string name="perfil_reportes">Reportes</string>
     <string name="perfil_cerrar_sesion">Cerrar sesión</string>
     <string name="perfil_cerrar_sesion_titulo">¿Cerrar sesión?</string>
     <string name="perfil_cerrar_sesion_cuerpo">Tu progreso sin sincronizar se mantendrá guardado en el dispositivo.</string>
