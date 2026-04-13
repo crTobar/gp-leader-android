@@ -83,6 +83,7 @@ dependencies {
 
     // PowerSync
     implementation(libs.powersync.core)
+    implementation(libs.powersync.connector.supabase)
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)

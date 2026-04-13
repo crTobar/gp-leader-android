@@ -74,6 +74,7 @@ fun PerfilPrincipalScreen(
     onNavigateToDatosGrupo:       () -> Unit,
     onNavigateToMiembros:         () -> Unit,
     onNavigateToLogin:            () -> Unit,
+    onNavigateToQuienEres:        () -> Unit = {},
     viewModel: PerfilViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -108,6 +109,12 @@ fun PerfilPrincipalScreen(
             onNavigateToLogin()
         }
     }
+    LaunchedEffect(uiState.navigateToQuienEres) {
+        if (uiState.navigateToQuienEres) {
+            viewModel.consumeQuienEresNavigation()
+            onNavigateToQuienEres()
+        }
+    }
 
     PerfilContent(
         uiState                    = uiState,
@@ -118,6 +125,7 @@ fun PerfilPrincipalScreen(
         onDatosGrupoClick          = viewModel::onDatosGrupoClick,
         onMiembrosClick            = viewModel::onMiembrosClick,
         onNotificacionesClick      = viewModel::onNotificacionesClick,
+        onCambiarQuienUsaClick     = viewModel::onCambiarQuienUsaClick,
         onCerrarSesionClick        = viewModel::onCerrarSesionClick,
         onDismissCerrarSesion      = viewModel::onDismissCerrarSesionDialog,
         onConfirmarCerrarSesion    = viewModel::onConfirmarCerrarSesion,
@@ -137,6 +145,7 @@ private fun PerfilContent(
     onDatosGrupoClick:        () -> Unit,
     onMiembrosClick:          () -> Unit,
     onNotificacionesClick:    () -> Unit,
+    onCambiarQuienUsaClick:   () -> Unit,
     onCerrarSesionClick:      () -> Unit,
     onDismissCerrarSesion:    () -> Unit,
     onConfirmarCerrarSesion:  () -> Unit,
@@ -232,10 +241,18 @@ private fun PerfilContent(
                     }
                 }
 
-                // ── Cerrar sesión ─────────────────────────────────────────────
+                // ── Sección HERRAMIENTAS ──────────────────────────────────────
                 item {
-                    Spacer(Modifier.height(16.dp))
-                    SeccionCard {
+                    SeccionLabel(stringResource(R.string.perfil_seccion_herramientas))
+                }
+                item {
+                    SeccionCard(modifier = Modifier.padding(bottom = 4.dp)) {
+                        FilaMenu(
+                            label   = stringResource(R.string.perfil_cambiar_quien_usa),
+                            onClick = onCambiarQuienUsaClick,
+                            shape   = FilaShape.TOP,
+                        )
+                        HorizontalDivider(color = Shadow, thickness = 1.dp)
                         FilaCerrarSesion(onClick = onCerrarSesionClick)
                     }
                 }
@@ -448,7 +465,7 @@ private fun FilaCerrarSesion(onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(28.dp))
+            .clip(RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp, bottomStart = 28.dp, bottomEnd = 28.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 20.dp, vertical = 18.dp),
         verticalAlignment     = Alignment.CenterVertically,
@@ -627,6 +644,7 @@ private fun PerfilPreview() {
             onDatosGrupoClick         = {},
             onMiembrosClick           = {},
             onNotificacionesClick     = {},
+            onCambiarQuienUsaClick    = {},
             onCerrarSesionClick       = {},
             onDismissCerrarSesion     = {},
             onConfirmarCerrarSesion   = {},
@@ -655,6 +673,7 @@ private fun PerfilDialogPreview() {
             onDatosGrupoClick         = {},
             onMiembrosClick           = {},
             onNotificacionesClick     = {},
+            onCambiarQuienUsaClick    = {},
             onCerrarSesionClick       = {},
             onDismissCerrarSesion     = {},
             onConfirmarCerrarSesion   = {},

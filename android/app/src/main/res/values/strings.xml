@@ -2,22 +2,37 @@
     <string name="app_name">GP Leader</string>
 
     <!-- ── Login ─────────────────────────────────────────────────────────── -->
+    <string name="login_app_titulo">Presencia</string>
     <string name="login_header_subtitle">Gestión de grupos pequeños SDA</string>
-    <string name="login_title">Iniciar sesión</string>
-    <string name="login_subtitle">Tu cuenta fue creada por tu pastor o administrador.</string>
+    <string name="login_section_label">INICIAR SESIÓN</string>
+    <string name="login_title">Bienvenido</string>
+    <string name="login_subtitle">Selecciona campo, distrito, iglesia y grupo; tu usuario se forma solo.</string>
     <string name="login_label_correo">CORREO ELECTRÓNICO</string>
     <string name="login_placeholder_correo">correo@iglesia.org</string>
     <string name="login_label_contrasena">CONTRASEÑA</string>
     <string name="login_olvide_contrasena">¿Olvidaste tu contraseña?</string>
-    <string name="login_notice_prefix">Si no tienes acceso, contacta a tu </string>
+    <string name="login_notice_prefix">Tu cuenta usa el mismo formato que te dio tu </string>
     <string name="login_notice_bold">pastor o administrador</string>
-    <string name="login_notice_suffix"> para que te asigne una cuenta.</string>
+    <string name="login_notice_suffix"> (campo, iglesia y GP). Si no tienes acceso, contáctalo.</string>
     <string name="login_btn_entrar">Entrar</string>
     <string name="login_separator_o">o</string>
     <string name="login_btn_suplente">Ingresar como suplente</string>
+    <string name="login_label_campo">CAMPO</string>
+    <string name="login_label_distrito">DISTRITO</string>
+    <string name="login_label_iglesia">IGLESIA</string>
+    <string name="login_label_grupo">GRUPO PEQUEÑO</string>
+    <string name="login_placeholder_campo">Busca tu campo…</string>
+    <string name="login_placeholder_distrito">Busca tu distrito…</string>
+    <string name="login_placeholder_iglesia">Busca tu iglesia…</string>
+    <string name="login_placeholder_grupo">Busca tu grupo pequeño…</string>
+    <string name="login_disabled_distrito">Primero elige el campo</string>
+    <string name="login_disabled_grupo">Primero elige la iglesia</string>
+    <string name="login_iglesia_seleccionada">IGLESIA SELECCIONADA</string>
+    <string name="login_sin_resultados">Sin resultados</string>
+    <string name="login_buscar">Buscar…</string>
 
     <!-- ── Home ──────────────────────────────────────────────────────────── -->
-    <string name="home_label_bienvenida">BIENVENIDA</string>
+    <string name="home_label_bienvenida">USANDO LA APP COMO</string>
     <string name="home_btn_suplente">Suplente</string>
     <string name="home_btn_registrar">+ Registrar</string>
     <string name="home_label_tu_grupo">TU GRUPO PEQUEÑO</string>
@@ -96,7 +111,7 @@
     <string name="registro_badge_oficial">Oficial</string>
     <string name="registro_btn_siguiente">Siguiente → Resumen</string>
     <string name="registro_agregar_extra">+ Agregar actividad extra</string>
-    <string name="registro_error_obligatorias">Completa las actividades marcadas antes de continuar.</string>
+    <string name="registro_error_obligatorias">Todas las actividades deben tener un valor. Registra la cantidad aunque sea 0.</string>
     <string name="paso2_contador_requiere_desglose">Este contador se llena desde el detalle de la actividad, asignando un valor por cada miembro.</string>
 
     <!-- ── Detalle Actividad ──────────────────────────────────────────────── -->
@@ -129,15 +144,16 @@
     <string name="paso3_label_grupo_header">GP Los Olivos</string>
     <string name="paso3_label_fecha">FECHA</string>
     <string name="paso3_label_miembros">MIEMBROS</string>
-    <string name="paso3_label_asistencia">% ASISTENCIA</string>
+    <string name="paso3_label_asistencia">ASISTENCIA</string>
     <string name="paso3_label_visitas">VISITAS</string>
     <string name="paso3_label_actividades">ACTIVIDADES</string>
-    <string name="paso3_badge_presentes">%dP</string>
-    <string name="paso3_badge_ausentes">%dA</string>
-    <string name="paso3_badge_justificados">%dJ</string>
+    <string name="paso3_miembros_presente">(%d PRESENTE)</string>
+    <string name="paso3_miembros_ausente">(%d AUSENTE)</string>
+    <string name="paso3_miembros_justificados">(%d JUSTIFICADOS)</string>
+    <string name="paso3_asistencia_fraccion">%1$d / %2$d miembros</string>
+    <string name="paso3_asistencia_pct">%d%%</string>
     <string name="paso3_visitas_singular">%d persona</string>
     <string name="paso3_visitas_plural">%d personas</string>
-    <string name="paso3_asistencia_pct">%d%%</string>
     <string name="paso3_sin_actividades">Sin actividades registradas</string>
     <string name="paso3_btn_enviar">Enviar al pastor</string>
     <string name="paso3_btn_editar">← Editar actividades</string>
@@ -184,6 +200,8 @@
     <string name="perfil_miembros">Miembros</string>
     <string name="perfil_seccion_preferencias">PREFERENCIAS</string>
     <string name="perfil_notificaciones">Notificaciones</string>
+    <string name="perfil_seccion_herramientas">HERRAMIENTAS</string>
+    <string name="perfil_cambiar_quien_usa">Cambiar quién usa la app</string>
     <string name="perfil_cerrar_sesion">Cerrar sesión</string>
     <string name="perfil_cerrar_sesion_titulo">¿Cerrar sesión?</string>
     <string name="perfil_cerrar_sesion_cuerpo">Tu progreso sin sincronizar se mantendrá guardado en el dispositivo.</string>

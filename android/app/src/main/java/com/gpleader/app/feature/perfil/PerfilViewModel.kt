@@ -125,6 +125,7 @@ data class PerfilUiState(
     val navigateToMiembros:          Boolean = false,
     val navigateToNotificaciones:    Boolean = false,
     val navigateToLogin:             Boolean = false,
+    val navigateToQuienEres:         Boolean = false,
 
     // Navegación — pantallas de retorno
     val navigateDatosPersonalesBack: Boolean = false,
@@ -151,6 +152,8 @@ class PerfilViewModel @Inject constructor() : ViewModel() {
     fun onDismissCerrarSesionDialog() { _uiState.update { it.copy(showCerrarSesionDialog = false) } }
     fun onConfirmarCerrarSesion()    { _uiState.update { it.copy(showCerrarSesionDialog = false, navigateToLogin = true) } }
     fun onEditarAvatarClick()        { /* TODO */ }
+    fun onCambiarQuienUsaClick()     { _uiState.update { it.copy(navigateToQuienEres = true) } }
+    fun consumeQuienEresNavigation() { _uiState.update { it.copy(navigateToQuienEres = false) } }
 
     // ── DatosPersonales ───────────────────────────────────────────────────────
 

@@ -20,6 +20,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
@@ -79,9 +83,12 @@ fun DetalleActividadScreen(
     BackHandler(onBack = onNavigateBack)
 
     DetalleActividadContent(
-        actividad      = actividad,
-        onNavigateBack = onNavigateBack,
-        onGuardar      = { cantidad, notas ->
+        actividad        = actividad,
+        onNavigateBack   = onNavigateBack,
+        onDesgloseChange = { miembroId, cant ->
+            viewModel.onDesgloseChange(actividadId, miembroId, cant)
+        },
+        onGuardar        = { cantidad, notas ->
             viewModel.onCantidadChange(actividadId, cantidad)
             viewModel.onNotasChange(actividadId, notas)
             onNavigateBack()
@@ -93,12 +100,14 @@ fun DetalleActividadScreen(
 
 @Composable
 private fun DetalleActividadContent(
-    actividad:      ActividadRegistro,
-    onNavigateBack: () -> Unit,
-    onGuardar:      (cantidad: Int?, notas: String) -> Unit,
+    actividad:        ActividadRegistro,
+    onNavigateBack:   () -> Unit,
+    onDesgloseChange: (miembroId: String, cantidad: Int) -> Unit = { _, _ -> },
+    onGuardar:        (cantidad: Int?, notas: String) -> Unit,
 ) {
-    var cantidad by remember(actividad.id) { mutableStateOf(actividad.cantidad) }
-    var notas    by remember(actividad.id) { mutableStateOf(actividad.notas ?: "") }
+    var cantidad          by remember(actividad.id) { mutableStateOf(actividad.cantidad) }
+    var notas             by remember(actividad.id) { mutableStateOf(actividad.notas ?: "") }
+    var desgloseExpandido by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -232,6 +241,78 @@ private fun DetalleActividadContent(
                 }
             }
 
+            // ── Desglose por miembro (colapsable) ────────────────────────────
+            if (actividad.tieneDesglose && actividad.desgloseMiembros.isNotEmpty()) {
+                item { Spacer(Modifier.height(20.dp)) }
+
+                item {
+                    val totalGeneral = cantidad ?: 0
+                    val sumDesglose  = actividad.desgloseMiembros.sumOf { it.cantidad }
+                    val disponibles  = totalGeneral - sumDesglose
+
+                    NeuCard(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth()) {
+                        Column {
+                            // ── Header tappable ───────────────────────────────
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { desgloseExpandido = !desgloseExpandido }
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text  = "DETALLE POR MIEMBRO",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Ink,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (sumDesglose > 0) {
+                                        Text(
+                                            text  = "$sumDesglose / $totalGeneral",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Accent,
+                                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                        )
+                                        Spacer(Modifier.width(6.dp))
+                                    }
+                                    Icon(
+                                        imageVector = if (desgloseExpandido)
+                                            Icons.Default.KeyboardArrowUp
+                                        else
+                                            Icons.Default.KeyboardArrowDown,
+                                        contentDescription = null,
+                                        tint     = Accent,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
+                            }
+
+                            // ── Lista de miembros ─────────────────────────────
+                            if (desgloseExpandido) {
+                                HorizontalDivider(color = BackgroundDeep)
+                                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                    actividad.desgloseMiembros.forEachIndexed { idx, miembro ->
+                                        MiembroDesgloseRow(
+                                            miembro      = miembro,
+                                            maxAdicional = disponibles,
+                                            onChange     = { nuevaCant ->
+                                                onDesgloseChange(miembro.miembroId, nuevaCant)
+                                            },
+                                            modifier = Modifier.padding(vertical = 6.dp),
+                                        )
+                                        if (idx < actividad.desgloseMiembros.lastIndex) {
+                                            HorizontalDivider(color = BackgroundDeep)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             item { Spacer(Modifier.height(8.dp)) }
         } // LazyColumn
         } // Column
@@ -261,6 +342,7 @@ private fun DetalleTopBar(onNavigateBack: () -> Unit) {
     Row(
         modifier          = Modifier
             .fillMaxWidth()
+            .statusBarsPadding()
             .padding(horizontal = 4.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

@@ -48,6 +48,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.gpleader.app.R
 import com.gpleader.app.core.ui.components.NeuButtonSecondary
 import com.gpleader.app.core.ui.components.NeuCard
+import com.gpleader.app.core.ui.components.SkeletonBox
+import com.gpleader.app.core.ui.components.SkeletonText
 import com.gpleader.app.core.ui.theme.Accent
 import com.gpleader.app.core.ui.theme.Background
 import com.gpleader.app.core.ui.theme.BackgroundDeep
@@ -105,14 +107,12 @@ fun HomeScreen(
     }
 
     HomeScreenContent(
-        uiState               = uiState,
-        onRegistrarClick      = viewModel::onRegistrarClick,
-        onSuplementeClick     = viewModel::onSuplementeClick,
-        onVerTodasClick       = viewModel::onVerTodasClick,
-        onReunionClick        = viewModel::onReunionClick,
-        onCerrarCodigoSuplente = viewModel::onCerrarCodigoSuplente,
-        onHistorialTabClick   = onNavigateToHistorial,
-        onPerfilTabClick      = onNavigateToPerfil,
+        uiState             = uiState,
+        onRegistrarClick    = viewModel::onRegistrarClick,
+        onVerTodasClick     = viewModel::onVerTodasClick,
+        onReunionClick      = viewModel::onReunionClick,
+        onHistorialTabClick = onNavigateToHistorial,
+        onPerfilTabClick    = onNavigateToPerfil,
     )
 }
 
@@ -123,10 +123,8 @@ fun HomeScreen(
 private fun HomeScreenContent(
     uiState: HomeUiState,
     onRegistrarClick: () -> Unit,
-    onSuplementeClick: () -> Unit,
     onVerTodasClick: () -> Unit,
     onReunionClick: (String) -> Unit,
-    onCerrarCodigoSuplente: () -> Unit,
     onHistorialTabClick: () -> Unit,
     onPerfilTabClick: () -> Unit = {},
 ) {
@@ -146,70 +144,202 @@ private fun HomeScreenContent(
             )
         },
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(innerPadding)
-                .padding(horizontal = 20.dp),
-        ) {
-            Spacer(Modifier.height(20.dp))
+        if (uiState.isLoading) {
+            HomeSkeletonContent(modifier = Modifier.padding(innerPadding))
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(innerPadding)
+                    .padding(horizontal = 20.dp),
+            ) {
+                Spacer(Modifier.height(20.dp))
 
-            TopBar(
-                nombreLider      = uiState.nombreLider,
-                onSuplementeClick = onSuplementeClick,
-                onRegistrarClick  = onRegistrarClick,
-            )
-
-            Spacer(Modifier.height(20.dp))
-
-            uiState.grupo?.let { grupo ->
-                GrupoCard(
-                    grupo                = grupo,
-                    porcentajeAsistencia = uiState.porcentajeAsistencia,
+                TopBar(
+                    nombreLider      = uiState.nombreLider,
+                    onRegistrarClick = onRegistrarClick,
                 )
+
+                Spacer(Modifier.height(20.dp))
+
+                uiState.grupo?.let { grupo ->
+                    GrupoCard(
+                        grupo                = grupo,
+                        porcentajeAsistencia = uiState.porcentajeAsistencia,
+                    )
+                    Spacer(Modifier.height(16.dp))
+                }
+
+                StatsRow(
+                    porcentaje = uiState.porcentajeAsistencia,
+                    presentes  = uiState.totalPresentes,
+                    ausentes   = uiState.totalAusentes,
+                )
+
+                Spacer(Modifier.height(24.dp))
+
+                SectionSeparator(label = stringResource(R.string.home_section_recientes))
+
+                Spacer(Modifier.height(12.dp))
+
+                if (uiState.reunionesRecientes.isEmpty()) {
+                    EmptyStateReuniones()
+                } else {
+                    uiState.reunionesRecientes.forEach { reunion ->
+                        ReunionCard(
+                            reunion   = reunion,
+                            onClick   = { onReunionClick(reunion.id) },
+                            modifier  = Modifier.padding(vertical = 6.dp),
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                NeuButtonSecondary(
+                    text     = stringResource(R.string.home_btn_ver_todas),
+                    onClick  = onVerTodasClick,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                )
+
                 Spacer(Modifier.height(16.dp))
             }
-
-            StatsRow(
-                porcentaje = uiState.porcentajeAsistencia,
-                presentes  = uiState.totalPresentes,
-                ausentes   = uiState.totalAusentes,
-            )
-
-            Spacer(Modifier.height(24.dp))
-
-            SectionSeparator(label = stringResource(R.string.home_section_recientes))
-
-            Spacer(Modifier.height(12.dp))
-
-            if (uiState.reunionesRecientes.isEmpty()) {
-                EmptyStateReuniones()
-            } else {
-                uiState.reunionesRecientes.forEach { reunion ->
-                    ReunionCard(
-                        reunion   = reunion,
-                        onClick   = { onReunionClick(reunion.id) },
-                        modifier  = Modifier.padding(vertical = 6.dp),
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            NeuButtonSecondary(
-                text     = stringResource(R.string.home_btn_ver_todas),
-                onClick  = onVerTodasClick,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-            )
-
-            Spacer(Modifier.height(16.dp))
         }
     }
 
-    // Bottom sheet código suplente
-    if (uiState.showCodigoSuplementeSheet) {
-        SheetGenerarCodigoSuplente(onDismiss = onCerrarCodigoSuplente)
+}
+
+// ── Skeleton loading ──────────────────────────────────────────────────────────
+
+@Composable
+private fun HomeSkeletonContent(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp),
+    ) {
+        Spacer(Modifier.height(20.dp))
+
+        // TopBar skeleton
+        Row(
+            modifier          = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SkeletonBox(modifier = Modifier.size(40.dp), cornerRadius = 20.dp)
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                SkeletonText(width = 80.dp, height = 10.dp)
+                Spacer(Modifier.height(6.dp))
+                SkeletonText(width = 140.dp, height = 18.dp)
+            }
+            SkeletonBox(modifier = Modifier.width(80.dp).height(36.dp), cornerRadius = 10.dp)
+        }
+
+        Spacer(Modifier.height(20.dp))
+
+        // GrupoCard skeleton
+        NeuCard(modifier = Modifier.fillMaxWidth().padding(4.dp)) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                SkeletonText(width = 70.dp, height = 10.dp)
+                Spacer(Modifier.height(8.dp))
+                SkeletonText(width = 180.dp, height = 22.dp)
+                Spacer(Modifier.height(8.dp))
+                SkeletonText(width = 140.dp, height = 14.dp)
+                Spacer(Modifier.height(16.dp))
+                SkeletonBox(
+                    modifier     = Modifier.fillMaxWidth().height(8.dp),
+                    cornerRadius = 4.dp,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // StatsRow skeleton
+        Row(
+            modifier              = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(0.dp),
+        ) {
+            // Dark cell
+            SkeletonBox(
+                modifier     = Modifier.weight(1f).padding(6.dp).height(88.dp),
+                cornerRadius = 20.dp,
+            )
+            // Light cell 1
+            SkeletonBox(
+                modifier     = Modifier.weight(1f).padding(6.dp).height(88.dp),
+                cornerRadius = 20.dp,
+            )
+            // Light cell 2
+            SkeletonBox(
+                modifier     = Modifier.weight(1f).padding(6.dp).height(88.dp),
+                cornerRadius = 20.dp,
+            )
+        }
+
+        Spacer(Modifier.height(24.dp))
+
+        // Section label skeleton
+        Row(
+            modifier          = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SkeletonBox(modifier = Modifier.weight(1f).height(1.dp), cornerRadius = 1.dp)
+            Spacer(Modifier.width(12.dp))
+            SkeletonText(width = 80.dp, height = 10.dp)
+            Spacer(Modifier.width(12.dp))
+            SkeletonBox(modifier = Modifier.weight(1f).height(1.dp), cornerRadius = 1.dp)
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        // ReunionCard skeletons x2
+        repeat(2) {
+            NeuCard(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp)) {
+                Row(
+                    modifier          = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Date block
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier            = Modifier.width(44.dp),
+                    ) {
+                        SkeletonText(width = 30.dp, height = 22.dp)
+                        Spacer(Modifier.height(4.dp))
+                        SkeletonText(width = 24.dp, height = 10.dp)
+                    }
+
+                    // Divider
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp)
+                            .width(1.dp)
+                            .height(56.dp)
+                            .background(Muted.copy(alpha = 0.2f)),
+                    )
+
+                    // Content
+                    Column(modifier = Modifier.weight(1f)) {
+                        SkeletonText(width = 140.dp, height = 16.dp)
+                        Spacer(Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            SkeletonBox(modifier = Modifier.width(52.dp).height(20.dp), cornerRadius = 4.dp)
+                            SkeletonBox(modifier = Modifier.width(44.dp).height(20.dp), cornerRadius = 4.dp)
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        SkeletonBox(
+                            modifier     = Modifier.fillMaxWidth().height(5.dp),
+                            cornerRadius = 3.dp,
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
     }
 }
 
@@ -218,7 +348,6 @@ private fun HomeScreenContent(
 @Composable
 private fun TopBar(
     nombreLider: String,
-    onSuplementeClick: () -> Unit,
     onRegistrarClick: () -> Unit,
 ) {
     Row(
@@ -237,13 +366,6 @@ private fun TopBar(
                 color = Ink,
             )
         }
-
-        Spacer(Modifier.width(12.dp))
-
-        SmallButtonSecondary(
-            text    = stringResource(R.string.home_btn_suplente),
-            onClick = onSuplementeClick,
-        )
 
         Spacer(Modifier.width(8.dp))
 
@@ -693,11 +815,9 @@ private fun HomeScreenPreview() {
         HomeScreenContent(
             uiState                = previewUiState,
             onRegistrarClick       = {},
-            onSuplementeClick      = {},
-            onVerTodasClick        = {},
-            onReunionClick         = {},
-            onCerrarCodigoSuplente = {},
-            onHistorialTabClick    = {},
+            onVerTodasClick     = {},
+            onReunionClick      = {},
+            onHistorialTabClick = {},
         )
     }
 }
@@ -709,11 +829,9 @@ private fun HomeScreenEmptyPreview() {
         HomeScreenContent(
             uiState                = previewUiState.copy(reunionesRecientes = emptyList()),
             onRegistrarClick       = {},
-            onSuplementeClick      = {},
-            onVerTodasClick        = {},
-            onReunionClick         = {},
-            onCerrarCodigoSuplente = {},
-            onHistorialTabClick    = {},
+            onVerTodasClick     = {},
+            onReunionClick      = {},
+            onHistorialTabClick = {},
         )
     }
 }

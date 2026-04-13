@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -67,6 +68,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gpleader.app.R
 import com.gpleader.app.core.ui.components.NeuCard
+import com.gpleader.app.core.ui.components.SkeletonBox
+import com.gpleader.app.core.ui.components.SkeletonText
 import com.gpleader.app.core.ui.components.SwipeAction
 import com.gpleader.app.core.ui.components.SwipeableItem
 import com.gpleader.app.core.ui.theme.Accent
@@ -142,6 +145,9 @@ private fun HistorialContent(
             )
         },
     ) { innerPadding ->
+        if (uiState.isLoading) {
+            HistorialSkeletonContent(modifier = Modifier.padding(innerPadding))
+        } else {
         LazyColumn(
             modifier              = Modifier
                 .fillMaxSize()
@@ -200,6 +206,114 @@ private fun HistorialContent(
                         onEditarClick        = { onEditarReunionClick(reunion.id) },
                         modifier             = Modifier.padding(horizontal = 20.dp),
                     )
+                }
+            }
+        }
+        } // else isLoading
+    }
+}
+
+// ── Skeleton loading ──────────────────────────────────────────────────────────
+
+@Composable
+private fun HistorialSkeletonContent(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+    ) {
+        // TopBar skeleton
+        Row(
+            modifier          = Modifier
+                .statusBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SkeletonText(width = 120.dp, height = 32.dp, modifier = Modifier.weight(1f))
+            SkeletonBox(modifier = Modifier.size(46.dp), cornerRadius = 14.dp)
+        }
+
+        // Chips row skeleton
+        Row(
+            modifier              = Modifier
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            repeat(5) {
+                SkeletonBox(modifier = Modifier.width(80.dp).height(56.dp), cornerRadius = 20.dp)
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        // StatsRow skeleton
+        Row(
+            modifier              = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            repeat(4) {
+                SkeletonBox(
+                    modifier     = Modifier.weight(1f).height(90.dp),
+                    cornerRadius = 16.dp,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        // Month header skeleton
+        Row(
+            modifier              = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 20.dp),
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            SkeletonBox(modifier = Modifier.weight(1f).height(1.dp), cornerRadius = 1.dp)
+            SkeletonText(width = 90.dp, height = 10.dp)
+            SkeletonBox(modifier = Modifier.weight(1f).height(1.dp), cornerRadius = 1.dp)
+        }
+
+        // ReunionCard skeletons x3
+        repeat(3) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 6.dp)
+                    .neuElevated(cornerRadius = 20.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Background),
+            ) {
+                Row(
+                    modifier          = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Date badge
+                    SkeletonBox(
+                        modifier     = Modifier.width(56.dp).height(70.dp),
+                        cornerRadius = 14.dp,
+                    )
+
+                    Spacer(Modifier.width(12.dp))
+
+                    // Content
+                    Column(modifier = Modifier.weight(1f)) {
+                        SkeletonText(width = 130.dp, height = 16.dp)
+                        Spacer(Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            SkeletonBox(modifier = Modifier.width(52.dp).height(20.dp), cornerRadius = 6.dp)
+                            SkeletonBox(modifier = Modifier.width(44.dp).height(20.dp), cornerRadius = 6.dp)
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        SkeletonBox(
+                            modifier     = Modifier.fillMaxWidth().height(6.dp),
+                            cornerRadius = 3.dp,
+                        )
+                    }
                 }
             }
         }

@@ -19,9 +19,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.gpleader.app.core.ui.theme.Background
 import com.gpleader.app.feature.auth.LoginScreen
-import com.gpleader.app.feature.auth.SuplementeBienvenidaScreen
-import com.gpleader.app.feature.auth.SuplementeCodigoScreen
-import com.gpleader.app.feature.auth.SuplementeViewModel
+import com.gpleader.app.feature.auth.QuienEresScreen
 import com.gpleader.app.feature.historial.HistorialScreen
 import com.gpleader.app.feature.home.HomeScreen
 import com.gpleader.app.feature.perfil.PerfilCambiarContrasenaScreen
@@ -44,11 +42,10 @@ import com.gpleader.app.feature.historial.DetalleReunionScreen
 import com.gpleader.app.feature.registro.RegistroViewModel
 
 object NavRoutes {
-    const val LOGIN           = "login"
-    const val SUPLENTE_CODIGO    = "suplente_codigo"
-    const val SUPLENTE_GRAPH     = "suplente_graph"
-    const val SUPLENTE_BIENVENIDA = "suplente_bienvenida"
-    const val HOME            = "home"
+    const val LOGIN                      = "login"
+    const val QUIEN_ERES                 = "quien_eres"
+    const val CAMBIAR_CONTRASENA_INICIAL = "cambiar_contrasena_inicial"
+    const val HOME                       = "home"
     const val HISTORIAL       = "historial"
     const val PERFIL                  = "perfil"
     const val PERFIL_DATOS_PERSONALES   = "perfil/datos_personales"
@@ -79,21 +76,42 @@ object NavRoutes {
 
 @Composable
 fun AppNavGraph(
+    startDestination: String = NavRoutes.LOGIN,
     navController: NavHostController = rememberNavController(),
 ) {
     NavHost(
         navController    = navController,
-        startDestination = NavRoutes.LOGIN,
+        startDestination = startDestination,
     ) {
         composable(NavRoutes.LOGIN) {
             LoginScreen(
-                onNavigateToHome = {
-                    navController.navigate(NavRoutes.HOME) {
+                onNavigateToQuienEres = {
+                    navController.navigate(NavRoutes.QUIEN_ERES) {
                         popUpTo(NavRoutes.LOGIN) { inclusive = true }
                     }
                 },
-                onNavigateToSuplente = {
-                    navController.navigate(NavRoutes.SUPLENTE_GRAPH)
+                onNavigateToCambiarContrasena = {
+                    navController.navigate(NavRoutes.CAMBIAR_CONTRASENA_INICIAL)
+                },
+            )
+        }
+
+        composable(NavRoutes.QUIEN_ERES) {
+            QuienEresScreen(
+                onNavigateToHome = {
+                    navController.navigate(NavRoutes.HOME) {
+                        popUpTo(NavRoutes.QUIEN_ERES) { inclusive = true }
+                    }
+                },
+            )
+        }
+
+        composable(NavRoutes.CAMBIAR_CONTRASENA_INICIAL) {
+            PerfilCambiarContrasenaScreen(
+                onNavigateBack = {
+                    navController.navigate(NavRoutes.QUIEN_ERES) {
+                        popUpTo(NavRoutes.CAMBIAR_CONTRASENA_INICIAL) { inclusive = true }
+                    }
                 },
             )
         }
@@ -105,39 +123,6 @@ fun AppNavGraph(
                 onNavigateToDetalle   = { id -> navController.navigate(NavRoutes.detalleReunion(id)) },
                 onNavigateToPerfil    = { navController.navigate(NavRoutes.PERFIL) },
             )
-        }
-
-        // ── Suplente nested graph (ViewModel compartido) ──────────────────────
-        navigation(
-            route            = NavRoutes.SUPLENTE_GRAPH,
-            startDestination = NavRoutes.SUPLENTE_CODIGO,
-        ) {
-            composable(NavRoutes.SUPLENTE_CODIGO) { backStackEntry ->
-                val graphEntry = remember(backStackEntry) {
-                    navController.getBackStackEntry(NavRoutes.SUPLENTE_GRAPH)
-                }
-                val sharedVm: SuplementeViewModel = hiltViewModel(graphEntry)
-                SuplementeCodigoScreen(
-                    onNavigateBack          = { navController.popBackStack() },
-                    onNavigateToBienvenida  = { navController.navigate(NavRoutes.SUPLENTE_BIENVENIDA) },
-                    viewModel               = sharedVm,
-                )
-            }
-
-            composable(NavRoutes.SUPLENTE_BIENVENIDA) { backStackEntry ->
-                val graphEntry = remember(backStackEntry) {
-                    navController.getBackStackEntry(NavRoutes.SUPLENTE_GRAPH)
-                }
-                val sharedVm: SuplementeViewModel = hiltViewModel(graphEntry)
-                SuplementeBienvenidaScreen(
-                    onNavigateToRegistro = {
-                        navController.navigate(NavRoutes.REGISTRO_GRAPH) {
-                            popUpTo(NavRoutes.LOGIN) { inclusive = true }
-                        }
-                    },
-                    viewModel = sharedVm,
-                )
-            }
         }
 
         composable(NavRoutes.HISTORIAL) {
@@ -171,6 +156,11 @@ fun AppNavGraph(
                 onNavigateToLogin             = {
                     navController.navigate(NavRoutes.LOGIN) {
                         popUpTo(0) { inclusive = true }
+                    }
+                },
+                onNavigateToQuienEres         = {
+                    navController.navigate(NavRoutes.QUIEN_ERES) {
+                        popUpTo(NavRoutes.HOME) { inclusive = false }
                     }
                 },
             )
@@ -281,7 +271,6 @@ fun AppNavGraph(
                 }
                 val sharedVm: RegistroViewModel = hiltViewModel(graphEntry)
                 RegistroPaso1Screen(
-                    esSuplente        = false,
                     onNavigateBack    = { navController.popBackStack() },
                     onNavigateToPaso2 = { navController.navigate(NavRoutes.REGISTRO_PASO2) },
                     onNavigateToPaso3 = { navController.navigate(NavRoutes.REGISTRO_PASO3) },

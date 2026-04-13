@@ -393,11 +393,60 @@ fun onVerTodasClick() { ... }
 
 ## Supabase — tablas principales
 
-```sql
-grupos, miembros, reuniones, asistencias,
-actividades, registro_actividades,
-codigos_suplente, usuarios, iglesias, distritos, campos
+**Nombres reales en Supabase (en inglés):**
+
+| Tabla Supabase | Descripción |
+|---------------|-------------|
+| `campo`        | Unión/campo eclesiástico |
+| `district`     | Distrito (hijo de campo) |
+| `church`       | Iglesia (hija de distrito) |
+| `small_group`  | Grupo pequeño (hijo de iglesia) |
+| `member`       | Miembro del GP |
+| `meeting`      | Reunión registrada |
+| `attendance`   | Asistencia por reunión |
+| `activity_type`| Tipo de actividad |
+| `activity_record` | Registro de actividad por reunión |
+| `deputy_code`  | Código de suplente |
+
+### Columnas importantes
+
+**`small_group`:**
+- `gp_username` — username para auth (ej: `ucn-cat-icb-gp-los-olivos`)
+- `gp_password_set` — boolean: si ya cambió la contraseña temporal
+- `gp_password` — contraseña temporal (primera vez)
+- `gp_code` — código suplente activo
+- `church_id` — FK a `church`
+
+**`member`:**
+- `is_visitor` — boolean: `true` = visita puntual, `false` = miembro permanente
+- `is_active` — boolean: `true` = activo, `false` = archivado
+- Los miembros con `is_visitor=true` NO aparecen en la lista de miembros del grupo
+
+### Auth — mecanismo real
+
+El login usa Supabase Auth con email sintético:
 ```
+email:    "{gp_username}@login.presencia.app"
+password: contraseña del grupo
+```
+
+- **Primera vez** (`gp_password_set = false`): navegar a `CAMBIAR_CONTRASENA`
+- **Login exitoso normal**: navegar a `QUIEN_ERES`
+- La carga de datos del login (campos, distritos, iglesias, GPs) requiere una sesión anónima previa (`loginAnonymously()` en Application startup)
+
+### Jerarquía eclesiástica (para login)
+
+```
+campo → district → church → small_group
+```
+
+El LoginViewModel carga las 4 tablas en paralelo al init y aplica filtrado cliente:
+- Seleccionar campo → filtra distritos; resetea iglesia y GP
+- Seleccionar distrito → filtra iglesias; resetea GP
+- Seleccionar iglesia → filtra GPs
+- Seleccionar GP directamente → auto-rellena los 3 campos superiores
+
+Todos los dropdowns están **siempre habilitados** — no dependen del superior para activarse.
 
 ### RLS (Row Level Security)
 - Lider solo accede a datos de su grupo
@@ -424,14 +473,22 @@ codigos_suplente, usuarios, iglesias, distritos, campos
 
 ---
 
-## Implementación actual (2026-03-16)
+## Implementación actual (2026-04-12)
 
 ### Archivos creados — estado COMPLETO
 
 ```
 feature/auth/
-  LoginScreen.kt              ✅ correo + contraseña + btn suplente
-  LoginViewModel.kt           ✅
+  LoginScreen.kt              ✅ dropdowns campo/distrito/iglesia/GP con búsqueda y tarjetas
+                                  todos habilitados siempre, filtrado inteligente en cascada
+                                  GrupoDropdown: muestra "nombre · Iglesia · Distrito · Campo"
+                                  IglesiaDropdown: muestra "nombre · Distrito · Campo"
+  LoginViewModel.kt           ✅ carga 4 tablas en paralelo (getCampos/getDistritos/getIglesias/getGrupos)
+                                  enriquece iglesias y GPs cliente-side con nombres completos
+                                  auth real: supabase.auth.signInWith(Email) → gp_username@login.presencia.app
+                                  onGrupoSelected auto-rellena los 3 dropdowns superiores
+  QuienEresScreen.kt          ✅ pantalla para seleccionar rol (LIDER / SUPLENTE) post-login
+  QuienEresViewModel.kt       ✅
   SuplementeCodigoScreen.kt   ✅ 6 boxes neuInset, teclado numérico, shake error, auto-valida
   SuplementeBienvenidaScreen.kt ✅ hero Ink 35%, card grupo, nota Gold, campo nombre
   SuplementeViewModel.kt      ✅ compartido entre SuplementeCodigoScreen y SuplementeBienvenidaScreen
@@ -445,9 +502,11 @@ feature/home/
 
 feature/historial/
   HistorialScreen.kt          ✅ tabs trimestre, stats, lista reuniones
-  HistorialViewModel.kt       ✅
+  HistorialViewModel.kt       ✅ carga reuniones reales desde Supabase via ReunionRepository
+                                  filtrado real por trimestre: aplicarFiltro() filtra todasLasReuniones
+                                  trimestresDelAnio usa año actual dinámicamente
   DetalleReunionScreen.kt     ✅ stats P/A/J/%, asistencia list, actividades por nivel
-  DetalleReunionViewModel.kt  ✅ SavedStateHandle["reunionId"], sample data r1-r4
+  DetalleReunionViewModel.kt  ⚠️ aún usa sample data r1-r4
 
 feature/registro/
   RegistroPaso1Screen.kt      ✅ acepta esSuplente: Boolean
@@ -457,14 +516,19 @@ feature/registro/
   DetalleActividadScreen.kt   ✅
   ExitoEnviadoScreen.kt       ✅
   ExitoOfflineScreen.kt       ✅
-  RegistroViewModel.kt        ✅
+  RegistroViewModel.kt        ✅ onEnviarClick guarda reunión real en Supabase via ReunionRepository
+                                  isEnviando flag previene doble submit
+                                  mapea miembros + visitasDeHoy → List<AsistenciaParaGuardar>
+                                  visitas existentes pasan miembroId real; visitas nuevas pasan null
+                                  error 23505 (duplicado de fecha) → mensaje amigable en español
+                                  onSiguienteClick solo bloquea actividades esObligatoria=true
 
 feature/miembros/
   MiembrosListaScreen.kt      ✅ buscador, sección ACTIVOS/ARCHIVADOS, badge, bottom nav
   MiembroDetalleScreen.kt     ✅ HeroCard, InfoCard, HistorialCard
   MiembroEditarScreen.kt      ✅ expandables, EstadoToggle neuInset/neuElevated, historial
   MiembroAgregarScreen.kt     ✅ avatar animado (dashed→iniciales), NotaActivo, NO toggle
-  MiembrosViewModel.kt        ✅ compartido en MIEMBROS_GRAPH, onPrepararAgregar() resetea form
+  MiembrosViewModel.kt        ⚠️ aún usa sample data (10 miembros hardcoded)
 
 feature/perfil/
   PerfilPrincipalScreen.kt    ✅
@@ -472,7 +536,23 @@ feature/perfil/
   PerfilCambiarContrasenaScreen.kt ✅
   PerfilDatosGrupoScreen.kt   ✅ 6 campos identificación, ubicación readonly, dropdowns horario
 
-core/ui/navigation/NavGraph.kt  ✅ ver rutas abajo
+core/data/repository/
+  GrupoRepository.kt          ✅ interfaz jerarquía campo→district→church→small_group
+                                  CampoItem, DistritoItem, IglesiaItem (con districtNombre/campoNombre)
+                                  GrupoItem (con iglesiaNombre/districtNombre/campoNombre)
+  GrupoRepositoryImpl.kt      ✅ getCampos/getDistritos/getIglesias/getGrupos via Supabase Postgrest
+                                  lee gp_username y gp_password_set de small_group
+  MiembroRepository.kt        ✅ interfaz getMiembros/getMiembrosActivos/getVisitasAnteriores
+  MiembroRepositoryImpl.kt    ✅ lee is_visitor y is_active de member
+                                  getMiembros filtra is_visitor=false (solo miembros reales)
+                                  getMiembrosActivos filtra is_visitor=false AND is_active=true
+  ReunionRepository.kt        ✅ interfaz getReuniones + saveReunion(grupoId, fecha, noHuboReunion, asistencias)
+                                  AsistenciaParaGuardar(miembroId, nombreVisita, esVisita, estado)
+  ReunionRepositoryImpl.kt    ✅ saveReunion: INSERT meeting (status="submitted") → visitas nuevas en member → INSERT attendance
+                                  mapEstadoAsistencia: PRESENTE→"present", AUSENTE→"absent", JUSTIFICADO→"justified"
+                                  getReuniones: Supabase meeting JOIN attendance(*), filtrado por small_group_id
+
+core/ui/navigation/NavGraph.kt  ✅ incluye QUIEN_ERES, ver rutas abajo
 core/ui/theme/                  ✅ Elevation.kt, Color.kt, Type.kt, Theme.kt
 core/ui/components/
   NeuButton.kt                ✅ NeuButtonPrimary (Accent+neuGlow) / NeuButtonSecondary (Background+neuElevated)
@@ -485,6 +565,7 @@ core/ui/components/
 ```kotlin
 object NavRoutes {
     LOGIN                = "login"
+    QUIEN_ERES           = "quien_eres"               // post-login: selección de rol
     SUPLENTE_GRAPH       = "suplente_graph"          // nested graph
     SUPLENTE_CODIGO      = "suplente_codigo"          // start destination de SUPLENTE_GRAPH
     SUPLENTE_BIENVENIDA  = "suplente_bienvenida"
@@ -511,7 +592,10 @@ object NavRoutes {
 }
 ```
 
-**Flujo de navegación AUTH → LOGIN navega a `SUPLENTE_GRAPH` (no a SUPLENTE_CODIGO directamente).**
+**Flujo AUTH:**
+- `LOGIN` → login exitoso con `passwordSet=true` → `QUIEN_ERES`
+- `LOGIN` → login con `passwordSet=false` → `PERFIL_CAMBIAR_CONTRASENA`
+- `LOGIN` → "Ingresar como suplente" → navega a `SUPLENTE_GRAPH` (no a SUPLENTE_CODIGO directamente)
 
 ### Patrón ViewModel compartido en nested graph
 
@@ -552,9 +636,73 @@ Modifier.drawWithContent {
 ### Datos de muestra (temporal — reemplazar con PowerSync)
 
 - Código suplente válido para pruebas: **`123456`**
-- Reuniones en DetalleReunionViewModel: **r1, r2, r3, r4** (fallback para IDs desconocidos)
-- Miembros en MiembrosViewModel: 10 miembros (8 ACTIVO, 2 ARCHIVADO)
-- HomeViewModel: María García, GP Los Olivos, 85% asistencia, reuniones r1 y r2
+- Reuniones en DetalleReunionViewModel: **r1, r2, r3, r4** (fallback para IDs desconocidos) ⚠️ pendiente reemplazar
+- Miembros en MiembrosViewModel: 10 miembros hardcoded (8 ACTIVO, 2 ARCHIVADO) ⚠️ pendiente reemplazar
+- HomeViewModel: nombre del grupo viene de session.grupoNombre, reuniones recientes son reales; stats del grupo (iglesia, horario) ⚠️ pendiente
+- Actividades en RegistroViewModel: hardcoded en actividadesIniciales() ⚠️ pendiente conectar a activity_type
+
+### Patrón LoginViewModel — cascading dropdown filter
+
+```kotlin
+// LoginUiState tiene:
+val allCampos: List<CampoItem>       // todos, cargado una vez al init
+val allDistritos: List<DistritoItem> // todos, cargado una vez al init
+val allIglesias: List<IglesiaItem>   // todos + enriquecidos (districtNombre, campoNombre)
+val allGrupos: List<GrupoItem>       // todos + enriquecidos (iglesiaNombre, districtNombre, campoNombre)
+
+val filteredDistritos: List<DistritoItem>  // subconjunto mostrado en el dropdown
+val filteredIglesias: List<IglesiaItem>    // subconjunto mostrado en el dropdown
+val filteredGrupos: List<GrupoItem>        // subconjunto mostrado en el dropdown
+
+// onCampoSelected: filtra filteredDistritos; resetea distrito/iglesia/grupo seleccionados
+// onDistritoSelected: filtra filteredIglesias; resetea iglesia/grupo seleccionados
+// onIglesiaSelected: filtra filteredGrupos; resetea grupo seleccionado
+// onGrupoSelected: auto-rellena iglesia→distrito→campo desde los all* maps, ajusta filtered*
+```
+
+### Patrón ReunionRepository — saveReunion
+
+```kotlin
+// Guarda reunión + asistencias en Supabase
+// Flujo:
+// 1. INSERT en meeting con status="submitted"
+// 2. Visitas nuevas (miembroId=null) → INSERT en member con is_visitor=true → obtener IDs
+// 3. INSERT en attendance para miembros + visitas anteriores + visitas nuevas
+//    status mapeado: PRESENTE→"present", AUSENTE→"absent", JUSTIFICADO→"justified"
+
+data class AsistenciaParaGuardar(
+    val miembroId: String?,    // null solo si es visita NUEVA (se crea en saveReunion)
+    val nombreVisita: String?, // nombre completo si es visita nueva
+    val esVisita: Boolean,
+    val estado: String,        // "PRESENTE" | "AUSENTE" | "JUSTIFICADO"
+)
+```
+
+### Schema Supabase confirmado — enums
+
+```
+meeting_status    = {draft, submitted}          -- usar "submitted" al guardar
+attendance_status = {present, absent, justified} -- mapear desde dominio español
+```
+
+### Tabla `attendance` — NO tiene is_visitor ni visitor_name
+
+```
+attendance: id, meeting_id, member_id (NOT NULL), status (attendance_status), note
+```
+Las visitas se guardan en `member` con `is_visitor=true`. Su `id` va en `attendance.member_id`.
+Unique constraint en `meeting`: `(small_group_id, meeting_date)` — una reunión por grupo por día.
+
+### Patrón MiembroRepository — filtrado is_visitor
+
+```kotlin
+// member.is_visitor = true  → visita puntual, aparece en lista de visitas del Paso 1
+// member.is_visitor = false → miembro real, aparece en MiembrosListaScreen
+// member.is_active  = false → archivado, aparece en sección ARCHIVADOS de MiembrosListaScreen
+
+// getMiembros()       → filtra is_visitor=false (activos + archivados reales)
+// getMiembrosActivos()→ filtra is_visitor=false AND is_active=true
+```
 
 ### SuplementeViewModel — responsabilidades
 

@@ -7,10 +7,12 @@ import com.powersync.db.schema.Column
 import com.powersync.db.schema.Schema
 import com.powersync.db.schema.Table
 
+// ⚠️ Los nombres de tabla deben coincidir con los definidos en las sync rules de PowerSync/Supabase.
+// Los nombres de columna deben coincidir con lo que el conector PowerSync expone desde Supabase.
 val AppSchema = Schema(
     listOf(
         Table(
-            name = "grupos",
+            name = "small_group",
             columns = listOf(
                 Column.text("nombre"),
                 Column.text("descripcion"),
@@ -27,7 +29,7 @@ val AppSchema = Schema(
             ),
         ),
         Table(
-            name = "miembros",
+            name = "member",
             columns = listOf(
                 Column.text("grupo_id"),
                 Column.text("primer_nombre"),
@@ -42,7 +44,7 @@ val AppSchema = Schema(
             ),
         ),
         Table(
-            name = "reuniones",
+            name = "meeting",
             columns = listOf(
                 Column.text("grupo_id"),
                 Column.text("fecha"),
@@ -55,7 +57,7 @@ val AppSchema = Schema(
             ),
         ),
         Table(
-            name = "asistencias",
+            name = "attendance",
             columns = listOf(
                 Column.text("reunion_id"),
                 Column.text("miembro_id"),
@@ -65,7 +67,7 @@ val AppSchema = Schema(
             ),
         ),
         Table(
-            name = "actividades",
+            name = "activity_type",
             columns = listOf(
                 Column.text("nombre"),
                 Column.text("nivel"),
@@ -76,7 +78,7 @@ val AppSchema = Schema(
             ),
         ),
         Table(
-            name = "registro_actividades",
+            name = "activity_record",
             columns = listOf(
                 Column.text("reunion_id"),
                 Column.text("actividad_id"),
@@ -85,7 +87,7 @@ val AppSchema = Schema(
             ),
         ),
         Table(
-            name = "codigos_suplente",
+            name = "deputy_code",
             columns = listOf(
                 Column.text("grupo_id"),
                 Column.text("codigo"),

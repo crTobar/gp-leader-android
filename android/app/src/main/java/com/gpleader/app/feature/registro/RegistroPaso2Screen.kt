@@ -13,15 +13,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -62,7 +68,10 @@ import com.gpleader.app.core.ui.theme.Mid
 import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.neuElevatedSm
 import com.gpleader.app.core.ui.theme.neuInsetSm
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.unit.IntOffset
 import java.time.LocalDate
+import kotlin.math.roundToInt
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
@@ -89,6 +98,8 @@ fun RegistroPaso2Screen(
         onActividadClick     = onNavigateToDetalle,
         onAgregarExtra       = onNavigateToAgregar,
         onCantidadChange     = viewModel::onCantidadChange,
+        onToggleDesglose     = viewModel::onToggleDesglose,
+        onDesgloseChange     = viewModel::onDesgloseChange,
         onSiguiente          = viewModel::onSiguienteClick,
     )
 }
@@ -102,11 +113,28 @@ private fun RegistroPaso2Content(
     onActividadClick: (String) -> Unit,
     onAgregarExtra:   () -> Unit,
     onCantidadChange: (String, Int?) -> Unit,
+    onToggleDesglose: (String) -> Unit,
+    onDesgloseChange: (String, String, Int) -> Unit,
     onSiguiente:      () -> Unit,
 ) {
     val actividadesUnion  = uiState.actividades.filter { it.nivel == NivelActividad.UNION }
     val actividadesPastor = uiState.actividades.filter { it.nivel == NivelActividad.PASTOR }
     val actividadesGP     = uiState.actividades.filter { it.nivel == NivelActividad.GP }
+
+    val listState        = rememberLazyListState()
+    val errorShakeOffset = remember { Animatable(0f) }
+
+    // Al fallar validación: desplazar a sección PASTOR (donde están las obligatorias) y sacudir error
+    LaunchedEffect(uiState.errorActividadesObligatoriasTrigger) {
+        if (uiState.errorActividadesObligatoriasTrigger > 0) {
+            listState.animateScrollToItem(5) // índice de SeccionActividades PASTOR
+            repeat(3) {
+                errorShakeOffset.animateTo(10f, tween(70))
+                errorShakeOffset.animateTo(-10f, tween(70))
+            }
+            errorShakeOffset.animateTo(0f, tween(70))
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -114,6 +142,7 @@ private fun RegistroPaso2Content(
             .background(Background),
     ) {
         LazyColumn(
+            state          = listState,
             modifier       = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 96.dp),
         ) {
@@ -130,6 +159,8 @@ private fun RegistroPaso2Content(
                     actividades      = actividadesUnion,
                     onActividadClick = { /* bloqueada */ },
                     onCantidadChange = { _, _ -> },
+                    onToggleDesglose = { _ -> },
+                    onDesgloseChange = { _, _, _ -> },
                     onAgregarExtra   = null,
                     modifier         = Modifier.padding(horizontal = 16.dp),
                 )
@@ -146,6 +177,8 @@ private fun RegistroPaso2Content(
                     actividades      = actividadesPastor,
                     onActividadClick = onActividadClick,
                     onCantidadChange = onCantidadChange,
+                    onToggleDesglose = onToggleDesglose,
+                    onDesgloseChange = onDesgloseChange,
                     onAgregarExtra   = null,
                     modifier         = Modifier.padding(horizontal = 16.dp),
                 )
@@ -162,6 +195,8 @@ private fun RegistroPaso2Content(
                     actividades      = actividadesGP,
                     onActividadClick = onActividadClick,
                     onCantidadChange = onCantidadChange,
+                    onToggleDesglose = onToggleDesglose,
+                    onDesgloseChange = onDesgloseChange,
                     onAgregarExtra   = onAgregarExtra,
                     modifier         = Modifier.padding(horizontal = 16.dp),
                 )
@@ -173,7 +208,9 @@ private fun RegistroPaso2Content(
                         text     = stringResource(R.string.registro_error_obligatorias),
                         style    = MaterialTheme.typography.bodyMedium,
                         color    = Blush,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp, vertical = 6.dp)
+                            .offset { IntOffset(errorShakeOffset.value.roundToInt(), 0) },
                     )
                 }
             }
@@ -206,6 +243,7 @@ private fun Paso2TopBar(onNavigateBack: () -> Unit) {
     Row(
         modifier          = Modifier
             .fillMaxWidth()
+            .statusBarsPadding()
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -296,6 +334,8 @@ private fun SeccionActividades(
     actividades:      List<ActividadRegistro>,
     onActividadClick: (String) -> Unit,
     onCantidadChange: (String, Int?) -> Unit,
+    onToggleDesglose: (String) -> Unit,
+    onDesgloseChange: (String, String, Int) -> Unit,
     onAgregarExtra:   (() -> Unit)?,
     modifier:         Modifier = Modifier,
 ) {
@@ -331,6 +371,8 @@ private fun SeccionActividades(
                     actividad        = actividad,
                     onClick          = { if (!actividad.bloqueada) onActividadClick(actividad.id) },
                     onCantidadChange = { cant -> onCantidadChange(actividad.id, cant) },
+                    onToggleDesglose = { onToggleDesglose(actividad.id) },
+                    onDesgloseChange = { miembroId, cant -> onDesgloseChange(actividad.id, miembroId, cant) },
                     modifier         = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                 )
                 if (idx < actividades.lastIndex || onAgregarExtra != null) {
@@ -359,74 +401,181 @@ private fun ActividadRow(
     actividad:        ActividadRegistro,
     onClick:          () -> Unit,
     onCantidadChange: (Int?) -> Unit,
+    onToggleDesglose: () -> Unit = {},
+    onDesgloseChange: (miembroId: String, cantidad: Int) -> Unit = { _, _ -> },
     modifier:         Modifier = Modifier,
 ) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (!actividad.bloqueada) Modifier.clickable(onClick = onClick)
+                    else Modifier
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Checkbox placeholder
+            Box(
+                modifier = Modifier
+                    .size(18.dp)
+                    .border(1.5.dp, Muted.copy(alpha = 0.5f), RoundedCornerShape(4.dp)),
+            )
+
+            Spacer(Modifier.width(10.dp))
+
+            // Nombre + unidad + badge oficial
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text       = actividad.nombre,
+                        style      = MaterialTheme.typography.bodyLarge,
+                        color      = if (actividad.bloqueada) Mid else Ink,
+                        fontWeight = FontWeight.Medium,
+                        modifier   = Modifier.weight(1f, fill = false),
+                    )
+                    if (actividad.esOficial) {
+                        Spacer(Modifier.width(6.dp))
+                        ActividadBadge(texto = stringResource(R.string.registro_badge_oficial), color = Gold)
+                    }
+                }
+                Text(
+                    text  = actividad.unidad,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Muted,
+                )
+            }
+
+            Spacer(Modifier.width(8.dp))
+
+            ContadorInline(
+                valor    = actividad.cantidad,
+                enabled  = !actividad.bloqueada,
+                onChange = onCantidadChange,
+            )
+
+            Spacer(Modifier.width(6.dp))
+
+            when {
+                actividad.bloqueada -> Icon(
+                    imageVector        = Icons.Default.Lock,
+                    contentDescription = null,
+                    tint               = Muted,
+                    modifier           = Modifier.size(16.dp),
+                )
+                actividad.tieneDesglose -> Box(
+                    modifier         = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable(onClick = onToggleDesglose)
+                        .padding(4.dp),
+                ) {
+                    Icon(
+                        imageVector        = if (actividad.desgloseExpandido)
+                            Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint               = Accent,
+                        modifier           = Modifier.size(20.dp),
+                    )
+                }
+                else -> Icon(
+                    imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint               = Muted,
+                    modifier           = Modifier.size(20.dp),
+                )
+            }
+        }
+
+        // ── Desglose por miembro (expandible) ────────────────────────────────
+        if (actividad.tieneDesglose && actividad.desgloseExpandido) {
+            val totalGeneral  = actividad.cantidad ?: 0
+            val sumDesglose   = actividad.desgloseMiembros.sumOf { it.cantidad }
+            val disponibles   = totalGeneral - sumDesglose
+
+            Spacer(Modifier.height(8.dp))
+            HorizontalDivider(color = BackgroundDeep)
+            Spacer(Modifier.height(4.dp))
+
+            // Resumen disponibles
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text  = "Distribuidos por miembro",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Muted,
+                )
+                Text(
+                    text  = "$sumDesglose / $totalGeneral",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (disponibles == 0) Accent else Muted,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            actividad.desgloseMiembros.forEach { miembro ->
+                MiembroDesgloseRow(
+                    miembro      = miembro,
+                    maxAdicional = disponibles,
+                    onChange     = { nuevaCant -> onDesgloseChange(miembro.miembroId, nuevaCant) },
+                    modifier     = Modifier.padding(vertical = 4.dp),
+                )
+            }
+
+            Spacer(Modifier.height(4.dp))
+        }
+    }
+}
+
+// ── Fila de miembro en desglose ───────────────────────────────────────────────
+
+@Composable
+internal fun MiembroDesgloseRow(
+    miembro:      MiembroDesglose,
+    maxAdicional: Int,
+    onChange:     (Int) -> Unit,
+    modifier:     Modifier = Modifier,
+) {
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .then(
-                if (!actividad.bloqueada) Modifier.clickable(onClick = onClick)
-                else Modifier
-            ),
+        modifier          = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Checkbox placeholder
         Box(
-            modifier = Modifier
-                .size(18.dp)
-                .border(1.5.dp, Muted.copy(alpha = 0.5f), RoundedCornerShape(4.dp)),
-        )
+            contentAlignment = Alignment.Center,
+            modifier         = Modifier
+                .size(32.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(BackgroundDeep),
+        ) {
+            Text(
+                text  = miembro.iniciales,
+                style = MaterialTheme.typography.labelSmall,
+                color = Mid,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
 
         Spacer(Modifier.width(10.dp))
 
-        // Nombre + unidad + badge oficial
-        Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text     = actividad.nombre,
-                    style    = MaterialTheme.typography.bodyLarge,
-                    color    = if (actividad.bloqueada) Mid else Ink,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                if (actividad.esOficial) {
-                    Spacer(Modifier.width(6.dp))
-                    ActividadBadge(texto = stringResource(R.string.registro_badge_oficial), color = Gold)
-                }
-            }
-            Text(
-                text  = actividad.unidad,
-                style = MaterialTheme.typography.bodyMedium,
-                color = Muted,
-            )
-        }
-
-        Spacer(Modifier.width(8.dp))
-
-        ContadorInline(
-            valor    = actividad.cantidad,
-            enabled  = !actividad.bloqueada,
-            onChange = onCantidadChange,
+        Text(
+            text     = miembro.nombre,
+            style    = MaterialTheme.typography.bodyMedium,
+            color    = Ink,
+            modifier = Modifier.weight(1f),
         )
 
-        Spacer(Modifier.width(6.dp))
-
-        // 🔒 o →
-        if (actividad.bloqueada) {
-            Icon(
-                imageVector        = Icons.Default.Lock,
-                contentDescription = null,
-                tint               = Muted,
-                modifier           = Modifier.size(16.dp),
-            )
-        } else {
-            Icon(
-                imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint               = Muted,
-                modifier           = Modifier.size(20.dp),
-            )
-        }
+        ContadorInline(
+            valor    = miembro.cantidad,
+            enabled  = miembro.cantidad > 0 || maxAdicional > 0,
+            onChange = { nuevo ->
+                val v = nuevo ?: 0
+                onChange(v.coerceIn(0, miembro.cantidad + maxAdicional))
+            },
+        )
     }
 }
 
@@ -564,6 +713,8 @@ private fun Paso2Preview() {
             onActividadClick = {},
             onAgregarExtra   = {},
             onCantidadChange = { _, _ -> },
+            onToggleDesglose = { _ -> },
+            onDesgloseChange = { _, _, _ -> },
             onSiguiente      = {},
         )
     }
@@ -579,6 +730,8 @@ private fun Paso2ErrorPreview() {
             onActividadClick = {},
             onAgregarExtra   = {},
             onCantidadChange = { _, _ -> },
+            onToggleDesglose = { _ -> },
+            onDesgloseChange = { _, _, _ -> },
             onSiguiente      = {},
         )
     }

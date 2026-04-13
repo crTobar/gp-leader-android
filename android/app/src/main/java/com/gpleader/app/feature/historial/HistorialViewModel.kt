@@ -1,11 +1,16 @@
 package com.gpleader.app.feature.historial
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.gpleader.app.core.data.repository.ReunionRepository
+import com.gpleader.app.core.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.Month
 import javax.inject.Inject
@@ -64,54 +69,88 @@ data class HistorialUiState(
 // ── ViewModel ─────────────────────────────────────────────────────────────────
 
 @HiltViewModel
-class HistorialViewModel @Inject constructor() : ViewModel() {
+class HistorialViewModel @Inject constructor(
+    private val reunionRepo: ReunionRepository,
+    private val session: SessionManager,
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HistorialUiState())
     val uiState: StateFlow<HistorialUiState> = _uiState.asStateFlow()
 
-    init {
-        // TODO: reemplazar con carga real desde PowerSync
-        val todasLasReuniones = listOf(
-            ReunionResumen(
-                id                   = "r1",
-                fecha                = LocalDate.of(2026, 3, 4),
-                estado               = EstadoReunionHistorial.ENVIADA,
-                presentes            = 6,
-                ausentes             = 1,
-                justificados         = 1,
-                porcentajeAsistencia = 75,
-                permitirEdicion      = true,
-            ),
-            ReunionResumen(
-                id                   = "r2",
-                fecha                = LocalDate.of(2026, 2, 26),
-                estado               = EstadoReunionHistorial.ENVIADA,
-                presentes            = 7,
-                ausentes             = 1,
-                justificados         = 0,
-                porcentajeAsistencia = 86,
-            ),
-            ReunionResumen(
-                id                   = "r3",
-                fecha                = LocalDate.of(2026, 2, 19),
-                estado               = EstadoReunionHistorial.ENVIADA,
-                presentes            = 6,
-                ausentes             = 2,
-                justificados         = 0,
-                porcentajeAsistencia = 71,
-            ),
-            ReunionResumen(
-                id                   = "r4",
-                fecha                = LocalDate.of(2026, 2, 12),
-                estado               = EstadoReunionHistorial.PENDIENTE_SYNC,
-                presentes            = 5,
-                ausentes             = 3,
-                justificados         = 0,
-                porcentajeAsistencia = 62,
-            ),
-        )
+    /** Cache de todas las reuniones cargadas desde Supabase */
+    private var todasLasReuniones: List<ReunionResumen> = emptyList()
 
-        val grupos = todasLasReuniones
+    private val trimestresDelAnio: List<Trimestre> by lazy {
+        val anio = LocalDate.now().year
+        listOf(
+            Trimestre("t1", "1er Ene-Mar", LocalDate.of(anio, 1, 1),  LocalDate.of(anio, 3, 31)),
+            Trimestre("t2", "2do Abr-Jun", LocalDate.of(anio, 4, 1),  LocalDate.of(anio, 6, 30)),
+            Trimestre("t3", "3er Jul-Sep", LocalDate.of(anio, 7, 1),  LocalDate.of(anio, 9, 30)),
+            Trimestre("t4", "4to Oct-Dic", LocalDate.of(anio, 10, 1), LocalDate.of(anio, 12, 31)),
+        )
+    }
+
+    /** Ordena: trimestre actual primero, luego futuros, luego pasados. */
+    private val trimestresOrdenados: List<Trimestre> get() {
+        val hoy     = LocalDate.now()
+        val actual  = trimestresDelAnio.filter { !hoy.isBefore(it.fechaInicio) && !hoy.isAfter(it.fechaFin) }
+        val futuros = trimestresDelAnio.filter { hoy.isBefore(it.fechaInicio) }
+        val pasados = trimestresDelAnio.filter { hoy.isAfter(it.fechaFin) }
+        return actual + futuros + pasados
+    }
+
+    private val trimestreActualId: String get() {
+        val hoy = LocalDate.now()
+        return trimestresDelAnio.find { !hoy.isBefore(it.fechaInicio) && !hoy.isAfter(it.fechaFin) }?.id ?: "t1"
+    }
+
+    init {
+        val idActual = trimestreActualId
+        _uiState.update { it.copy(trimestres = trimestresOrdenados, trimestreSeleccionado = idActual, isLoading = true) }
+        cargarReuniones()
+    }
+
+    private fun cargarReuniones() {
+        viewModelScope.launch {
+            reunionRepo.getReuniones(session.grupoId)
+                .catch { _uiState.update { it.copy(isLoading = false) } }
+                .collect { reuniones ->
+                    todasLasReuniones = reuniones.map { r ->
+                        val total = r.presentes + r.ausentes + r.justificados
+                        val pct   = if (total > 0) (r.presentes * 100 / total) else 0
+                        val estado = when (r.estado.uppercase()) {
+                            "ENVIADA", "SENT", "SUBMITTED", "APPROVED", "APROBADA" -> EstadoReunionHistorial.ENVIADA
+                            else -> EstadoReunionHistorial.PENDIENTE_SYNC
+                        }
+                        ReunionResumen(
+                            id                    = r.id,
+                            fecha                 = r.fecha,
+                            estado                = estado,
+                            presentes             = r.presentes,
+                            ausentes              = r.ausentes,
+                            justificados          = r.justificados,
+                            porcentajeAsistencia  = pct,
+                            permitirEdicion       = estado != EstadoReunionHistorial.ENVIADA,
+                        )
+                    }
+                    aplicarFiltro(_uiState.value.trimestreSeleccionado)
+                    _uiState.update { it.copy(isLoading = false) }
+                }
+        }
+    }
+
+    private fun aplicarFiltro(trimestreId: String) {
+        val filtradas = if (trimestreId == "todo") {
+            todasLasReuniones
+        } else {
+            val trimestre = trimestresDelAnio.find { it.id == trimestreId }
+            if (trimestre == null) todasLasReuniones
+            else todasLasReuniones.filter { r ->
+                !r.fecha.isBefore(trimestre.fechaInicio) && !r.fecha.isAfter(trimestre.fechaFin)
+            }
+        }
+
+        val grupos = filtradas
             .groupBy { it.fecha.year * 100 + it.fecha.monthValue }
             .entries
             .sortedByDescending { it.key }
@@ -121,32 +160,25 @@ class HistorialViewModel @Inject constructor() : ViewModel() {
                 GrupoMes(mes = mes, anio = anio, reuniones = reuniones.sortedByDescending { it.fecha })
             }
 
-        _uiState.update {
-            it.copy(
-                trimestres = listOf(
-                    Trimestre("t1", "1er Ene-Mar", LocalDate.of(2026, 1, 1),  LocalDate.of(2026, 3, 31)),
-                    Trimestre("t2", "2do Abr-Jun", LocalDate.of(2026, 4, 1),  LocalDate.of(2026, 6, 30)),
-                    Trimestre("t3", "3er Jul-Sep", LocalDate.of(2026, 7, 1),  LocalDate.of(2026, 9, 30)),
-                    Trimestre("t4", "4to Oct-Dic", LocalDate.of(2026, 10, 1), LocalDate.of(2026, 12, 31)),
-                ),
-                trimestreSeleccionado = "todo",
-                grupos  = grupos,
-                stats   = HistorialStats(
-                    promedioAsistencia = 78,
-                    totalReuniones     = 8,
-                    enviadas           = 7,
-                    pendientes         = 1,
-                ),
-            )
-        }
+        val stats = HistorialStats(
+            promedioAsistencia = if (filtradas.isEmpty()) 0
+                                 else filtradas.map { it.porcentajeAsistencia }.average().toInt(),
+            totalReuniones     = filtradas.size,
+            enviadas           = filtradas.count { it.estado == EstadoReunionHistorial.ENVIADA },
+            pendientes         = filtradas.count { it.estado == EstadoReunionHistorial.PENDIENTE_SYNC },
+        )
+
+        _uiState.update { it.copy(grupos = grupos, stats = stats) }
     }
 
     fun onTrimestralChange(trimestreId: String) {
         _uiState.update { it.copy(trimestreSeleccionado = trimestreId) }
+        aplicarFiltro(trimestreId)
     }
 
     fun onVerTodoClick() {
         _uiState.update { it.copy(trimestreSeleccionado = "todo") }
+        aplicarFiltro("todo")
     }
 
     fun onBuscarClick() {
@@ -154,8 +186,6 @@ class HistorialViewModel @Inject constructor() : ViewModel() {
     }
 
     fun onEditarReunionClick(reunionId: String) {
-        // TODO: navegar a edición de reunión cuando esté implementada;
-        // por ahora abre el detalle
         _uiState.update { it.copy(navigateToDetalle = reunionId) }
     }
 

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -93,9 +94,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import com.gpleader.app.core.ui.theme.Gold
+import com.gpleader.app.core.ui.theme.Shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import androidx.compose.foundation.lazy.rememberLazyListState
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
@@ -103,7 +107,6 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun RegistroPaso1Screen(
-    esSuplente:        Boolean = false,
     onNavigateBack:    () -> Unit,
     onNavigateToPaso2: () -> Unit,
     onNavigateToPaso3: () -> Unit,
@@ -125,22 +128,22 @@ fun RegistroPaso1Screen(
     }
 
     RegistroPaso1Content(
-        uiState                  = uiState,
-        esSuplente               = esSuplente,
-        onNavigateBack           = onNavigateBack,
-        onFechaChange            = viewModel::onFechaChange,
-        onNoHuboReunion          = viewModel::onNoHuboReunionClick,
-        onAsistenciaChange       = viewModel::onAsistenciaChange,
-        onSelTodos               = viewModel::onSelTodos,
-        onAgregarVisitaAnterior  = viewModel::onAgregarVisitaAnterior,
-        onEliminarVisitaAnterior = viewModel::onEliminarVisitaAnterior,
-        onAgregarNuevaVisita     = viewModel::onAgregarNuevaVisita,
-        onVisitaAsistenciaChange = viewModel::onVisitaAsistenciaChange,
-        onToggleVisitas          = viewModel::onToggleVisitasColapsadas,
-        onContinuar              = viewModel::onContinuarClick,
-        onDismissConfirmAusentes = viewModel::onDismissConfirmTodosAusentes,
-        onDismissConfirmNoHubo   = viewModel::onDismissConfirmNoHuboReunion,
-        onConfirmNoHubo          = viewModel::onConfirmNoHuboReunion,
+        uiState                          = uiState,
+        onNavigateBack                   = onNavigateBack,
+        onFechaChange                    = viewModel::onFechaChange,
+        onNoHuboReunion                  = viewModel::onNoHuboReunionClick,
+        onAsistenciaChange               = viewModel::onAsistenciaChange,
+        onSelTodos                       = viewModel::onSelTodos,
+        onAgregarVisitaAnterior          = viewModel::onAgregarVisitaAnterior,
+        onEliminarVisitaAnterior         = viewModel::onEliminarVisitaAnterior,
+        onVisitaAnteriorAsistenciaChange = viewModel::onVisitaAnteriorAsistenciaChange,
+        onAgregarNuevaVisita             = viewModel::onAgregarNuevaVisita,
+        onVisitaAsistenciaChange         = viewModel::onVisitaAsistenciaChange,
+        onToggleVisitas                  = viewModel::onToggleVisitasColapsadas,
+        onContinuar                      = viewModel::onContinuarClick,
+        onDismissConfirmAusentes         = viewModel::onDismissConfirmTodosAusentes,
+        onDismissConfirmNoHubo           = viewModel::onDismissConfirmNoHuboReunion,
+        onConfirmNoHubo                  = viewModel::onConfirmNoHuboReunion,
     )
 }
 
@@ -149,26 +152,42 @@ fun RegistroPaso1Screen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RegistroPaso1Content(
-    uiState:                 RegistroUiState,
-    esSuplente:              Boolean,
-    onNavigateBack:          () -> Unit,
-    onFechaChange:           (LocalDate) -> Unit,
-    onNoHuboReunion:         () -> Unit,
-    onAsistenciaChange:      (String, EstadoAsistencia) -> Unit,
-    onSelTodos:              (EstadoAsistencia) -> Unit,
-    onAgregarVisitaAnterior:  (String) -> Unit,
-    onEliminarVisitaAnterior: (String) -> Unit,
-    onAgregarNuevaVisita:     (String, String) -> Unit,
-    onVisitaAsistenciaChange:(String, EstadoAsistencia) -> Unit,
-    onToggleVisitas:         () -> Unit,
-    onContinuar:             () -> Unit,
-    onDismissConfirmAusentes:() -> Unit,
-    onDismissConfirmNoHubo:  () -> Unit,
-    onConfirmNoHubo:         () -> Unit,
+    uiState:                          RegistroUiState,
+    onNavigateBack:                   () -> Unit,
+    onFechaChange:                    (LocalDate) -> Unit,
+    onNoHuboReunion:                  () -> Unit,
+    onAsistenciaChange:               (String, EstadoAsistencia) -> Unit,
+    onSelTodos:                       (EstadoAsistencia) -> Unit,
+    onAgregarVisitaAnterior:          (String) -> Unit,
+    onEliminarVisitaAnterior:         (String) -> Unit,
+    onVisitaAnteriorAsistenciaChange: (String, EstadoAsistencia) -> Unit,
+    onAgregarNuevaVisita:             (String, String) -> Unit,
+    onVisitaAsistenciaChange:         (String, EstadoAsistencia) -> Unit,
+    onToggleVisitas:                  () -> Unit,
+    onContinuar:                      () -> Unit,
+    onDismissConfirmAusentes:         () -> Unit,
+    onDismissConfirmNoHubo:           () -> Unit,
+    onConfirmNoHubo:                  () -> Unit,
 ) {
     var showDatePicker         by remember { mutableStateOf(false) }
     var showAgregarVisitaSheet by remember { mutableStateOf(false) }
     var openMiembroId          by remember { mutableStateOf<String?>(null) }
+    val listState          = rememberLazyListState()
+    val errorShakeOffset   = remember { Animatable(0f) }
+
+    // Al aparecer el error: desplazar al primer miembro sin marcar y sacudir el texto
+    LaunchedEffect(uiState.errorSinAsistenciaTrigger) {
+        if (uiState.errorSinAsistenciaTrigger > 0) {
+            val firstUnset = uiState.miembros.indexOfFirst { it.estado == null }
+            val scrollIndex = if (firstUnset >= 0) 7 + firstUnset else 7 + uiState.miembros.size
+            listState.animateScrollToItem(scrollIndex)
+            repeat(3) {
+                errorShakeOffset.animateTo(10f, tween(70))
+                errorShakeOffset.animateTo(-10f, tween(70))
+            }
+            errorShakeOffset.animateTo(0f, tween(70))
+        }
+    }
 
     // ── Diálogo: todos ausentes ───────────────────────────────────────────────
     if (uiState.showConfirmTodosAusentes) {
@@ -256,28 +275,11 @@ private fun RegistroPaso1Content(
             .background(Background),
     ) {
         LazyColumn(
+            state          = listState,
             modifier       = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 96.dp),
         ) {
             item { RegistroTopBar(onNavigateBack = onNavigateBack) }
-
-            if (esSuplente) {
-                item {
-                    Box(
-                        modifier         = Modifier
-                            .fillMaxWidth()
-                            .background(Ink)
-                            .padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text  = stringResource(R.string.registro_banner_suplente),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White,
-                        )
-                    }
-                }
-            }
 
             item { StepperRow(pasoActivo = 1) }
 
@@ -319,19 +321,15 @@ private fun RegistroPaso1Content(
                 )
             }
 
-            item {
-                AgregarMiembroRow(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                )
-            }
-
             if (uiState.errorSinAsistencia) {
                 item {
                     Text(
                         text     = stringResource(R.string.registro_error_sin_asistencia),
                         style    = MaterialTheme.typography.bodyMedium,
                         color    = Blush,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                            .offset { IntOffset(errorShakeOffset.value.roundToInt(), 0) },
                     )
                 }
             }
@@ -348,13 +346,15 @@ private fun RegistroPaso1Content(
 
             if (!uiState.visitasColapsadas) {
                 items(uiState.visitasAnteriores, key = { "ant_${it.id}" }) { visita ->
-                    val yaAgregada = uiState.visitasDeHoy.any { it.id == visita.id }
+                    val estadoHoy = uiState.visitasDeHoy.find { it.id == visita.id }?.estado
                     VisitaAnteriorRow(
-                        visita     = visita,
-                        yaAgregada = yaAgregada,
-                        onAgregar  = { onAgregarVisitaAnterior(visita.id) },
-                        onEliminar = { onEliminarVisitaAnterior(visita.id) },
-                        modifier   = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        visita          = visita,
+                        estadoHoy       = estadoHoy,
+                        onChange        = { estado -> onVisitaAnteriorAsistenciaChange(visita.id, estado) },
+                        isOpenExternal  = openMiembroId == visita.id,
+                        onSwipeOpen     = { openMiembroId = visita.id },
+                        onSwipeClosed   = { if (openMiembroId == visita.id) openMiembroId = null },
+                        modifier        = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     )
                 }
             }
@@ -363,7 +363,7 @@ private fun RegistroPaso1Content(
 
             item {
                 VisitasHoySection(
-                    visitas                  = uiState.visitasDeHoy,
+                    visitas                  = uiState.visitasDeHoy.filter { it.esNueva },
                     onVisitaAsistenciaChange = onVisitaAsistenciaChange,
                     onAbrirSheet             = { showAgregarVisitaSheet = true },
                     modifier                 = Modifier.padding(horizontal = 16.dp),
@@ -399,6 +399,7 @@ private fun RegistroTopBar(onNavigateBack: () -> Unit) {
     Row(
         modifier          = Modifier
             .fillMaxWidth()
+            .statusBarsPadding()
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -674,28 +675,36 @@ private fun MiembroRow(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(IntrinsicSize.Min),
+            .height(IntrinsicSize.Min)
+            .clip(RoundedCornerShape(14.dp)),
     ) {
-        // ── Panel J (oculto detrás, se revela al deslizar) ────────────────────
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .width(revealDp)
-                .fillMaxHeight()
-                .clip(RoundedCornerShape(14.dp))
-                .background(Gold.copy(alpha = 0.15f))
-                .clickable {
-                    onChange(EstadoAsistencia.JUSTIFICADO)
-                    scope.launch { offsetX.animateTo(0f, tween(200)) }
-                },
-        ) {
-            Text(
-                text       = "Justificado",
-                style      = MaterialTheme.typography.bodyMedium,
-                color      = Gold,
-                fontWeight = FontWeight.SemiBold,
+        // ── Panel J (tarjeta completa oculta detrás, se revela al deslizar) ──
+        Box(modifier = Modifier.matchParentSize()) {
+            // Fondo completo dorado suave
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Gold.copy(alpha = 0.15f)),
             )
+            // Texto centrado en la zona revelable (derecha revealDp)
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .width(revealDp)
+                    .fillMaxHeight()
+                    .clickable {
+                        onChange(EstadoAsistencia.JUSTIFICADO)
+                        scope.launch { offsetX.animateTo(0f, tween(200)) }
+                    },
+            ) {
+                Text(
+                    text       = "Justificar",
+                    style      = MaterialTheme.typography.bodyMedium,
+                    color      = Gold,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
         }
 
         // ── Menú contextual (long press) ──────────────────────────────────────
@@ -720,7 +729,7 @@ private fun MiembroRow(
         }
 
         // ── Card principal ────────────────────────────────────────────────────
-        Row(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .offset { IntOffset(offsetX.value.roundToInt(), 0) }
@@ -761,22 +770,36 @@ private fun MiembroRow(
                             }
                         },
                     )
-                }
-                .padding(horizontal = 4.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                },
         ) {
-            InitialsAvatar(iniciales = miembro.iniciales)
-            Spacer(Modifier.width(12.dp))
-            Text(
-                text     = miembro.nombre,
-                style    = MaterialTheme.typography.bodyLarge,
-                color    = Ink,
-                modifier = Modifier.weight(1f),
-            )
-            Spacer(Modifier.width(12.dp))
-            AsistenciaCheckbox(
-                estado   = miembro.estado,
-                onChange = onChange,
+            Row(
+                modifier          = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                InitialsAvatar(iniciales = miembro.iniciales)
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    text     = miembro.nombre,
+                    style    = MaterialTheme.typography.bodyLarge,
+                    color    = Ink,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(12.dp))
+                AsistenciaCheckbox(
+                    estado   = miembro.estado,
+                    onChange = onChange,
+                )
+            }
+            // Overlay gris progresivo (mismo efecto que las tarjetas de miembros)
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .graphicsLayer {
+                        alpha = (-offsetX.value / revealPx).coerceIn(0f, 1f) * 0.30f
+                    }
+                    .background(Shadow),
             )
         }
 
@@ -1011,11 +1034,13 @@ private fun VisitasAnterioresHeader(
 
 @Composable
 private fun VisitaAnteriorRow(
-    visita:     VisitaAnterior,
-    yaAgregada: Boolean,
-    onAgregar:  () -> Unit,
-    onEliminar: () -> Unit,
-    modifier:   Modifier = Modifier,
+    visita:         VisitaAnterior,
+    estadoHoy:      EstadoAsistencia?,
+    onChange:       (EstadoAsistencia) -> Unit,
+    isOpenExternal: Boolean = false,
+    onSwipeOpen:    () -> Unit = {},
+    onSwipeClosed:  () -> Unit = {},
+    modifier:       Modifier = Modifier,
 ) {
     val density  = LocalDensity.current
     val revealDp = 88.dp
@@ -1023,114 +1048,115 @@ private fun VisitaAnteriorRow(
     val offsetX  = remember(visita.id) { Animatable(0f) }
     val scope    = rememberCoroutineScope()
 
+    LaunchedEffect(isOpenExternal) {
+        if (!isOpenExternal && offsetX.value < -1f) {
+            offsetX.animateTo(0f, tween(220))
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(IntrinsicSize.Min),
+            .height(IntrinsicSize.Min)
+            .clip(RoundedCornerShape(14.dp)),
     ) {
-        // ── Panel "Quitar" — solo visible cuando ya fue agregada ──────────────
-        if (yaAgregada) {
+        // ── Panel J (igual que MiembroRow) ────────────────────────────────────
+        Box(modifier = Modifier.matchParentSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Gold.copy(alpha = 0.15f)),
+            )
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .width(revealDp)
                     .fillMaxHeight()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Blush.copy(alpha = 0.15f))
                     .clickable {
-                        onEliminar()
+                        onChange(EstadoAsistencia.JUSTIFICADO)
                         scope.launch { offsetX.animateTo(0f, tween(200)) }
                     },
             ) {
                 Text(
-                    text       = stringResource(R.string.registro_visita_quitar),
+                    text       = "Justificar",
                     style      = MaterialTheme.typography.bodyMedium,
-                    color      = Blush,
+                    color      = Gold,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
         }
 
         // ── Card principal deslizable ─────────────────────────────────────────
-        Row(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .offset { IntOffset(offsetX.value.roundToInt(), 0) }
                 .clip(RoundedCornerShape(14.dp))
                 .background(Background)
-                .then(
-                    if (yaAgregada) Modifier.pointerInput(visita.id) {
-                        detectHorizontalDragGestures(
-                            onDragEnd = {
-                                scope.launch {
-                                    if (offsetX.value < -(revealPx * 0.4f))
-                                        offsetX.animateTo(
-                                            -revealPx,
-                                            spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-                                        )
-                                    else
-                                        offsetX.animateTo(0f, tween(220))
-                                }
-                            },
-                            onDragCancel = { scope.launch { offsetX.animateTo(0f, tween(220)) } },
-                            onHorizontalDrag = { _, dragAmount ->
-                                scope.launch {
-                                    offsetX.snapTo(
-                                        (offsetX.value + dragAmount).coerceIn(-revealPx, 0f)
+                .pointerInput(visita.id) {
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            scope.launch {
+                                if (offsetX.value < -(revealPx * 0.4f)) {
+                                    offsetX.animateTo(
+                                        -revealPx,
+                                        spring(dampingRatio = Spring.DampingRatioMediumBouncy),
                                     )
+                                    onSwipeOpen()
+                                } else {
+                                    offsetX.animateTo(0f, tween(220))
                                 }
-                            },
-                        )
-                    } else Modifier
-                )
-                .padding(horizontal = 4.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                            }
+                        },
+                        onDragCancel = { scope.launch { offsetX.animateTo(0f, tween(220)) } },
+                        onHorizontalDrag = { _, dragAmount ->
+                            scope.launch {
+                                offsetX.snapTo(
+                                    (offsetX.value + dragAmount).coerceIn(-revealPx, 0f)
+                                )
+                            }
+                        },
+                    )
+                },
         ) {
-            val iniciales = visita.nombre.split(" ")
-                .filter { it.isNotBlank() }.take(2)
-                .joinToString("") { it.first().uppercaseChar().toString() }
-            InitialsAvatar(iniciales = iniciales)
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text  = visita.nombre,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Ink,
-                )
-                Text(
-                    text  = "${visita.fechaUltimaVisita.dayOfMonth} ${MESES_ES_CORTO[visita.fechaUltimaVisita.monthValue - 1]}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Muted,
-                )
-            }
-            if (!yaAgregada) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .neuElevatedSm(cornerRadius = 8.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Background)
-                        .clickable(onClick = onAgregar)
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                ) {
+            Row(
+                modifier          = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val iniciales = visita.nombre.split(" ")
+                    .filter { it.isNotBlank() }.take(2)
+                    .joinToString("") { it.first().uppercaseChar().toString() }
+                InitialsAvatar(iniciales = iniciales)
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text  = stringResource(R.string.registro_btn_agregar),
+                        text  = visita.nombre,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Ink,
+                    )
+                    Text(
+                        text  = "${visita.fechaUltimaVisita.dayOfMonth} ${MESES_ES_CORTO[visita.fechaUltimaVisita.monthValue - 1]}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Accent,
+                        color = Muted,
                     )
                 }
-            } else {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Sage.copy(alpha = 0.15f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                ) {
-                    Text(text = "✓", style = MaterialTheme.typography.labelSmall, color = Sage)
-                }
+                Spacer(Modifier.width(12.dp))
+                AsistenciaCheckbox(
+                    estado   = estadoHoy,
+                    onChange = onChange,
+                )
             }
-            Spacer(Modifier.width(4.dp))
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .graphicsLayer {
+                        alpha = (-offsetX.value / revealPx).coerceIn(0f, 1f) * 0.30f
+                    }
+                    .background(Shadow),
+            )
         }
 
         // ── Overlay: tap o deslizar derecha para cerrar ───────────────────────
@@ -1141,7 +1167,10 @@ private fun VisitaAnteriorRow(
                     .offset { IntOffset(offsetX.value.roundToInt(), 0) }
                     .pointerInput("tap_close_${visita.id}") {
                         detectTapGestures(
-                            onTap = { scope.launch { offsetX.animateTo(0f, tween(220)) } }
+                            onTap = {
+                                scope.launch { offsetX.animateTo(0f, tween(220)) }
+                                onSwipeClosed()
+                            }
                         )
                     }
                     .pointerInput("drag_close_${visita.id}") {
@@ -1153,11 +1182,16 @@ private fun VisitaAnteriorRow(
                                             -revealPx,
                                             spring(dampingRatio = Spring.DampingRatioMediumBouncy),
                                         )
-                                    else
+                                    else {
                                         offsetX.animateTo(0f, tween(220))
+                                        onSwipeClosed()
+                                    }
                                 }
                             },
-                            onDragCancel = { scope.launch { offsetX.animateTo(0f, tween(220)) } },
+                            onDragCancel = {
+                                scope.launch { offsetX.animateTo(0f, tween(220)) }
+                                onSwipeClosed()
+                            },
                             onHorizontalDrag = { _, dragAmount ->
                                 scope.launch {
                                     offsetX.snapTo(
@@ -1243,32 +1277,38 @@ private fun VisitaHoyRow(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(IntrinsicSize.Min),
+            .height(IntrinsicSize.Min)
+            .clip(RoundedCornerShape(14.dp)),
     ) {
-        // ── Panel J (detrás, lado derecho) ────────────────────────────────────
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .width(revealDp)
-                .fillMaxHeight()
-                .clip(RoundedCornerShape(14.dp))
-                .background(Gold.copy(alpha = 0.15f))
-                .clickable {
-                    onChange(EstadoAsistencia.JUSTIFICADO)
-                    scope.launch { offsetX.animateTo(0f, tween(200)) }
-                },
-        ) {
-            Text(
-                text       = "Justificado",
-                style      = MaterialTheme.typography.bodyMedium,
-                color      = Gold,
-                fontWeight = FontWeight.SemiBold,
+        // ── Panel J (tarjeta completa oculta detrás) ──────────────────────────
+        Box(modifier = Modifier.matchParentSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Gold.copy(alpha = 0.15f)),
             )
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .width(revealDp)
+                    .fillMaxHeight()
+                    .clickable {
+                        onChange(EstadoAsistencia.JUSTIFICADO)
+                        scope.launch { offsetX.animateTo(0f, tween(200)) }
+                    },
+            ) {
+                Text(
+                    text       = "Justificado",
+                    style      = MaterialTheme.typography.bodyMedium,
+                    color      = Gold,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
         }
 
         // ── Card principal deslizable ─────────────────────────────────────────
-        Row(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .offset { IntOffset(offsetX.value.roundToInt(), 0) }
@@ -1296,39 +1336,39 @@ private fun VisitaHoyRow(
                             }
                         },
                     )
-                }
-                .padding(horizontal = 4.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                },
         ) {
-            val iniciales = visita.nombre.split(" ")
-                .filter { it.isNotBlank() }.take(2)
-                .joinToString("") { it.first().uppercaseChar().toString() }
-            InitialsAvatar(iniciales = iniciales)
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
+            Row(
+                modifier          = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val iniciales = visita.nombre.split(" ")
+                    .filter { it.isNotBlank() }.take(2)
+                    .joinToString("") { it.first().uppercaseChar().toString() }
+                InitialsAvatar(iniciales = iniciales)
+                Spacer(Modifier.width(12.dp))
                 Text(
-                    text  = visita.nombre,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Ink,
+                    text     = visita.nombre,
+                    style    = MaterialTheme.typography.bodyLarge,
+                    color    = Ink,
+                    modifier = Modifier.weight(1f),
                 )
-                Box(
-                    modifier = Modifier
-                        .padding(top = 2.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Mid.copy(alpha = 0.15f))
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                ) {
-                    Text(
-                        text  = stringResource(R.string.registro_badge_visita),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Mid,
-                    )
-                }
+                Spacer(Modifier.width(12.dp))
+                AsistenciaCheckbox(
+                    estado   = visita.estado,
+                    onChange = onChange,
+                )
             }
-            Spacer(Modifier.width(12.dp))
-            AsistenciaCheckbox(
-                estado   = visita.estado,
-                onChange = onChange,
+            // Overlay gris progresivo al deslizar
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .graphicsLayer {
+                        alpha = (-offsetX.value / revealPx).coerceIn(0f, 1f) * 0.30f
+                    }
+                    .background(Shadow),
             )
         }
 
@@ -1662,16 +1702,16 @@ private fun Paso1Preview() {
     GpLeaderTheme {
         RegistroPaso1Content(
             uiState                  = previewState,
-            esSuplente               = false,
             onNavigateBack           = {},
             onFechaChange            = {},
             onNoHuboReunion          = {},
             onAsistenciaChange       = { _, _ -> },
             onSelTodos               = {},
-            onAgregarVisitaAnterior  = {},
-            onEliminarVisitaAnterior = {},
-            onAgregarNuevaVisita     = { _, _ -> },
-            onVisitaAsistenciaChange = { _, _ -> },
+            onAgregarVisitaAnterior          = {},
+            onEliminarVisitaAnterior         = {},
+            onVisitaAnteriorAsistenciaChange = { _, _ -> },
+            onAgregarNuevaVisita             = { _, _ -> },
+            onVisitaAsistenciaChange         = { _, _ -> },
             onToggleVisitas          = {},
             onContinuar              = {},
             onDismissConfirmAusentes = {},
@@ -1687,16 +1727,16 @@ private fun Paso1ExpandidasPreview() {
     GpLeaderTheme {
         RegistroPaso1Content(
             uiState                  = previewState.copy(visitasColapsadas = false),
-            esSuplente               = false,
             onNavigateBack           = {},
             onFechaChange            = {},
             onNoHuboReunion          = {},
             onAsistenciaChange       = { _, _ -> },
             onSelTodos               = {},
-            onAgregarVisitaAnterior  = {},
-            onEliminarVisitaAnterior = {},
-            onAgregarNuevaVisita     = { _, _ -> },
-            onVisitaAsistenciaChange = { _, _ -> },
+            onAgregarVisitaAnterior          = {},
+            onEliminarVisitaAnterior         = {},
+            onVisitaAnteriorAsistenciaChange = { _, _ -> },
+            onAgregarNuevaVisita             = { _, _ -> },
+            onVisitaAsistenciaChange         = { _, _ -> },
             onToggleVisitas          = {},
             onContinuar              = {},
             onDismissConfirmAusentes = {},
@@ -1706,27 +1746,3 @@ private fun Paso1ExpandidasPreview() {
     }
 }
 
-@Preview(showBackground = true, backgroundColor = 0xFFECEEF1, name = "Paso1 — modo suplente")
-@Composable
-private fun Paso1SuplementePreview() {
-    GpLeaderTheme {
-        RegistroPaso1Content(
-            uiState                  = previewState,
-            esSuplente               = true,
-            onNavigateBack           = {},
-            onFechaChange            = {},
-            onNoHuboReunion          = {},
-            onAsistenciaChange       = { _, _ -> },
-            onSelTodos               = {},
-            onAgregarVisitaAnterior  = {},
-            onEliminarVisitaAnterior = {},
-            onAgregarNuevaVisita     = { _, _ -> },
-            onVisitaAsistenciaChange = { _, _ -> },
-            onToggleVisitas          = {},
-            onContinuar              = {},
-            onDismissConfirmAusentes = {},
-            onDismissConfirmNoHubo   = {},
-            onConfirmNoHubo          = {},
-        )
-    }
-}

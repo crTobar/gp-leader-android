@@ -16,7 +16,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -33,6 +36,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -116,7 +123,18 @@ private fun MiembrosListaContent(
     onNavigateToHome:      () -> Unit,
     onNavigateToHistorial: () -> Unit,
 ) {
+    // Clave del ítem actualmente deslizado — solo uno puede estar abierto a la vez
+    var openItemId by remember { mutableStateOf<Any?>(null) }
+
     Scaffold(
+        modifier = Modifier.pointerInput(openItemId) {
+            if (openItemId != null) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    openItemId = null
+                }
+            }
+        },
         containerColor = Background,
         topBar = {
             MiembrosTopBar(
@@ -131,9 +149,6 @@ private fun MiembrosListaContent(
             MiembrosBottomNavBar(
                 onHomeClick      = onNavigateToHome,
                 onHistorialClick = onNavigateToHistorial,
-                modifier         = Modifier
-                    .navigationBarsPadding()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
             )
         },
     ) { innerPadding ->
@@ -174,6 +189,8 @@ private fun MiembrosListaContent(
                         miembro        = miembro,
                         onClick        = { onMiembroClick(miembro.id) },
                         onToggleEstado = { onToggleEstado(miembro.id) },
+                        openItemId     = openItemId,
+                        onOpen         = { openItemId = miembro.id },
                     )
                 }
             }
@@ -191,6 +208,8 @@ private fun MiembrosListaContent(
                         miembro        = miembro,
                         onClick        = { onMiembroClick(miembro.id) },
                         onToggleEstado = { onToggleEstado(miembro.id) },
+                        openItemId     = openItemId,
+                        onOpen         = { openItemId = miembro.id },
                     )
                 }
             }
@@ -285,6 +304,8 @@ private fun MiembroCard(
     miembro:        MiembroUi,
     onClick:        () -> Unit,
     onToggleEstado: () -> Unit,
+    openItemId:     Any? = null,
+    onOpen:         () -> Unit = {},
 ) {
     val archivado    = miembro.estado == EstadoMiembro.ARCHIVADO
     val contentAlpha = if (archivado) 0.5f else 1f
@@ -298,9 +319,13 @@ private fun MiembroCard(
     val swipeColor = if (archivado) Sage else Blush
 
     SwipeableItem(
-        itemKey      = miembro.id,
-        onItemClick  = onClick,
-        swipeActions = listOf(
+        itemKey          = miembro.id,
+        onItemClick      = onClick,
+        dimOnSwipe       = true,
+        clipCornerRadius = 20.dp,
+        openKey          = openItemId,
+        onOpen           = onOpen,
+        swipeActions     = listOf(
             SwipeAction(
                 label   = swipeLabel,
                 color   = swipeColor,
@@ -311,16 +336,15 @@ private fun MiembroCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .neuElevated(cornerRadius = 20.dp)
             .clip(RoundedCornerShape(20.dp))
-            .background(Background)
-            // Sin .clickable — el tap lo maneja SwipeableItem via onItemClick
-            .padding(horizontal = 16.dp, vertical = 14.dp)
-            .alpha(contentAlpha),
+            .background(Background),
     ) {
         Row(
             verticalAlignment     = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),
+            modifier              = Modifier
+                .alpha(contentAlpha)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
         ) {
             // Avatar
             Box(
@@ -397,15 +421,16 @@ private fun MiembroCard(
 private fun MiembrosBottomNavBar(
     onHomeClick:      () -> Unit,
     onHistorialClick: () -> Unit,
-    modifier:         Modifier = Modifier,
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Background),
+            .navigationBarsPadding()
+            .background(Background)
+            .padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
         Row(
-            modifier = modifier
+            modifier = Modifier
                 .fillMaxWidth()
                 .neuElevated(cornerRadius = 20.dp)
                 .clip(RoundedCornerShape(20.dp))
@@ -413,26 +438,23 @@ private fun MiembrosBottomNavBar(
                 .padding(horizontal = 8.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
-            // INICIO
             NavTab(
-                icon     = Icons.Filled.Home,
-                label    = stringResource(R.string.home_nav_inicio),
-                active   = false,
-                onClick  = onHomeClick,
+                icon    = Icons.Filled.Home,
+                label   = stringResource(R.string.home_nav_inicio),
+                active  = false,
+                onClick = onHomeClick,
             )
-            // HISTORIAL
             NavTab(
-                icon     = Icons.Filled.Search,
-                label    = stringResource(R.string.home_nav_historial),
-                active   = false,
-                onClick  = onHistorialClick,
+                icon    = Icons.Filled.Search,
+                label   = stringResource(R.string.home_nav_historial),
+                active  = false,
+                onClick = onHistorialClick,
             )
-            // PERFIL — siempre activo en esta pantalla
             NavTab(
-                icon     = Icons.Filled.Person,
-                label    = stringResource(R.string.home_nav_perfil),
-                active   = true,
-                onClick  = {},
+                icon    = Icons.Filled.Person,
+                label   = stringResource(R.string.home_nav_perfil),
+                active  = true,
+                onClick = {},
             )
         }
     }

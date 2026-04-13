@@ -48,6 +48,7 @@ supabase-storage = { group = "io.github.jan-tennert.supabase", name = "storage-k
 ktor-client-android = { group = "io.ktor", name = "ktor-client-android", version.ref = "ktor" }
 # PowerSync
 powersync-core = { group = "com.powersync", name = "core", version.ref = "powersync" }
+powersync-connector-supabase = { group = "com.powersync", name = "connector-supabase", version.ref = "powersync" }
 # Coroutines
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 # Lifecycle ViewModel

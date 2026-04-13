@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +49,7 @@ import com.gpleader.app.core.ui.theme.GpLeaderTheme
 import com.gpleader.app.core.ui.theme.Ink
 import com.gpleader.app.core.ui.theme.Mid
 import com.gpleader.app.core.ui.theme.Muted
+import com.gpleader.app.core.ui.theme.Gold
 import com.gpleader.app.core.ui.theme.Sage
 import com.gpleader.app.core.ui.theme.neuElevatedSm
 import java.time.DayOfWeek
@@ -93,6 +95,8 @@ private fun RegistroPaso3Content(
     onNavigateBack: () -> Unit,
     onEnviar:       () -> Unit,
 ) {
+    val isEnviando = uiState.isEnviando
+    val errorEnvio = uiState.errorEnvio
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -137,11 +141,28 @@ private fun RegistroPaso3Content(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            NeuButtonPrimary(
-                text     = stringResource(R.string.paso3_btn_enviar),
-                onClick  = onEnviar,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            if (errorEnvio != null) {
+                Text(
+                    text     = errorEnvio,
+                    style    = MaterialTheme.typography.bodyMedium,
+                    color    = Blush,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            if (isEnviando) {
+                Box(
+                    modifier         = Modifier.fillMaxWidth().height(56.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(color = Accent)
+                }
+            } else {
+                NeuButtonPrimary(
+                    text     = stringResource(R.string.paso3_btn_enviar),
+                    onClick  = onEnviar,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
             NeuButtonSecondary(
                 text     = stringResource(R.string.paso3_btn_editar),
                 onClick  = onNavigateBack,
@@ -245,17 +266,17 @@ private fun ResumenCard(
     uiState:  RegistroUiState,
     modifier: Modifier = Modifier,
 ) {
-    val presentes    = uiState.miembros.count { it.estado == EstadoAsistencia.PRESENTE } +
-                       uiState.visitasDeHoy.count  { it.estado == EstadoAsistencia.PRESENTE }
-    val ausentes     = uiState.miembros.count { it.estado == EstadoAsistencia.AUSENTE } +
-                       uiState.visitasDeHoy.count  { it.estado == EstadoAsistencia.AUSENTE }
-    val justificados = uiState.miembros.count { it.estado == EstadoAsistencia.JUSTIFICADO }
-    val total        = uiState.miembros.size + uiState.visitasDeHoy.size
-    val pct          = if (total > 0) presentes * 100 / total else 0
-    val visitasCount = uiState.visitasDeHoy.size
+    val miembrosPresentes    = uiState.miembros.count { it.estado == EstadoAsistencia.PRESENTE }
+    val miembrosAusentes     = uiState.miembros.count { it.estado == EstadoAsistencia.AUSENTE }
+    val miembrosJustificados = uiState.miembros.count { it.estado == EstadoAsistencia.JUSTIFICADO }
+    val presentes            = miembrosPresentes + uiState.visitasDeHoy.count { it.estado == EstadoAsistencia.PRESENTE }
+    val total                = uiState.miembros.size + uiState.visitasDeHoy.size
+    val pct                  = if (total > 0) presentes * 100 / total else 0
+    val visitasCount         = uiState.visitasDeHoy.size
 
-    val fechaStr     = uiState.fecha.formatoResumen()
-    val visitasStr   = if (visitasCount == 1)
+    val pctColor  = when { pct >= 70 -> Sage; pct >= 40 -> Gold; else -> Blush }
+    val fechaStr  = uiState.fecha.formatoResumen()
+    val visitasStr = if (visitasCount == 1)
         stringResource(R.string.paso3_visitas_singular, visitasCount)
     else
         stringResource(R.string.paso3_visitas_plural, visitasCount)
@@ -285,47 +306,103 @@ private fun ResumenCard(
                 fontWeight = FontWeight.SemiBold,
             )
         }
+
         Spacer(Modifier.height(12.dp))
-        HorizontalDivider(color = Mid.copy(alpha = 0.3f))
-        Spacer(Modifier.height(12.dp))
+        HorizontalDivider(color = Mid.copy(alpha = 0.25f))
+        Spacer(Modifier.height(14.dp))
 
         // ── FECHA ─────────────────────────────────────────────────────────────
-        ResumenRow(
-            label = stringResource(R.string.paso3_label_fecha),
-            value = fechaStr,
-        )
+        ResumenRow(label = stringResource(R.string.paso3_label_fecha), value = fechaStr)
+
+        Spacer(Modifier.height(10.dp))
+        HorizontalDivider(color = Mid.copy(alpha = 0.12f))
         Spacer(Modifier.height(10.dp))
 
         // ── MIEMBROS ──────────────────────────────────────────────────────────
         Row(
             modifier          = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.Top,
         ) {
             Text(
                 text     = stringResource(R.string.paso3_label_miembros),
                 style    = MaterialTheme.typography.labelSmall,
                 color    = Muted,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).padding(top = 4.dp),
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                BadgeResumen(stringResource(R.string.paso3_badge_presentes,  presentes),  Sage)
-                BadgeResumen(stringResource(R.string.paso3_badge_ausentes,   ausentes),   Blush)
-                BadgeResumen(stringResource(R.string.paso3_badge_justificados, justificados), Mid)
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                MiembroStatRow(
+                    count = miembrosPresentes,
+                    label = "presente${if (miembrosPresentes != 1) "s" else ""}",
+                    color = if (miembrosPresentes > 0) Sage else Muted,
+                )
+                MiembroStatRow(
+                    count = miembrosAusentes,
+                    label = "ausente${if (miembrosAusentes != 1) "s" else ""}",
+                    color = if (miembrosAusentes > 0) Blush else Muted,
+                )
+                MiembroStatRow(
+                    count = miembrosJustificados,
+                    label = "justificado${if (miembrosJustificados != 1) "s" else ""}",
+                    color = if (miembrosJustificados > 0) Gold else Muted,
+                )
             }
         }
+
+        Spacer(Modifier.height(10.dp))
+        HorizontalDivider(color = Mid.copy(alpha = 0.12f))
         Spacer(Modifier.height(10.dp))
 
-        // ── % ASISTENCIA ──────────────────────────────────────────────────────
-        ResumenRow(
-            label = stringResource(R.string.paso3_label_asistencia),
-            value = stringResource(R.string.paso3_asistencia_pct, pct),
-        )
+        // ── ASISTENCIA ────────────────────────────────────────────────────────
+        Row(
+            modifier          = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text     = stringResource(R.string.paso3_label_asistencia),
+                style    = MaterialTheme.typography.labelSmall,
+                color    = Muted,
+                modifier = Modifier.weight(1f),
+            )
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text  = stringResource(R.string.paso3_asistencia_fraccion, presentes, total),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.75f),
+                )
+                Text(
+                    text       = stringResource(R.string.paso3_asistencia_pct, pct),
+                    style      = MaterialTheme.typography.titleLarge,
+                    color      = pctColor,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
+        HorizontalDivider(color = Mid.copy(alpha = 0.12f))
         Spacer(Modifier.height(10.dp))
 
         // ── VISITAS ───────────────────────────────────────────────────────────
-        ResumenRow(
-            label = stringResource(R.string.paso3_label_visitas),
-            value = visitasStr,
+        ResumenRow(label = stringResource(R.string.paso3_label_visitas), value = visitasStr)
+    }
+}
+
+@Composable
+private fun MiembroStatRow(count: Int, label: String, color: Color) {
+    Row(
+        verticalAlignment     = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.End,
+    ) {
+        Text(
+            text       = "$count",
+            style      = MaterialTheme.typography.bodyMedium,
+            color      = color,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            text     = " $label",
+            style    = MaterialTheme.typography.bodyMedium,
+            color    = Color.White.copy(alpha = 0.65f),
         )
     }
 }

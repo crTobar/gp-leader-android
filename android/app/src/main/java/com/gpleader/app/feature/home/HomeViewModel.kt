@@ -1,11 +1,15 @@
 package com.gpleader.app.feature.home
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.gpleader.app.core.data.repository.ReunionRepository
+import com.gpleader.app.core.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -39,53 +43,72 @@ data class HomeUiState(
     val reunionesRecientes:   List<ReunionResumen> = emptyList(),
     val isLoading:            Boolean             = false,
     val error:                String?             = null,
-    // Navegación
-    val showCodigoSuplementeSheet: Boolean = false,
-    val navigateToRegistro:        Boolean = false,
-    val navigateToHistorial:       Boolean = false,
-    val navigateToDetalle:         String? = null,
+    val navigateToRegistro:   Boolean             = false,
+    val navigateToHistorial:  Boolean             = false,
+    val navigateToDetalle:    String?             = null,
 )
 
 // ── ViewModel ─────────────────────────────────────────────────────────────────
 
 @HiltViewModel
-class HomeViewModel @Inject constructor() : ViewModel() {
+class HomeViewModel @Inject constructor(
+    private val reunionRepo: ReunionRepository,
+    private val session: SessionManager,
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     init {
-        // TODO: reemplazar con carga real desde PowerSync
         _uiState.update {
             it.copy(
-                nombreLider = "Maria Garcia",
-                grupo = GrupoInfo(
-                    nombre     = "GP Los Olivos",
-                    diaSemana  = "Miércoles",
-                    horaInicio = "7:00 PM",
-                    iglesia    = "Iglesia Central",
+                nombreLider = session.miembroNombre,
+                grupo       = GrupoInfo(
+                    nombre     = session.grupoNombre,
+                    diaSemana  = "",
+                    horaInicio = "",
+                    iglesia    = "",
                 ),
-                porcentajeAsistencia = 85,
-                totalPresentes       = 12,
-                totalAusentes        = 2,
-                reunionesRecientes   = listOf(
-                    ReunionResumen("r1", LocalDate.of(2026, 2, 26), EstadoReunion.ENVIADA, 12, 2),
-                    ReunionResumen("r2", LocalDate.of(2026, 2, 19), EstadoReunion.ENVIADA, 10, 3),
-                ),
+                isLoading = true,
             )
+        }
+        observarReuniones()
+    }
+
+    private fun observarReuniones() {
+        viewModelScope.launch {
+            reunionRepo.getReuniones(grupoId = session.grupoId, limit = 2)
+                .collect { reuniones ->
+                    val totalP = reuniones.sumOf { it.presentes }
+                    val totalA = reuniones.sumOf { it.ausentes }
+                    val totalJ = reuniones.sumOf { it.justificados }
+                    val totalAsistentes = totalP + totalA + totalJ
+                    val pct = if (totalAsistentes > 0) (totalP * 100) / totalAsistentes else 0
+
+                    _uiState.update {
+                        it.copy(
+                            isLoading            = false,
+                            reunionesRecientes   = reuniones.map { r ->
+                                ReunionResumen(
+                                    id        = r.id,
+                                    fecha     = r.fecha,
+                                    estado    = runCatching { EstadoReunion.valueOf(r.estado) }
+                                        .getOrElse { EstadoReunion.BORRADOR },
+                                    presentes = r.presentes,
+                                    ausentes  = r.ausentes,
+                                )
+                            },
+                            totalPresentes       = totalP,
+                            totalAusentes        = totalA,
+                            porcentajeAsistencia = pct,
+                        )
+                    }
+                }
         }
     }
 
     fun onRegistrarClick() {
         _uiState.update { it.copy(navigateToRegistro = true) }
-    }
-
-    fun onSuplementeClick() {
-        _uiState.update { it.copy(showCodigoSuplementeSheet = true) }
-    }
-
-    fun onCerrarCodigoSuplente() {
-        _uiState.update { it.copy(showCodigoSuplementeSheet = false) }
     }
 
     fun onVerTodasClick() {
