@@ -26,6 +26,7 @@ import com.gpleader.app.feature.perfil.PerfilCambiarContrasenaScreen
 import com.gpleader.app.feature.perfil.PerfilDatosGrupoScreen
 import com.gpleader.app.feature.perfil.PerfilDatosPersonalesScreen
 import com.gpleader.app.feature.perfil.PerfilPrincipalScreen
+import com.gpleader.app.feature.perfil.RegistroActividadScreen
 import com.gpleader.app.feature.registro.AgregarActividadScreen
 import com.gpleader.app.feature.registro.DetalleActividadScreen
 import com.gpleader.app.feature.registro.ExitoEnviadoScreen
@@ -50,8 +51,9 @@ object NavRoutes {
     const val PERFIL                  = "perfil"
     const val PERFIL_DATOS_PERSONALES   = "perfil/datos_personales"
     const val PERFIL_CAMBIAR_CONTRASENA = "perfil/cambiar_contrasena"
-    const val PERFIL_DATOS_GRUPO        = "perfil/datos_grupo"
-    const val DETALLE_REUNION         = "detalle_reunion/{reunionId}"
+    const val PERFIL_DATOS_GRUPO          = "perfil/datos_grupo"
+    const val PERFIL_REGISTRO_ACTIVIDAD   = "perfil/registro_actividad"
+    const val DETALLE_REUNION             = "detalle_reunion/{reunionId}"
 
     // ── Miembros nested graph ─────────────────────────────────────────────────
     const val MIEMBROS_GRAPH   = "miembros_graph"
@@ -153,6 +155,7 @@ fun AppNavGraph(
                 onNavigateToCambiarContrasena = { navController.navigate(NavRoutes.PERFIL_CAMBIAR_CONTRASENA) },
                 onNavigateToDatosGrupo        = { navController.navigate(NavRoutes.PERFIL_DATOS_GRUPO) },
                 onNavigateToMiembros          = { navController.navigate(NavRoutes.MIEMBROS_GRAPH) },
+                onNavigateToRegistroActividad = { navController.navigate(NavRoutes.PERFIL_REGISTRO_ACTIVIDAD) },
                 onNavigateToLogin             = {
                     navController.navigate(NavRoutes.LOGIN) {
                         popUpTo(0) { inclusive = true }
@@ -180,6 +183,12 @@ fun AppNavGraph(
 
         composable(NavRoutes.PERFIL_DATOS_GRUPO) {
             PerfilDatosGrupoScreen(
+                onNavigateBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(NavRoutes.PERFIL_REGISTRO_ACTIVIDAD) {
+            RegistroActividadScreen(
                 onNavigateBack = { navController.popBackStack() },
             )
         }

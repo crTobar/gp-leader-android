@@ -40,6 +40,8 @@ data class HomeUiState(
     val porcentajeAsistencia: Int                 = 0,
     val totalPresentes:       Int                 = 0,
     val totalAusentes:        Int                 = 0,
+    val totalJustificados:    Int                 = 0,
+    val totalMiembros:        Int                 = 0,
     val reunionesRecientes:   List<ReunionResumen> = emptyList(),
     val isLoading:            Boolean             = false,
     val error:                String?             = null,
@@ -100,6 +102,8 @@ class HomeViewModel @Inject constructor(
                             },
                             totalPresentes       = totalP,
                             totalAusentes        = totalA,
+                            totalJustificados    = totalJ,
+                            totalMiembros        = totalAsistentes,
                             porcentajeAsistencia = pct,
                         )
                     }

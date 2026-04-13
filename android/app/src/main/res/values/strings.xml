@@ -40,6 +40,9 @@
     <string name="home_label_asistencia">ASISTENCIA</string>
     <string name="home_label_presentes">PRESENTES</string>
     <string name="home_label_ausentes">AUSENTES</string>
+    <string name="home_label_justificados">JUSTIFIC.</string>
+    <string name="home_label_promedio">PROMEDIO</string>
+    <string name="home_label_ult_reunion">ÚLT. REUNIÓN</string>
     <string name="home_section_recientes">REUNIONES RECIENTES</string>
     <string name="home_reunion_titulo">Reunión Semanal</string>
     <string name="home_btn_ver_todas">Ver todas las reuniones →</string>
@@ -59,9 +62,9 @@
     <!-- ── Registro ───────────────────────────────────────────────────────── -->
     <string name="registro_titulo">Registrar reunión</string>
     <string name="registro_badge_paso">1/3</string>
-    <string name="registro_step_asistencia">1 Asistencia</string>
-    <string name="registro_step_actividades">2 Actividades</string>
-    <string name="registro_step_resumen">3 Resumen</string>
+    <string name="registro_step_asistencia">Fecha y asistencia</string>
+    <string name="registro_step_actividades">Actividades</string>
+    <string name="registro_step_resumen">Resumen</string>
     <string name="registro_banner_suplente">MODO SUPLENTE</string>
     <string name="registro_label_fecha">FECHA DE REUNIÓN</string>
     <string name="registro_btn_no_hubo">No hubo reunión</string>
@@ -202,6 +205,9 @@
     <string name="perfil_notificaciones">Notificaciones</string>
     <string name="perfil_seccion_herramientas">HERRAMIENTAS</string>
     <string name="perfil_cambiar_quien_usa">Cambiar quién usa la app</string>
+    <string name="perfil_editar_miembros">Editar información de miembros</string>
+    <string name="perfil_editar_datos_grupo">Editar datos del grupo pequeño</string>
+    <string name="perfil_registro_actividad">Registro de actividad</string>
     <string name="perfil_cerrar_sesion">Cerrar sesión</string>
     <string name="perfil_cerrar_sesion_titulo">¿Cerrar sesión?</string>
     <string name="perfil_cerrar_sesion_cuerpo">Tu progreso sin sincronizar se mantendrá guardado en el dispositivo.</string>

@@ -67,14 +67,15 @@ import com.gpleader.app.core.ui.theme.neuElevatedSm
 
 @Composable
 fun PerfilPrincipalScreen(
-    onNavigateToHome:             () -> Unit,
-    onNavigateToHistorial:        () -> Unit,
-    onNavigateToDatosPersonales:  () -> Unit,
+    onNavigateToHome:              () -> Unit,
+    onNavigateToHistorial:         () -> Unit,
+    onNavigateToDatosPersonales:   () -> Unit,
     onNavigateToCambiarContrasena: () -> Unit,
-    onNavigateToDatosGrupo:       () -> Unit,
-    onNavigateToMiembros:         () -> Unit,
-    onNavigateToLogin:            () -> Unit,
-    onNavigateToQuienEres:        () -> Unit = {},
+    onNavigateToDatosGrupo:        () -> Unit,
+    onNavigateToMiembros:          () -> Unit,
+    onNavigateToLogin:             () -> Unit,
+    onNavigateToQuienEres:         () -> Unit = {},
+    onNavigateToRegistroActividad: () -> Unit = {},
     viewModel: PerfilViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -115,21 +116,25 @@ fun PerfilPrincipalScreen(
             onNavigateToQuienEres()
         }
     }
+    LaunchedEffect(uiState.navigateToRegistroActividad) {
+        if (uiState.navigateToRegistroActividad) {
+            viewModel.consumeRegistroActividadNavigation()
+            onNavigateToRegistroActividad()
+        }
+    }
 
     PerfilContent(
-        uiState                    = uiState,
-        onNavigateToHome           = onNavigateToHome,
-        onNavigateToHistorial      = onNavigateToHistorial,
-        onDatosPersonalesClick     = viewModel::onDatosPersonalesClick,
-        onCambiarContrasenaClick   = viewModel::onCambiarContrasenaClick,
-        onDatosGrupoClick          = viewModel::onDatosGrupoClick,
-        onMiembrosClick            = viewModel::onMiembrosClick,
-        onNotificacionesClick      = viewModel::onNotificacionesClick,
-        onCambiarQuienUsaClick     = viewModel::onCambiarQuienUsaClick,
-        onCerrarSesionClick        = viewModel::onCerrarSesionClick,
-        onDismissCerrarSesion      = viewModel::onDismissCerrarSesionDialog,
-        onConfirmarCerrarSesion    = viewModel::onConfirmarCerrarSesion,
-        onEditarAvatarClick        = viewModel::onEditarAvatarClick,
+        uiState                      = uiState,
+        onNavigateToHome             = onNavigateToHome,
+        onNavigateToHistorial        = onNavigateToHistorial,
+        onDatosGrupoClick            = viewModel::onDatosGrupoClick,
+        onMiembrosClick              = viewModel::onMiembrosClick,
+        onCambiarQuienUsaClick       = viewModel::onCambiarQuienUsaClick,
+        onRegistroActividadClick     = viewModel::onRegistroActividadClick,
+        onCerrarSesionClick          = viewModel::onCerrarSesionClick,
+        onDismissCerrarSesion        = viewModel::onDismissCerrarSesionDialog,
+        onConfirmarCerrarSesion      = viewModel::onConfirmarCerrarSesion,
+        onEditarAvatarClick          = viewModel::onEditarAvatarClick,
     )
 }
 
@@ -140,12 +145,10 @@ private fun PerfilContent(
     uiState:                  PerfilUiState,
     onNavigateToHome:         () -> Unit,
     onNavigateToHistorial:    () -> Unit,
-    onDatosPersonalesClick:   () -> Unit,
-    onCambiarContrasenaClick: () -> Unit,
     onDatosGrupoClick:        () -> Unit,
     onMiembrosClick:          () -> Unit,
-    onNotificacionesClick:    () -> Unit,
     onCambiarQuienUsaClick:   () -> Unit,
+    onRegistroActividadClick: () -> Unit,
     onCerrarSesionClick:      () -> Unit,
     onDismissCerrarSesion:    () -> Unit,
     onConfirmarCerrarSesion:  () -> Unit,
@@ -193,15 +196,9 @@ private fun PerfilContent(
                 item {
                     SeccionCard(modifier = Modifier.padding(bottom = 4.dp)) {
                         FilaMenu(
-                            label   = stringResource(R.string.perfil_datos_personales),
-                            onClick = onDatosPersonalesClick,
-                            shape   = FilaShape.TOP,
-                        )
-                        HorizontalDivider(color = Shadow, thickness = 1.dp)
-                        FilaMenu(
-                            label   = stringResource(R.string.perfil_cambiar_contrasena),
-                            onClick = onCambiarContrasenaClick,
-                            shape   = FilaShape.BOTTOM,
+                            label   = stringResource(R.string.perfil_cambiar_quien_usa),
+                            onClick = onCambiarQuienUsaClick,
+                            shape   = FilaShape.SINGLE,
                         )
                     }
                 }
@@ -213,16 +210,22 @@ private fun PerfilContent(
                 item {
                     SeccionCard(modifier = Modifier.padding(bottom = 4.dp)) {
                         FilaMenu(
-                            label   = stringResource(R.string.perfil_datos_grupo),
-                            onClick = onDatosGrupoClick,
+                            label   = stringResource(R.string.perfil_editar_miembros),
+                            onClick = onMiembrosClick,
                             shape   = FilaShape.TOP,
+                            badge   = uiState.totalMiembros.toString(),
                         )
                         HorizontalDivider(color = Shadow, thickness = 1.dp)
                         FilaMenu(
-                            label   = stringResource(R.string.perfil_miembros),
-                            onClick = onMiembrosClick,
+                            label   = stringResource(R.string.perfil_editar_datos_grupo),
+                            onClick = onDatosGrupoClick,
+                            shape   = FilaShape.MIDDLE,
+                        )
+                        HorizontalDivider(color = Shadow, thickness = 1.dp)
+                        FilaMenu(
+                            label   = stringResource(R.string.perfil_registro_actividad),
+                            onClick = onRegistroActividadClick,
                             shape   = FilaShape.BOTTOM,
-                            badge   = uiState.totalMiembros.toString(),
                         )
                     }
                 }
@@ -233,26 +236,6 @@ private fun PerfilContent(
                 }
                 item {
                     SeccionCard(modifier = Modifier.padding(bottom = 4.dp)) {
-                        FilaMenu(
-                            label   = stringResource(R.string.perfil_notificaciones),
-                            onClick = onNotificacionesClick,
-                            shape   = FilaShape.SINGLE,
-                        )
-                    }
-                }
-
-                // ── Sección HERRAMIENTAS ──────────────────────────────────────
-                item {
-                    SeccionLabel(stringResource(R.string.perfil_seccion_herramientas))
-                }
-                item {
-                    SeccionCard(modifier = Modifier.padding(bottom = 4.dp)) {
-                        FilaMenu(
-                            label   = stringResource(R.string.perfil_cambiar_quien_usa),
-                            onClick = onCambiarQuienUsaClick,
-                            shape   = FilaShape.TOP,
-                        )
-                        HorizontalDivider(color = Shadow, thickness = 1.dp)
                         FilaCerrarSesion(onClick = onCerrarSesionClick)
                     }
                 }
@@ -639,12 +622,10 @@ private fun PerfilPreview() {
             ),
             onNavigateToHome          = {},
             onNavigateToHistorial     = {},
-            onDatosPersonalesClick    = {},
-            onCambiarContrasenaClick  = {},
             onDatosGrupoClick         = {},
             onMiembrosClick           = {},
-            onNotificacionesClick     = {},
             onCambiarQuienUsaClick    = {},
+            onRegistroActividadClick  = {},
             onCerrarSesionClick       = {},
             onDismissCerrarSesion     = {},
             onConfirmarCerrarSesion   = {},
@@ -668,12 +649,10 @@ private fun PerfilDialogPreview() {
             ),
             onNavigateToHome          = {},
             onNavigateToHistorial     = {},
-            onDatosPersonalesClick    = {},
-            onCambiarContrasenaClick  = {},
             onDatosGrupoClick         = {},
             onMiembrosClick           = {},
-            onNotificacionesClick     = {},
             onCambiarQuienUsaClick    = {},
+            onRegistroActividadClick  = {},
             onCerrarSesionClick       = {},
             onDismissCerrarSesion     = {},
             onConfirmarCerrarSesion   = {},

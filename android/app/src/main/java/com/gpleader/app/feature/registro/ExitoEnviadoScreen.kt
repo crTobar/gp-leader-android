@@ -2,6 +2,7 @@ package com.gpleader.app.feature.registro
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -42,12 +44,17 @@ import com.gpleader.app.R
 import com.gpleader.app.core.ui.components.NeuButtonPrimary
 import com.gpleader.app.core.ui.components.NeuButtonSecondary
 import com.gpleader.app.core.ui.components.NeuCard
+import com.gpleader.app.core.ui.theme.Accent
 import com.gpleader.app.core.ui.theme.Background
 import com.gpleader.app.core.ui.theme.BackgroundDeep
+import com.gpleader.app.core.ui.theme.Blush
+import com.gpleader.app.core.ui.theme.Gold
 import com.gpleader.app.core.ui.theme.GpLeaderTheme
 import com.gpleader.app.core.ui.theme.Ink
 import com.gpleader.app.core.ui.theme.Mid
 import com.gpleader.app.core.ui.theme.Muted
+import com.gpleader.app.core.ui.theme.Sage
+import com.gpleader.app.core.ui.theme.neuElevated
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
@@ -89,148 +96,147 @@ private fun ExitoEnviadoContent(
     val fechaCorta   = uiState.fecha.formatoResumen()   // "Lun 16 Mar 2026"
     val hora         = remember { horaActual() }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-
-        // ── Hero ~40% ─────────────────────────────────────────────────────────
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier         = Modifier
-                .fillMaxWidth()
-                .weight(0.4f)
-                .background(Ink)
-                .statusBarsPadding(),
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                // ✓ en cuadrado con borde blanco
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier         = Modifier
-                        .size(72.dp)
-                        .border(2.dp, Color.White, RoundedCornerShape(18.dp)),
-                ) {
-                    Icon(
-                        imageVector        = Icons.Filled.Check,
-                        contentDescription = null,
-                        tint               = Color.White,
-                        modifier           = Modifier.size(40.dp),
-                    )
-                }
-                Spacer(Modifier.height(20.dp))
-                Text(
-                    text      = stringResource(R.string.exito_enviado_titulo),
-                    style     = MaterialTheme.typography.displayLarge,
-                    color     = Color.White,
-                    textAlign = TextAlign.Center,
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text      = fechaLarga,
-                    style     = MaterialTheme.typography.bodyMedium,
-                    color     = Muted,
-                    textAlign = TextAlign.Center,
-                )
-            }
-        }
-
-        // ── Body ~60% ─────────────────────────────────────────────────────────
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Background)
+            .statusBarsPadding(),
+    ) {
         LazyColumn(
-            modifier            = Modifier
-                .fillMaxWidth()
-                .weight(0.6f),
-            contentPadding      = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier            = Modifier.fillMaxSize(),
+            contentPadding      = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // Timestamp
+            // ── Ícono checkmark ───────────────────────────────────────────────
             item {
-                Text(
-                    text      = stringResource(R.string.exito_enviado_timestamp, fechaCorta, hora),
-                    style     = MaterialTheme.typography.labelSmall,
-                    color     = Muted,
-                    textAlign = TextAlign.Center,
-                    modifier  = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                )
-            }
-
-            // NeuCard pastor
-            item {
-                NeuCard(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier              = Modifier.padding(16.dp),
-                        verticalAlignment     = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier         = Modifier
+                            .size(72.dp)
+                            .neuElevated(cornerRadius = 36.dp)
+                            .clip(CircleShape)
+                            .background(Background),
                     ) {
-                        // Avatar placeholder cuadrado redondeado
-                        Box(
-                            modifier = Modifier
-                                .size(56.dp)
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(BackgroundDeep),
+                        Icon(
+                            imageVector        = Icons.Filled.Check,
+                            contentDescription = null,
+                            tint               = Sage,
+                            modifier           = Modifier.size(32.dp),
                         )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text  = stringResource(R.string.exito_pastor_nombre),
-                                style = MaterialTheme.typography.titleLarge,
-                                color = Ink,
-                            )
-                            Text(
-                                text  = stringResource(R.string.exito_pastor_rol),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Muted,
-                            )
-                        }
-                        // Círculo ✓ fondo Ink
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier         = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(Ink),
-                        ) {
-                            Icon(
-                                imageVector        = Icons.Filled.Check,
-                                contentDescription = null,
-                                tint               = Color.White,
-                                modifier           = Modifier.size(20.dp),
-                            )
-                        }
                     }
                 }
             }
 
-            // NeuCard stats
+            // ── Título y fecha ────────────────────────────────────────────────
+            item {
+                Column(
+                    modifier            = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        text      = stringResource(R.string.exito_enviado_titulo),
+                        style     = MaterialTheme.typography.headlineMedium,
+                        color     = Ink,
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text      = fechaLarga.uppercase(),
+                        style     = MaterialTheme.typography.labelSmall,
+                        color     = Muted,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+
+            // ── Card de stats ─────────────────────────────────────────────────
             item {
                 NeuCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                        StatFila(stringResource(R.string.exito_resumen_presentes),  presentes.toString())
+                        StatFilaColoreada(
+                            icono = "✓",
+                            label = stringResource(R.string.exito_resumen_presentes),
+                            valor = presentes.toString(),
+                            color = Sage,
+                        )
                         StatDivider()
-                        StatFila(stringResource(R.string.exito_resumen_ausentes),   ausentes.toString())
+                        StatFilaColoreada(
+                            icono = "✕",
+                            label = stringResource(R.string.exito_resumen_ausentes),
+                            valor = ausentes.toString(),
+                            color = Blush,
+                        )
                         StatDivider()
-                        StatFila(stringResource(R.string.exito_stats_justificados), justificados.toString())
+                        StatFilaColoreada(
+                            icono = "◷",
+                            label = stringResource(R.string.exito_stats_justificados),
+                            valor = justificados.toString(),
+                            color = Gold,
+                        )
                         StatDivider()
-                        StatFila(stringResource(R.string.exito_stats_asistencia),   "$pct%")
-                        StatDivider()
-                        StatFila(stringResource(R.string.exito_stats_visitas),      visitasCount.toString())
+                        StatFilaColoreada(
+                            icono = "≡",
+                            label = stringResource(R.string.exito_stats_asistencia),
+                            valor = "$pct%",
+                            color = Accent,
+                        )
                     }
                 }
             }
 
-            // Botones
+            // ── Sección actividades ───────────────────────────────────────────
+            if (uiState.actividades.any { it.cantidad != null }) {
+                item {
+                    Text(
+                        text  = stringResource(R.string.paso3_label_actividades),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Muted,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                item {
+                    NeuCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                            uiState.actividades
+                                .filter { it.cantidad != null }
+                                .forEachIndexed { idx, act ->
+                                    if (idx > 0) StatDivider()
+                                    StatFilaActividad(
+                                        nombre   = act.nombre,
+                                        cantidad = act.cantidad ?: 0,
+                                        unidad   = act.unidad,
+                                    )
+                                }
+                        }
+                    }
+                }
+            }
+
+            // ── Botones ───────────────────────────────────────────────────────
             item {
                 Column(
-                    modifier            = Modifier.navigationBarsPadding(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier            = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     NeuButtonPrimary(
                         text     = stringResource(R.string.exito_enviado_btn),
                         onClick  = onNavigateToHome,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    NeuButtonSecondary(
-                        text     = stringResource(R.string.exito_enviado_btn_historial),
-                        onClick  = onNavigateToHistorial,
-                        modifier = Modifier.fillMaxWidth(),
+                    Text(
+                        text      = stringResource(R.string.exito_enviado_btn_historial),
+                        style     = MaterialTheme.typography.bodyMedium,
+                        color     = Accent,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier  = Modifier.clickable(onClick = onNavigateToHistorial),
                     )
                 }
             }
@@ -241,13 +247,23 @@ private fun ExitoEnviadoContent(
 // ── Helpers de stats ─────────────────────────────────────────────────────────
 
 @Composable
-private fun StatFila(label: String, value: String) {
+private fun StatFilaColoreada(icono: String, label: String, valor: String, color: Color) {
     Row(
         modifier          = Modifier
             .fillMaxWidth()
-            .padding(vertical = 12.dp),
+            .padding(vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(color.copy(alpha = 0.12f)),
+        ) {
+            Text(text = icono, color = color, style = MaterialTheme.typography.bodyMedium)
+        }
         Text(
             text     = label,
             style    = MaterialTheme.typography.bodyMedium,
@@ -255,10 +271,38 @@ private fun StatFila(label: String, value: String) {
             modifier = Modifier.weight(1f),
         )
         Text(
-            text       = value,
+            text       = valor,
             style      = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
-            color      = Ink,
+            color      = color,
+        )
+    }
+}
+
+@Composable
+private fun StatFilaActividad(nombre: String, cantidad: Int, unidad: String) {
+    Row(
+        modifier          = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text     = nombre,
+            style    = MaterialTheme.typography.bodyMedium,
+            color    = Ink,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text       = "$cantidad $unidad",
+            style      = MaterialTheme.typography.bodyMedium,
+            color      = Muted,
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text       = "Completada",
+            style      = MaterialTheme.typography.labelSmall,
+            color      = Sage,
         )
     }
 }

@@ -281,7 +281,10 @@ private fun RegistroPaso1Content(
         ) {
             item { RegistroTopBar(onNavigateBack = onNavigateBack) }
 
-            item { StepperRow(pasoActivo = 1) }
+            item {
+                val presentes = uiState.miembros.count { it.estado == EstadoAsistencia.PRESENTE }
+                StepperRow(pasoActivo = 1, presentes = presentes, total = uiState.miembros.size)
+            }
 
             item { Spacer(Modifier.height(16.dp)) }
 
@@ -447,37 +450,79 @@ private fun RegistroTopBar(onNavigateBack: () -> Unit) {
 // ── Stepper ───────────────────────────────────────────────────────────────────
 
 @Composable
-private fun StepperRow(pasoActivo: Int) {
-    Row(
+private fun StepperRow(pasoActivo: Int, presentes: Int = 0, total: Int = 0) {
+    val labels = listOf(
+        stringResource(R.string.registro_step_asistencia),
+        stringResource(R.string.registro_step_actividades),
+        stringResource(R.string.registro_step_resumen),
+    )
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(Background)
-            .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
+            .padding(horizontal = 20.dp, vertical = 12.dp),
     ) {
-        listOf(
-            stringResource(R.string.registro_step_asistencia),
-            stringResource(R.string.registro_step_actividades),
-            stringResource(R.string.registro_step_resumen),
-        ).forEachIndexed { idx, label ->
-            val activo = idx + 1 == pasoActivo
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier            = Modifier.weight(1f),
-            ) {
-                Text(
-                    text     = label,
-                    style    = MaterialTheme.typography.labelSmall,
-                    color    = if (activo) Accent else Muted,
-                    modifier = Modifier.padding(vertical = 10.dp),
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(2.dp)
-                        .background(if (activo) Accent else Color.Transparent),
-                )
+        Row(
+            modifier              = Modifier.fillMaxWidth(),
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            labels.forEachIndexed { idx, label ->
+                val numero = idx + 1
+                val activo = numero == pasoActivo
+                val completado = numero < pasoActivo
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier            = Modifier.weight(1f),
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(if (activo || completado) Accent else Color.Transparent)
+                            .then(
+                                if (!activo && !completado)
+                                    Modifier.border(1.5.dp, Muted, CircleShape)
+                                else Modifier
+                            ),
+                    ) {
+                        Text(
+                            text  = "$numero",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (activo || completado) Color.White else Muted,
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text      = label,
+                        style     = MaterialTheme.typography.labelSmall,
+                        color     = if (activo) Accent else Muted,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+
+                if (idx < labels.size - 1) {
+                    Box(
+                        modifier = Modifier
+                            .weight(0.5f)
+                            .height(1.dp)
+                            .padding(bottom = 20.dp)
+                            .background(if (pasoActivo > idx + 1) Accent else Muted.copy(alpha = 0.4f)),
+                    )
+                }
             }
+        }
+        if (total > 0) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text      = "$presentes de $total presentes",
+                style     = MaterialTheme.typography.labelSmall,
+                color     = Muted,
+                modifier  = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }

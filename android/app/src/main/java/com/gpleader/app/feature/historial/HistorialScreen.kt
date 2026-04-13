@@ -330,6 +330,7 @@ private fun HistorialTopBar(
     Row(
         modifier          = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
             text     = stringResource(R.string.historial_titulo),
@@ -337,22 +338,42 @@ private fun HistorialTopBar(
             color    = Ink,
             modifier = Modifier.weight(1f),
         )
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .neuElevatedSm(cornerRadius = 14.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(Background)
-                .clickable(onClick = onBuscarClick)
-                .padding(12.dp),
-        ) {
-            Icon(
-                imageVector        = Icons.Filled.Search,
-                contentDescription = stringResource(R.string.historial_btn_buscar),
-                tint               = Ink,
-                modifier           = Modifier.size(22.dp),
-            )
-        }
+        // Ícono +
+        TopBarIconButton(
+            icon               = Icons.Filled.DateRange,
+            contentDescription = null,
+            onClick            = {},
+        )
+        // Ícono búsqueda
+        TopBarIconButton(
+            icon               = Icons.Filled.Search,
+            contentDescription = stringResource(R.string.historial_btn_buscar),
+            onClick            = onBuscarClick,
+        )
+    }
+}
+
+@Composable
+private fun TopBarIconButton(
+    icon:               androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String?,
+    onClick:            () -> Unit,
+) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .neuElevatedSm(cornerRadius = 14.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Background)
+            .clickable(onClick = onClick)
+            .padding(12.dp),
+    ) {
+        Icon(
+            imageVector        = icon,
+            contentDescription = contentDescription,
+            tint               = Ink,
+            modifier           = Modifier.size(22.dp),
+        )
     }
 }
 

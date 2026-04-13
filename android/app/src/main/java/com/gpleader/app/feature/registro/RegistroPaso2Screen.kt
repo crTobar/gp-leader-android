@@ -22,6 +22,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -156,6 +158,14 @@ private fun RegistroPaso2Content(
                     labelNivel       = stringResource(R.string.registro_nivel_union),
                     headerBg         = Ink,
                     headerTextColor  = Color.White,
+                    headerIcon       = {
+                        Icon(
+                            imageVector        = Icons.Filled.Lock,
+                            contentDescription = null,
+                            tint               = Color.White,
+                            modifier           = Modifier.size(14.dp),
+                        )
+                    },
                     actividades      = actividadesUnion,
                     onActividadClick = { /* bloqueada */ },
                     onCantidadChange = { _, _ -> },
@@ -172,8 +182,16 @@ private fun RegistroPaso2Content(
             item {
                 SeccionActividades(
                     labelNivel       = stringResource(R.string.registro_nivel_pastor),
-                    headerBg         = Mid,
+                    headerBg         = Color(0xFF4A5568),
                     headerTextColor  = Color.White,
+                    headerIcon       = {
+                        Icon(
+                            imageVector        = Icons.Filled.Star,
+                            contentDescription = null,
+                            tint               = Color.White,
+                            modifier           = Modifier.size(14.dp),
+                        )
+                    },
                     actividades      = actividadesPastor,
                     onActividadClick = onActividadClick,
                     onCantidadChange = onCantidadChange,
@@ -192,6 +210,14 @@ private fun RegistroPaso2Content(
                     labelNivel       = stringResource(R.string.registro_nivel_mi_gp),
                     headerBg         = BackgroundDeep,
                     headerTextColor  = Ink,
+                    headerIcon       = {
+                        Icon(
+                            imageVector        = Icons.Filled.Star,
+                            contentDescription = null,
+                            tint               = Accent,
+                            modifier           = Modifier.size(14.dp),
+                        )
+                    },
                     actividades      = actividadesGP,
                     onActividadClick = onActividadClick,
                     onCantidadChange = onCantidadChange,
@@ -290,34 +316,62 @@ private fun Paso2TopBar(onNavigateBack: () -> Unit) {
 
 @Composable
 private fun StepperRow(pasoActivo: Int) {
+    val labels = listOf(
+        stringResource(R.string.registro_step_asistencia),
+        stringResource(R.string.registro_step_actividades),
+        stringResource(R.string.registro_step_resumen),
+    )
     Row(
-        modifier = Modifier
+        modifier              = Modifier
             .fillMaxWidth()
             .background(Background)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment     = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
-        listOf(
-            stringResource(R.string.registro_step_asistencia),
-            stringResource(R.string.registro_step_actividades),
-            stringResource(R.string.registro_step_resumen),
-        ).forEachIndexed { idx, label ->
-            val activo = idx + 1 == pasoActivo
+        labels.forEachIndexed { idx, label ->
+            val numero = idx + 1
+            val activo = numero == pasoActivo
+            val completado = numero < pasoActivo
+
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier            = Modifier.weight(1f),
             ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(if (activo || completado) Accent else Color.Transparent)
+                        .then(
+                            if (!activo && !completado)
+                                Modifier.border(1.5.dp, Muted, CircleShape)
+                            else Modifier
+                        ),
+                ) {
+                    Text(
+                        text  = "$numero",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (activo || completado) Color.White else Muted,
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
                 Text(
-                    text     = label,
-                    style    = MaterialTheme.typography.labelSmall,
-                    color    = if (activo) Accent else Muted,
-                    modifier = Modifier.padding(vertical = 10.dp),
+                    text      = label,
+                    style     = MaterialTheme.typography.labelSmall,
+                    color     = if (activo) Accent else Muted,
+                    textAlign = TextAlign.Center,
                 )
+            }
+
+            if (idx < labels.size - 1) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(2.dp)
-                        .background(if (activo) Accent else Color.Transparent),
+                        .weight(0.5f)
+                        .height(1.dp)
+                        .padding(bottom = 20.dp)
+                        .background(if (pasoActivo > idx + 1) Accent else Muted.copy(alpha = 0.4f)),
                 )
             }
         }
@@ -331,6 +385,7 @@ private fun SeccionActividades(
     labelNivel:       String,
     headerBg:         Color,
     headerTextColor:  Color,
+    headerIcon:       @Composable (() -> Unit)? = null,
     actividades:      List<ActividadRegistro>,
     onActividadClick: (String) -> Unit,
     onCantidadChange: (String, Int?) -> Unit,
@@ -347,20 +402,18 @@ private fun SeccionActividades(
                     .fillMaxWidth()
                     .background(headerBg)
                     .padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                ) {
-                    Text(
-                        text  = labelNivel,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = headerTextColor,
-                        fontWeight = FontWeight.Bold,
-                    )
+                if (headerIcon != null) {
+                    headerIcon()
                 }
+                Text(
+                    text       = labelNivel,
+                    style      = MaterialTheme.typography.labelSmall,
+                    color      = headerTextColor,
+                    fontWeight = FontWeight.Bold,
+                )
             }
 
             HorizontalDivider(color = if (headerBg == BackgroundDeep) Background else headerBg.copy(alpha = 0.3f))

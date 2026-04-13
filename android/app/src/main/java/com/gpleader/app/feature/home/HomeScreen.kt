@@ -53,6 +53,7 @@ import com.gpleader.app.core.ui.components.SkeletonText
 import com.gpleader.app.core.ui.theme.Accent
 import com.gpleader.app.core.ui.theme.Background
 import com.gpleader.app.core.ui.theme.BackgroundDeep
+import com.gpleader.app.core.ui.theme.Blush
 import com.gpleader.app.core.ui.theme.GpLeaderTheme
 import com.gpleader.app.core.ui.theme.Gold
 import com.gpleader.app.core.ui.theme.Ink
@@ -172,9 +173,11 @@ private fun HomeScreenContent(
                 }
 
                 StatsRow(
-                    porcentaje = uiState.porcentajeAsistencia,
-                    presentes  = uiState.totalPresentes,
-                    ausentes   = uiState.totalAusentes,
+                    porcentaje   = uiState.porcentajeAsistencia,
+                    presentes    = uiState.totalPresentes,
+                    ausentes     = uiState.totalAusentes,
+                    justificados = uiState.totalJustificados,
+                    totalMiembros = uiState.totalMiembros,
                 )
 
                 Spacer(Modifier.height(24.dp))
@@ -489,37 +492,65 @@ private fun GrupoCard(
 
 @Composable
 private fun StatsRow(
-    porcentaje: Int,
-    presentes: Int,
-    ausentes: Int,
+    porcentaje:    Int,
+    presentes:     Int,
+    ausentes:      Int,
+    justificados:  Int,
+    totalMiembros: Int,
 ) {
     Row(
-        modifier            = Modifier.fillMaxWidth(),
+        modifier              = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(0.dp),
     ) {
-        // Celda 1 — fondo Ink
-        StatCellDark(
-            value    = "$porcentaje%",
-            label    = stringResource(R.string.home_label_asistencia),
-            modifier = Modifier.weight(1f).padding(6.dp),
+        // Card destacada izquierda — fondo Ink
+        StatCellFeatured(
+            presentes     = presentes,
+            totalMiembros = totalMiembros,
+            porcentaje    = porcentaje,
+            modifier      = Modifier.weight(1.1f).padding(6.dp),
         )
-        // Celda 2
-        StatCellLight(
-            value    = presentes.toString(),
-            label    = stringResource(R.string.home_label_presentes),
-            modifier = Modifier.weight(1f).padding(6.dp),
-        )
-        // Celda 3
-        StatCellLight(
-            value    = ausentes.toString(),
-            label    = stringResource(R.string.home_label_ausentes),
-            modifier = Modifier.weight(1f).padding(6.dp),
-        )
+
+        // Grid 2×2 a la derecha
+        Column(modifier = Modifier.weight(1f)) {
+            Row {
+                StatCellLight(
+                    value    = presentes.toString(),
+                    label    = stringResource(R.string.home_label_presentes),
+                    color    = Sage,
+                    modifier = Modifier.weight(1f).padding(start = 0.dp, end = 4.dp, top = 6.dp, bottom = 2.dp),
+                )
+                StatCellLight(
+                    value    = ausentes.toString(),
+                    label    = stringResource(R.string.home_label_ausentes),
+                    color    = Blush,
+                    modifier = Modifier.weight(1f).padding(start = 4.dp, end = 6.dp, top = 6.dp, bottom = 2.dp),
+                )
+            }
+            Row {
+                StatCellLight(
+                    value    = justificados.toString(),
+                    label    = stringResource(R.string.home_label_justificados),
+                    color    = Muted,
+                    modifier = Modifier.weight(1f).padding(start = 0.dp, end = 4.dp, top = 2.dp, bottom = 6.dp),
+                )
+                StatCellLight(
+                    value    = "$porcentaje%",
+                    label    = stringResource(R.string.home_label_promedio),
+                    color    = Accent,
+                    modifier = Modifier.weight(1f).padding(start = 4.dp, end = 6.dp, top = 2.dp, bottom = 6.dp),
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun StatCellDark(value: String, label: String, modifier: Modifier = Modifier) {
+private fun StatCellFeatured(
+    presentes:     Int,
+    totalMiembros: Int,
+    porcentaje:    Int,
+    modifier:      Modifier = Modifier,
+) {
     Box(
         modifier = modifier
             .neuElevated(cornerRadius = 20.dp)
@@ -532,35 +563,49 @@ private fun StatCellDark(value: String, label: String, modifier: Modifier = Modi
             modifier            = Modifier.padding(vertical = 20.dp, horizontal = 8.dp),
         ) {
             Text(
-                text  = value,
-                style = MaterialTheme.typography.displayLarge,
+                text  = "$presentes de $totalMiembros",
+                style = MaterialTheme.typography.headlineMedium,
                 color = Color.White,
+                fontWeight = FontWeight.Bold,
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(2.dp))
             Text(
-                text  = label,
+                text  = "$porcentaje%",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White.copy(alpha = 0.85f),
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text  = stringResource(R.string.home_label_ult_reunion),
                 style = MaterialTheme.typography.labelSmall,
-                color = Color.White.copy(alpha = 0.7f),
+                color = Color.White.copy(alpha = 0.5f),
             )
         }
     }
 }
 
 @Composable
-private fun StatCellLight(value: String, label: String, modifier: Modifier = Modifier) {
+private fun StatCellLight(
+    value:    String,
+    label:    String,
+    color:    Color,
+    modifier: Modifier = Modifier,
+) {
     NeuCard(modifier = modifier) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier            = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 20.dp, horizontal = 8.dp),
+                .padding(vertical = 12.dp, horizontal = 4.dp),
         ) {
             Text(
                 text  = value,
-                style = MaterialTheme.typography.headlineMedium,
-                color = Ink,
+                style = MaterialTheme.typography.titleLarge,
+                color = color,
+                fontWeight = FontWeight.Bold,
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(2.dp))
             Text(
                 text  = label,
                 style = MaterialTheme.typography.labelSmall,
@@ -799,9 +844,11 @@ private fun NavTabItem(
 private val previewUiState = HomeUiState(
     nombreLider          = "Maria Garcia",
     grupo                = GrupoInfo("GP Los Olivos", "Miércoles", "7:00 PM", "Iglesia Central"),
-    porcentajeAsistencia = 85,
-    totalPresentes       = 12,
-    totalAusentes        = 2,
+    porcentajeAsistencia = 67,
+    totalPresentes       = 2,
+    totalAusentes        = 1,
+    totalJustificados    = 1,
+    totalMiembros        = 4,
     reunionesRecientes   = listOf(
         ReunionResumen("r1", LocalDate.of(2026, 2, 26), EstadoReunion.ENVIADA, 12, 2),
         ReunionResumen("r2", LocalDate.of(2026, 2, 19), EstadoReunion.ENVIADA, 10, 3),

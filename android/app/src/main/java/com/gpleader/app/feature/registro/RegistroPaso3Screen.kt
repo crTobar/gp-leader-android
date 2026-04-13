@@ -1,6 +1,7 @@
 package com.gpleader.app.feature.registro
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,7 +15,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -225,34 +229,62 @@ private fun Paso3TopBar(onNavigateBack: () -> Unit) {
 
 @Composable
 private fun StepperRow(pasoActivo: Int) {
+    val labels = listOf(
+        stringResource(R.string.registro_step_asistencia),
+        stringResource(R.string.registro_step_actividades),
+        stringResource(R.string.registro_step_resumen),
+    )
     Row(
-        modifier = Modifier
+        modifier              = Modifier
             .fillMaxWidth()
             .background(Background)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment     = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
-        listOf(
-            stringResource(R.string.registro_step_asistencia),
-            stringResource(R.string.registro_step_actividades),
-            stringResource(R.string.registro_step_resumen),
-        ).forEachIndexed { idx, label ->
-            val activo = idx + 1 == pasoActivo
+        labels.forEachIndexed { idx, label ->
+            val numero = idx + 1
+            val activo = numero == pasoActivo
+            val completado = numero < pasoActivo
+
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier            = Modifier.weight(1f),
             ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(if (activo || completado) Accent else Color.Transparent)
+                        .then(
+                            if (!activo && !completado)
+                                Modifier.border(1.5.dp, Muted, CircleShape)
+                            else Modifier
+                        ),
+                ) {
+                    Text(
+                        text  = "$numero",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (activo || completado) Color.White else Muted,
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
                 Text(
-                    text     = label,
-                    style    = MaterialTheme.typography.labelSmall,
-                    color    = if (activo) Accent else Muted,
-                    modifier = Modifier.padding(vertical = 10.dp),
+                    text      = label,
+                    style     = MaterialTheme.typography.labelSmall,
+                    color     = if (activo) Accent else Muted,
+                    textAlign = TextAlign.Center,
                 )
+            }
+
+            if (idx < labels.size - 1) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(2.dp)
-                        .background(if (activo) Accent else Color.Transparent),
+                        .weight(0.5f)
+                        .height(1.dp)
+                        .padding(bottom = 20.dp)
+                        .background(if (pasoActivo > idx + 1) Accent else Muted.copy(alpha = 0.4f)),
                 )
             }
         }
