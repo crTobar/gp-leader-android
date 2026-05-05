@@ -5,8 +5,12 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gpleader.app.R
+import com.gpleader.app.core.data.repository.ActividadRepository
+import com.gpleader.app.core.data.repository.ActividadTipoData
 import com.gpleader.app.core.data.repository.AsistenciaParaGuardar
 import com.gpleader.app.core.data.repository.MiembroRepository
+import com.gpleader.app.core.data.repository.RegistroActividadData
 import com.gpleader.app.core.data.repository.ReunionRepository
 import com.gpleader.app.core.data.repository.iniciales
 import com.gpleader.app.core.data.repository.nombreCompleto
@@ -26,6 +30,7 @@ import javax.inject.Inject
 
 enum class EstadoAsistencia { PRESENTE, AUSENTE, JUSTIFICADO }
 enum class NivelActividad   { UNION, PASTOR, GP }
+enum class TipoMarcador     { CHECKBOX, CONTADOR, MONETARIO }
 
 // ── Domain models ──────────────────────────────────────────────────────────────
 
@@ -51,10 +56,11 @@ data class VisitaHoy(
 )
 
 data class MiembroDesglose(
-    val miembroId: String,
-    val nombre:    String,
-    val iniciales: String,
-    val cantidad:  Int = 0,
+    val miembroId:     String,
+    val nombre:        String,
+    val iniciales:     String,
+    val cantidad:      Int    = 0,
+    val montoDesglose: Double = 0.0,  // para actividades MONETARIO
 )
 
 data class ActividadRegistro(
@@ -63,19 +69,24 @@ data class ActividadRegistro(
     val nivel:            NivelActividad,
     val unidad:           String,
     val esOficial:        Boolean,
-    val esExtra:          Boolean = false,
-    val esObligatoria:    Boolean = false,
-    val cantidad:         Int?    = null,
-    val notas:            String? = null,
-    val bloqueada:        Boolean = false,
-    val tieneDesglose:    Boolean = false,
-    val desgloseExpandido: Boolean = false,
+    val esExtra:          Boolean    = false,
+    val esObligatoria:    Boolean    = false,
+    val tipoMarcador:     TipoMarcador = TipoMarcador.CONTADOR,
+    val cantidad:         Int?       = null,
+    val realizado:        Boolean?   = null,   // solo si tipoMarcador == CHECKBOX
+    val monto:            Double?    = null,   // solo si tipoMarcador == MONETARIO
+    val notas:            String?    = null,
+    val bloqueada:        Boolean    = false,
+    val tieneDesglose:    Boolean    = false,
+    val desgloseExpandido: Boolean   = false,
     val desgloseMiembros: List<MiembroDesglose> = emptyList(),
 )
 
 // ── UI state ──────────────────────────────────────────────────────────────────
 
 data class RegistroUiState(
+    val nombreGrupo:       String                  = "",
+    val mensajePaso3:    String?                 = null,
     // ── Paso 1 ───────────────────────────────────────────────────────────────
     val fecha:             LocalDate               = LocalDate.now(),
     val noHuboReunion:     Boolean                 = false,
@@ -109,6 +120,7 @@ class RegistroViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val miembroRepo: MiembroRepository,
     private val reunionRepo: ReunionRepository,
+    private val actividadRepo: ActividadRepository,
     private val session: SessionManager,
 ) : ViewModel() {
 
@@ -121,7 +133,12 @@ class RegistroViewModel @Inject constructor(
     val uiState: StateFlow<RegistroUiState> = _uiState.asStateFlow()
 
     init {
-        _uiState.update { it.copy(showJustificadoHint = justificadoUsos() < 5) }
+        _uiState.update {
+            it.copy(
+                showJustificadoHint = justificadoUsos() < 5,
+                nombreGrupo         = session.grupoNombre,
+            )
+        }
         cargarMiembros()
         cargarVisitasAnteriores()
     }
@@ -137,14 +154,52 @@ class RegistroViewModel @Inject constructor(
                     val desgloseVacio = miembrosData.map { m ->
                         MiembroDesglose(m.id, m.nombreCompleto, m.iniciales)
                     }
-                    _uiState.update { s ->
-                        s.copy(
-                            miembros    = miembrosAsistencia,
-                            actividades = actividadesIniciales(desgloseVacio),
-                        )
-                    }
+                    _uiState.update { s -> s.copy(miembros = miembrosAsistencia) }
+                    cargarActividades(desgloseVacio)
                 }
         }
+    }
+
+    private fun cargarActividades(desgloseVacio: List<MiembroDesglose>) {
+        viewModelScope.launch {
+            actividadRepo.getActividadesTipo(session.iglesiaId).fold(
+                onSuccess = { tipos ->
+                    _uiState.update { s ->
+                        s.copy(actividades = tipos.map { it.toActividadRegistro(desgloseVacio) })
+                    }
+                },
+                onFailure = { /* mantener lista vacía */ },
+            )
+        }
+    }
+
+    private fun ActividadTipoData.toActividadRegistro(desgloseVacio: List<MiembroDesglose>): ActividadRegistro {
+        val nivel = when (level) {
+            "union"  -> NivelActividad.UNION
+            "pastor" -> NivelActividad.PASTOR
+            else     -> NivelActividad.GP
+        }
+        val tipo = when (markerType) {
+            "monetary" -> TipoMarcador.MONETARIO
+            "checkbox" -> TipoMarcador.CHECKBOX
+            else       -> TipoMarcador.CONTADOR
+        }
+        val bloqueada     = nivel == NivelActividad.UNION
+        val esObligatoria = nivel == NivelActividad.PASTOR && tipo == TipoMarcador.CONTADOR
+        val tieneDesglose = nivel == NivelActividad.PASTOR && tipo == TipoMarcador.CONTADOR
+        return ActividadRegistro(
+            id               = id,
+            nombre           = nombre,
+            nivel            = nivel,
+            unidad           = unitLabel,
+            esOficial        = nivel != NivelActividad.GP,
+            esExtra          = false,
+            esObligatoria    = esObligatoria,
+            tipoMarcador     = tipo,
+            bloqueada        = bloqueada,
+            tieneDesglose    = tieneDesglose,
+            desgloseMiembros = if (tieneDesglose) desgloseVacio else emptyList(),
+        )
     }
 
     private fun cargarVisitasAnteriores() {
@@ -167,21 +222,6 @@ class RegistroViewModel @Inject constructor(
                 }
         }
     }
-
-    private fun actividadesIniciales(desgloseVacio: List<MiembroDesglose>) = listOf(
-        // UNIÓN — bloqueadas, solo lectura (cantidad pre-llenada por sistema)
-        ActividadRegistro("a1", "Recolección ofrendas", NivelActividad.UNION,  "personas", esOficial = true, bloqueada = true, cantidad = 8),
-        ActividadRegistro("a2", "Repartir literatura",  NivelActividad.UNION,  "libros",   esOficial = true, bloqueada = true, cantidad = 5),
-        // PASTOR — editables, obligatorias, inician en —
-        ActividadRegistro("a3", "Estudios Bíblicos",     NivelActividad.PASTOR, "personas", esOficial = true, esObligatoria = true,
-            tieneDesglose = true, desgloseMiembros = desgloseVacio),
-        ActividadRegistro("a4", "Peticiones de Oración", NivelActividad.PASTOR, "personas", esOficial = true, esObligatoria = true,
-            tieneDesglose = true, desgloseMiembros = desgloseVacio),
-        ActividadRegistro("a5", "Interesados Nuevos",    NivelActividad.PASTOR, "personas", esOficial = true, esObligatoria = true,
-            tieneDesglose = true, desgloseMiembros = desgloseVacio),
-        // MI GP — inician en —
-        ActividadRegistro("a6", "Oración especial", NivelActividad.GP, "veces", esOficial = false, esExtra = true),
-    )
 
     // ── Paso 1 ────────────────────────────────────────────────────────────────
 
@@ -388,27 +428,87 @@ class RegistroViewModel @Inject constructor(
         }
     }
 
-    fun onAgregarActividadExtra(nombre: String, cantidad: Int?, unidad: String) {
+    fun onCheckboxToggle(actividadId: String) {
+        _uiState.update { s ->
+            s.copy(
+                actividades = s.actividades.map { a ->
+                    if (a.id == actividadId) a.copy(realizado = !(a.realizado ?: false)) else a
+                },
+                errorActividadesObligatorias = false,
+            )
+        }
+    }
+
+    fun onDesgloseMontoChange(actividadId: String, miembroId: String, nuevoMonto: Double) {
+        _uiState.update { s ->
+            s.copy(actividades = s.actividades.map { a ->
+                if (a.id != actividadId) return@map a
+                val montoTotal = a.monto ?: Double.MAX_VALUE
+                val sumOtros = a.desgloseMiembros
+                    .filter { it.miembroId != miembroId }
+                    .sumOf { it.montoDesglose }
+                val maxEste = (montoTotal - sumOtros).coerceAtLeast(0.0)
+                a.copy(desgloseMiembros = a.desgloseMiembros.map { m ->
+                    if (m.miembroId == miembroId) m.copy(montoDesglose = nuevoMonto.coerceIn(0.0, maxEste)) else m
+                })
+            })
+        }
+    }
+
+    fun onMontoChange(actividadId: String, monto: Double?) {
+        _uiState.update { s ->
+            s.copy(
+                actividades = s.actividades.map { a ->
+                    if (a.id == actividadId) a.copy(monto = monto) else a
+                },
+                errorActividadesObligatorias = false,
+            )
+        }
+    }
+
+    fun onAgregarActividadExtra(
+        nombre:        String,
+        tipoMarcador:  TipoMarcador,
+        cantidad:      Int?,
+        unidad:        String,
+        monto:         Double?,
+        tieneDesglose: Boolean,
+    ) {
         if (nombre.isBlank()) return
         val id = "extra_${System.currentTimeMillis()}"
+        val desgloseVacio = if (tieneDesglose)
+            _uiState.value.miembros.map { m ->
+                MiembroDesglose(m.id, m.nombre, m.iniciales)
+            }
+        else emptyList()
         _uiState.update { s ->
             s.copy(
                 actividades = s.actividades + ActividadRegistro(
-                    id        = id,
-                    nombre    = nombre.trim(),
-                    nivel     = NivelActividad.GP,
-                    unidad    = unidad,
-                    esOficial = false,
-                    esExtra   = true,
-                    cantidad  = cantidad,
+                    id             = id,
+                    nombre         = nombre.trim(),
+                    nivel          = NivelActividad.GP,
+                    unidad         = unidad,
+                    esOficial      = false,
+                    esExtra        = true,
+                    tipoMarcador   = tipoMarcador,
+                    cantidad       = cantidad,
+                    monto          = monto,
+                    tieneDesglose  = tieneDesglose,
+                    desgloseMiembros = desgloseVacio,
                 )
             )
         }
     }
 
     fun onSiguienteClick() {
-        val hayVacia = _uiState.value.actividades
-            .any { it.esObligatoria && it.cantidad == null }
+        val hayVacia = _uiState.value.actividades.any { a ->
+            if (!a.esObligatoria) return@any false
+            when (a.tipoMarcador) {
+                TipoMarcador.CHECKBOX  -> a.realizado == null
+                TipoMarcador.CONTADOR  -> a.cantidad == null
+                TipoMarcador.MONETARIO -> a.monto == null
+            }
+        }
         if (hayVacia) {
             _uiState.update { it.copy(errorActividadesObligatorias = true, errorActividadesObligatoriasTrigger = it.errorActividadesObligatoriasTrigger + 1) }
             return
@@ -428,6 +528,12 @@ class RegistroViewModel @Inject constructor(
 
     // ── Paso 3 ────────────────────────────────────────────────────────────────
 
+    fun onGuardarBorradorClick() {
+        _uiState.update {
+            it.copy(mensajePaso3 = context.getString(R.string.paso3_borrador_proximo))
+        }
+    }
+
     fun onEnviarClick() {
         if (_uiState.value.isEnviando) return
         val cm     = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -440,7 +546,7 @@ class RegistroViewModel @Inject constructor(
             return
         }
 
-        _uiState.update { it.copy(isEnviando = true, errorEnvio = null) }
+        _uiState.update { it.copy(isEnviando = true, errorEnvio = null, mensajePaso3 = null) }
         viewModelScope.launch {
             val state = _uiState.value
             val asistencias = buildList {
@@ -457,7 +563,6 @@ class RegistroViewModel @Inject constructor(
                 state.visitasDeHoy.forEach { v ->
                     if (v.estado != null) add(
                         AsistenciaParaGuardar(
-                            // Visita anterior: ya tiene id real en member. Nueva: null → se crea en saveReunion.
                             miembroId    = if (!v.esNueva) v.id else null,
                             nombreVisita = if (v.esNueva) v.nombre else null,
                             esVisita     = true,
@@ -466,22 +571,53 @@ class RegistroViewModel @Inject constructor(
                     )
                 }
             }
-            reunionRepo.saveReunion(
+            val reunionResult = reunionRepo.saveReunion(
                 grupoId       = session.grupoId,
                 fecha         = state.fecha,
                 noHuboReunion = state.noHuboReunion,
                 asistencias   = asistencias,
-            ).fold(
-                onSuccess = { _uiState.update { it.copy(isEnviando = false, navigateToExitoEnviado = true) } },
-                onFailure = { e ->
-                    val msg = if (e.message?.contains("23505") == true || e.message?.contains("duplicate key") == true)
-                        "Ya existe una reunión registrada para esta fecha."
-                    else
-                        e.message ?: "Error al enviar. Intenta de nuevo."
-                    _uiState.update { it.copy(isEnviando = false, errorEnvio = msg) }
-                },
             )
+
+            if (reunionResult.isFailure) {
+                val e = reunionResult.exceptionOrNull()
+                val msg = if (e?.message?.contains("23505") == true || e?.message?.contains("duplicate key") == true)
+                    "Ya existe una reunión registrada para esta fecha."
+                else
+                    e?.message ?: "Error al enviar. Intenta de nuevo."
+                _uiState.update { it.copy(isEnviando = false, errorEnvio = msg) }
+                return@launch
+            }
+
+            val meetingId = reunionResult.getOrThrow()
+
+            // Guardar registros de actividades (best-effort; no bloquea al usuario si falla)
+            if (!state.noHuboReunion) {
+                val registros = state.actividades
+                    .filter { !it.esExtra }
+                    .mapNotNull { a -> mapActividadToRegistro(a) }
+                actividadRepo.saveRegistros(meetingId, registros)
+            }
+
+            _uiState.update { it.copy(isEnviando = false, navigateToExitoEnviado = true) }
         }
+    }
+
+    private fun mapActividadToRegistro(a: ActividadRegistro): RegistroActividadData? {
+        val cantidad = when (a.tipoMarcador) {
+            TipoMarcador.CHECKBOX  -> when (a.realizado) {
+                true  -> 1
+                false -> 0
+                null  -> return null  // no interactuada, no guardar
+            }
+            TipoMarcador.CONTADOR  -> a.cantidad  // null = no llenada, se guarda como null
+            TipoMarcador.MONETARIO -> null         // monto va en campo separado
+        }
+        return RegistroActividadData(
+            actividadTipoId = a.id,
+            cantidad        = cantidad,
+            monto           = a.monto,
+            notas           = a.notas,
+        )
     }
 
     fun consumeExitoEnviadoNavigation() {

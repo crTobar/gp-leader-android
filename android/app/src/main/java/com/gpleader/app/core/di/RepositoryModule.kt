@@ -1,5 +1,7 @@
 package com.gpleader.app.core.di
 
+import com.gpleader.app.core.data.repository.ActividadRepository
+import com.gpleader.app.core.data.repository.ActividadRepositoryImpl
 import com.gpleader.app.core.data.repository.GrupoRepository
 import com.gpleader.app.core.data.repository.GrupoRepositoryImpl
 import com.gpleader.app.core.data.repository.MiembroRepository
@@ -15,6 +17,10 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
+
+    @Binds
+    @Singleton
+    abstract fun bindActividadRepository(impl: ActividadRepositoryImpl): ActividadRepository
 
     @Binds
     @Singleton

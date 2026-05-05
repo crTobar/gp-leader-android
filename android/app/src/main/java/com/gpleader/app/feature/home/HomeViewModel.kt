@@ -3,6 +3,7 @@ package com.gpleader.app.feature.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gpleader.app.core.data.repository.ReunionRepository
+import com.gpleader.app.core.data.repository.SabbathMeetingResumen
 import com.gpleader.app.core.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -10,7 +11,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.temporal.TemporalAdjusters
 import javax.inject.Inject
 
 // ── Display models ────────────────────────────────────────────────────────────
@@ -42,12 +45,14 @@ data class HomeUiState(
     val totalAusentes:        Int                 = 0,
     val totalJustificados:    Int                 = 0,
     val totalMiembros:        Int                 = 0,
-    val reunionesRecientes:   List<ReunionResumen> = emptyList(),
-    val isLoading:            Boolean             = false,
-    val error:                String?             = null,
-    val navigateToRegistro:   Boolean             = false,
-    val navigateToHistorial:  Boolean             = false,
-    val navigateToDetalle:    String?             = null,
+    val reunionesRecientes:   List<ReunionResumen>      = emptyList(),
+    val sabbathMeeting:       SabbathMeetingResumen?   = null,
+    val isLoading:            Boolean                  = false,
+    val error:                String?                  = null,
+    val navigateToRegistro:   Boolean                  = false,
+    val navigateToHistorial:  Boolean                  = false,
+    val navigateToDetalle:    String?                  = null,
+    val navigateToSabadoCulto: Boolean                 = false,
 )
 
 // ── ViewModel ─────────────────────────────────────────────────────────────────
@@ -75,6 +80,20 @@ class HomeViewModel @Inject constructor(
             )
         }
         observarReuniones()
+        cargarSabbath()
+    }
+
+    private fun cargarSabbath() {
+        viewModelScope.launch {
+            val today = LocalDate.now()
+            val sabado = if (today.dayOfWeek == DayOfWeek.SATURDAY) today
+                         else today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SATURDAY))
+            runCatching {
+                reunionRepo.getSabbathMeeting(session.grupoId, sabado).getOrNull()
+            }.onSuccess { resumen ->
+                _uiState.update { it.copy(sabbathMeeting = resumen) }
+            }
+        }
     }
 
     private fun observarReuniones() {
@@ -133,5 +152,17 @@ class HomeViewModel @Inject constructor(
 
     fun consumeDetalleNavigation() {
         _uiState.update { it.copy(navigateToDetalle = null) }
+    }
+
+    fun reloadSabbath() {
+        cargarSabbath()
+    }
+
+    fun onSabadoCultoClick() {
+        _uiState.update { it.copy(navigateToSabadoCulto = true) }
+    }
+
+    fun consumeSabadoCultoNavigation() {
+        _uiState.update { it.copy(navigateToSabadoCulto = false) }
     }
 }

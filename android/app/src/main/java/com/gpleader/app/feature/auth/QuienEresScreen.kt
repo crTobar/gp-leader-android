@@ -17,28 +17,38 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.gpleader.app.R
+import com.gpleader.app.core.ui.components.NeuButtonPrimary
+import com.gpleader.app.core.ui.components.NeuTextField
 import com.gpleader.app.core.ui.theme.Accent
 import com.gpleader.app.core.ui.theme.Background
 import com.gpleader.app.core.ui.theme.BackgroundDeep
 import com.gpleader.app.core.ui.theme.Blush
+import com.gpleader.app.core.ui.theme.Gold
 import com.gpleader.app.core.ui.theme.GpLeaderTheme
 import com.gpleader.app.core.ui.theme.Ink
 import com.gpleader.app.core.ui.theme.Mid
@@ -50,6 +60,7 @@ import com.gpleader.app.core.ui.theme.neuElevated
 @Composable
 fun QuienEresScreen(
     onNavigateToHome: () -> Unit,
+    onNavigateToSabadoAutoMarcar: (String) -> Unit = {},
     viewModel: QuienEresViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -61,9 +72,20 @@ fun QuienEresScreen(
         }
     }
 
+    LaunchedEffect(uiState.navigateToSabadoAutoMarcar) {
+        val miembroId = uiState.navigateToSabadoAutoMarcar
+        if (miembroId != null) {
+            onNavigateToSabadoAutoMarcar(miembroId)
+            viewModel.consumeSabadoAutoMarcarNavigation()
+        }
+    }
+
     QuienEresContent(
         uiState        = uiState,
         onMiembroClick = viewModel::onMiembroSelected,
+        onContrasenaChange   = viewModel::onContrasenaDialogChange,
+        onConfirmarContrasena = viewModel::onConfirmarContrasena,
+        onDismissDialog = viewModel::onDismissPasswordDialog,
     )
 }
 
@@ -73,6 +95,9 @@ fun QuienEresScreen(
 fun QuienEresContent(
     uiState: QuienEresUiState,
     onMiembroClick: (MiembroSesion) -> Unit,
+    onContrasenaChange: (String) -> Unit = {},
+    onConfirmarContrasena: () -> Unit = {},
+    onDismissDialog: () -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -115,9 +140,7 @@ fun QuienEresContent(
 
         // ── Subtítulo ─────────────────────────────────────────────────────────
         Text(
-            text      = "Elige tu nombre solo para saber quién tiene el dispositivo. " +
-                        "Todos los miembros ven la misma información del grupo pequeño: " +
-                        "reuniones, asistencia, lista de miembros y reportes.",
+            text      = "Selecciona tu nombre. Los líderes necesitan contraseña.",
             style     = MaterialTheme.typography.bodyMedium,
             color     = Mid,
             textAlign = TextAlign.Center,
@@ -163,6 +186,82 @@ fun QuienEresContent(
                 }
             }
         }
+
+        // ── Mensaje "no es sábado" ────────────────────────────────────────────
+        if (uiState.showNoEsSabadoMsg) {
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text      = stringResource(R.string.quien_eres_no_sabado),
+                style     = MaterialTheme.typography.bodyMedium,
+                color     = Mid,
+                textAlign = TextAlign.Center,
+                modifier  = Modifier
+                    .fillMaxWidth()
+                    .background(BackgroundDeep, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+            )
+        }
+    }
+
+    // ── Dialog contraseña líder ───────────────────────────────────────────────
+    if (uiState.showPasswordDialog) {
+        AlertDialog(
+            onDismissRequest = onDismissDialog,
+            containerColor   = Background,
+            title = {
+                Text(
+                    text  = stringResource(R.string.quien_eres_password_titulo),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Ink,
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text  = "Hola, ${uiState.pendingLider?.nombre ?: ""}. Ingresá la contraseña del grupo.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Mid,
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    NeuTextField(
+                        value           = uiState.contrasenaDialog,
+                        onValueChange   = onContrasenaChange,
+                        label           = null,
+                        placeholder     = "Contraseña",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        isPassword      = true,
+                        isError         = uiState.authError != null,
+                        modifier        = Modifier.fillMaxWidth(),
+                    )
+                    if (uiState.authError != null) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text  = uiState.authError,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Blush,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                if (uiState.isAuthenticating) {
+                    CircularProgressIndicator(
+                        color    = Accent,
+                        modifier = Modifier.size(24.dp),
+                    )
+                } else {
+                    NeuButtonPrimary(
+                        text    = "Ingresar",
+                        onClick = onConfirmarContrasena,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismissDialog) {
+                    Text(text = "Cancelar", color = Mid)
+                }
+            },
+        )
     }
 }
 
@@ -191,7 +290,7 @@ private fun MiembroRow(
             Text(
                 text       = miembro.iniciales,
                 style      = MaterialTheme.typography.labelSmall,
-                color      = Accent,
+                color      = if (miembro.isLider) Gold else Accent,
                 fontWeight = FontWeight.SemiBold,
             )
         }
@@ -205,6 +304,16 @@ private fun MiembroRow(
             fontWeight = FontWeight.SemiBold,
             modifier   = Modifier.weight(1f),
         )
+
+        if (miembro.isLider) {
+            Icon(
+                imageVector        = Icons.Default.Star,
+                contentDescription = null,
+                tint               = Gold,
+                modifier           = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+        }
 
         Icon(
             imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,
@@ -225,7 +334,7 @@ private fun QuienEresPreview() {
             uiState = QuienEresUiState(
                 grupoNombre = "GP Los Olivos",
                 miembros = listOf(
-                    MiembroSesion("m1", "Ana Martínez López", "AM"),
+                    MiembroSesion("m1", "Ana Martínez López", "AM", isLider = true),
                     MiembroSesion("m2", "Juan Carlos Pérez",  "JP"),
                     MiembroSesion("m3", "María García",       "MG"),
                 ),

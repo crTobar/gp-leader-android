@@ -34,6 +34,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,8 +65,11 @@ import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.Sage
 import com.gpleader.app.core.ui.theme.neuElevated
 import com.gpleader.app.core.ui.theme.neuElevatedSm
+import com.gpleader.app.core.data.repository.SabbathMeetingResumen
 import com.gpleader.app.core.ui.theme.neuGlow
 import java.time.LocalDate
+import java.time.format.TextStyle
+import java.util.Locale
 
 // ── Constantes para las pestañas del bottom nav ───────────────────────────────
 private const val TAB_INICIO    = 0
@@ -83,9 +89,18 @@ fun HomeScreen(
     onNavigateToHistorial: () -> Unit,
     onNavigateToDetalle: (String) -> Unit,
     onNavigateToPerfil: () -> Unit = {},
+    onNavigateToSabadoCulto: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
+    // Recargar datos del sábado cada vez que el HomeScreen vuelve al frente
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            viewModel.reloadSabbath()
+        }
+    }
 
     LaunchedEffect(uiState.navigateToRegistro) {
         if (uiState.navigateToRegistro) {
@@ -106,14 +121,21 @@ fun HomeScreen(
             viewModel.consumeDetalleNavigation()
         }
     }
+    LaunchedEffect(uiState.navigateToSabadoCulto) {
+        if (uiState.navigateToSabadoCulto) {
+            onNavigateToSabadoCulto()
+            viewModel.consumeSabadoCultoNavigation()
+        }
+    }
 
     HomeScreenContent(
-        uiState             = uiState,
-        onRegistrarClick    = viewModel::onRegistrarClick,
-        onVerTodasClick     = viewModel::onVerTodasClick,
-        onReunionClick      = viewModel::onReunionClick,
-        onHistorialTabClick = onNavigateToHistorial,
-        onPerfilTabClick    = onNavigateToPerfil,
+        uiState              = uiState,
+        onRegistrarClick     = viewModel::onRegistrarClick,
+        onVerTodasClick      = viewModel::onVerTodasClick,
+        onReunionClick       = viewModel::onReunionClick,
+        onHistorialTabClick  = onNavigateToHistorial,
+        onPerfilTabClick     = onNavigateToPerfil,
+        onSabadoCultoClick   = viewModel::onSabadoCultoClick,
     )
 }
 
@@ -128,6 +150,7 @@ private fun HomeScreenContent(
     onReunionClick: (String) -> Unit,
     onHistorialTabClick: () -> Unit,
     onPerfilTabClick: () -> Unit = {},
+    onSabadoCultoClick: () -> Unit = {},
 ) {
     var selectedTab by remember { mutableIntStateOf(TAB_INICIO) }
 
@@ -180,6 +203,14 @@ private fun HomeScreenContent(
                     totalMiembros = uiState.totalMiembros,
                 )
 
+                uiState.sabbathMeeting?.let { sabbath ->
+                    Spacer(Modifier.height(16.dp))
+                    SabbathMeetingCard(
+                        resumen  = sabbath,
+                        onClick  = onSabadoCultoClick,
+                    )
+                }
+
                 Spacer(Modifier.height(24.dp))
 
                 SectionSeparator(label = stringResource(R.string.home_section_recientes))
@@ -211,6 +242,96 @@ private fun HomeScreenContent(
         }
     }
 
+}
+
+// ── Sabbath meeting card ──────────────────────────────────────────────────────
+
+@Composable
+private fun SabbathMeetingCard(
+    resumen: SabbathMeetingResumen,
+    onClick: () -> Unit,
+) {
+    val mes = resumen.fecha.month.getDisplayName(TextStyle.SHORT, Locale("es")).uppercase()
+    val dia = resumen.fecha.dayOfMonth
+    val progreso = if (resumen.totalMiembros > 0)
+        resumen.presentes.toFloat() / resumen.totalMiembros.toFloat()
+    else 0f
+
+    val badgeColor = when (resumen.status.lowercase()) {
+        "submitted" -> Sage
+        else        -> Gold
+    }
+    val badgeLabel = when (resumen.status.lowercase()) {
+        "submitted" -> "Enviado"
+        else        -> "Borrador"
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .neuElevated(cornerRadius = 20.dp)
+            .background(Background, RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Fecha
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier            = Modifier.width(40.dp),
+        ) {
+            Text(
+                text       = mes,
+                style      = MaterialTheme.typography.labelSmall,
+                color      = Accent,
+            )
+            Text(
+                text       = dia.toString(),
+                style      = MaterialTheme.typography.titleLarge,
+                color      = Ink,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+
+        Spacer(Modifier.width(14.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text       = stringResource(R.string.sabado_card_titulo),
+                    style      = MaterialTheme.typography.bodyLarge,
+                    color      = Ink,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier   = Modifier.weight(1f),
+                )
+                Box(
+                    modifier = Modifier
+                        .background(badgeColor.copy(alpha = 0.15f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                ) {
+                    Text(
+                        text  = badgeLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = badgeColor,
+                    )
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text  = stringResource(R.string.sabado_card_marcados, resumen.presentes, resumen.totalMiembros),
+                style = MaterialTheme.typography.bodyMedium,
+                color = Mid,
+            )
+            Spacer(Modifier.height(6.dp))
+            LinearProgressIndicator(
+                progress         = { progreso },
+                modifier         = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
+                color            = Sage,
+                trackColor       = BackgroundDeep,
+                strokeCap        = StrokeCap.Round,
+            )
+        }
+    }
 }
 
 // ── Skeleton loading ──────────────────────────────────────────────────────────
@@ -360,13 +481,14 @@ private fun TopBar(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text  = stringResource(R.string.home_label_bienvenida),
-                style = MaterialTheme.typography.labelSmall,
-                color = Muted,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Mid,
             )
             Text(
                 text  = nombreLider,
                 style = MaterialTheme.typography.titleLarge,
                 color = Ink,
+                fontWeight = FontWeight.Bold,
             )
         }
 
@@ -447,7 +569,7 @@ private fun GrupoCard(
             Spacer(Modifier.height(4.dp))
 
             Text(
-                text  = "${grupo.diaSemana} · ${grupo.horaInicio} · ${grupo.iglesia}",
+                text  = "${grupo.diaSemana} · ${grupo.horaInicio}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Mid,
             )
@@ -458,17 +580,12 @@ private fun GrupoCard(
                 modifier          = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                LinearProgressIndicator(
-                    progress   = { porcentajeAsistencia / 100f },
-                    modifier   = Modifier
-                        .weight(1f)
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp)),
-                    color      = Sage,
-                    trackColor = BackgroundDeep,
-                    strokeCap  = StrokeCap.Round,
+                Text(
+                    text     = stringResource(R.string.home_label_asistencia_periodo),
+                    style    = MaterialTheme.typography.labelSmall,
+                    color    = Muted,
+                    modifier = Modifier.weight(1f),
                 )
-                Spacer(Modifier.width(12.dp))
                 Text(
                     text  = "$porcentajeAsistencia%",
                     style = MaterialTheme.typography.bodyMedium,
@@ -477,12 +594,17 @@ private fun GrupoCard(
                 )
             }
 
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(6.dp))
 
-            Text(
-                text  = stringResource(R.string.home_label_asistencia_periodo),
-                style = MaterialTheme.typography.labelSmall,
-                color = Muted,
+            LinearProgressIndicator(
+                progress   = { porcentajeAsistencia / 100f },
+                modifier   = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(4.dp)),
+                color      = Sage,
+                trackColor = BackgroundDeep,
+                strokeCap  = StrokeCap.Round,
             )
         }
     }
@@ -498,48 +620,45 @@ private fun StatsRow(
     justificados:  Int,
     totalMiembros: Int,
 ) {
-    Row(
-        modifier              = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(0.dp),
-    ) {
-        // Card destacada izquierda — fondo Ink
-        StatCellFeatured(
-            presentes     = presentes,
-            totalMiembros = totalMiembros,
-            porcentaje    = porcentaje,
-            modifier      = Modifier.weight(1.1f).padding(6.dp),
-        )
-
-        // Grid 2×2 a la derecha
-        Column(modifier = Modifier.weight(1f)) {
-            Row {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // Fila superior: dark card (alto) + PRESENTES y AUSENTES apilados
+        Row(modifier = Modifier.fillMaxWidth()) {
+            StatCellFeatured(
+                presentes     = presentes,
+                totalMiembros = totalMiembros,
+                porcentaje    = porcentaje,
+                modifier      = Modifier.weight(1f).padding(6.dp),
+            )
+            Column(modifier = Modifier.weight(1f)) {
                 StatCellLight(
                     value    = presentes.toString(),
                     label    = stringResource(R.string.home_label_presentes),
                     color    = Sage,
-                    modifier = Modifier.weight(1f).padding(start = 0.dp, end = 4.dp, top = 6.dp, bottom = 2.dp),
+                    modifier = Modifier.fillMaxWidth().padding(start = 0.dp, end = 6.dp, top = 6.dp, bottom = 3.dp),
                 )
                 StatCellLight(
                     value    = ausentes.toString(),
                     label    = stringResource(R.string.home_label_ausentes),
                     color    = Blush,
-                    modifier = Modifier.weight(1f).padding(start = 4.dp, end = 6.dp, top = 6.dp, bottom = 2.dp),
+                    modifier = Modifier.fillMaxWidth().padding(start = 0.dp, end = 6.dp, top = 3.dp, bottom = 6.dp),
                 )
             }
-            Row {
-                StatCellLight(
-                    value    = justificados.toString(),
-                    label    = stringResource(R.string.home_label_justificados),
-                    color    = Muted,
-                    modifier = Modifier.weight(1f).padding(start = 0.dp, end = 4.dp, top = 2.dp, bottom = 6.dp),
-                )
-                StatCellLight(
-                    value    = "$porcentaje%",
-                    label    = stringResource(R.string.home_label_promedio),
-                    color    = Accent,
-                    modifier = Modifier.weight(1f).padding(start = 4.dp, end = 6.dp, top = 2.dp, bottom = 6.dp),
-                )
-            }
+        }
+        // Fila inferior: JUSTIFICAR y PROMEDIO a ancho completo
+        Row(modifier = Modifier.fillMaxWidth()) {
+            StatCellLight(
+                value    = justificados.toString(),
+                label    = stringResource(R.string.home_label_justificados),
+                color    = Muted,
+                modifier = Modifier.weight(1f).padding(start = 6.dp, end = 3.dp, top = 0.dp, bottom = 6.dp),
+            )
+            StatCellLight(
+                value    = "$porcentaje%",
+                label    = stringResource(R.string.home_label_promedio),
+                color    = Accent,
+                modifier = Modifier.weight(1f).padding(start = 3.dp, end = 6.dp, top = 0.dp, bottom = 6.dp),
+                sublabel = "trimestre",
+            )
         }
     }
 }
@@ -591,6 +710,7 @@ private fun StatCellLight(
     label:    String,
     color:    Color,
     modifier: Modifier = Modifier,
+    sublabel: String?  = null,
 ) {
     NeuCard(modifier = modifier) {
         Column(
@@ -607,10 +727,22 @@ private fun StatCellLight(
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                text  = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = Muted,
+                text          = label,
+                style         = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.5.sp),
+                color         = Muted,
+                textAlign     = androidx.compose.ui.text.style.TextAlign.Center,
             )
+            if (sublabel != null) {
+                Text(
+                    text      = sublabel,
+                    style     = MaterialTheme.typography.labelSmall.copy(
+                        letterSpacing = 0.sp,
+                        fontSize      = 10.sp,
+                    ),
+                    color     = Muted,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
         }
     }
 }
@@ -668,21 +800,15 @@ private fun ReunionCard(
                 Text(text = mes, style = MaterialTheme.typography.labelSmall,     color = Muted)
             }
 
-            // Divisor vertical
-            Box(
-                modifier = Modifier
-                    .padding(horizontal = 12.dp)
-                    .width(1.dp)
-                    .height(56.dp)
-                    .background(Muted.copy(alpha = 0.3f)),
-            )
+            Spacer(Modifier.width(12.dp))
 
             // Contenido central
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text  = stringResource(R.string.home_reunion_titulo),
                     style = MaterialTheme.typography.titleLarge,
-                    color = Ink,
+                    color = Accent,
+                    fontWeight = FontWeight.Bold,
                 )
                 Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -774,38 +900,33 @@ private fun BottomNavBar(
     onHistorialClick: () -> Unit,
     onPerfilClick: () -> Unit,
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Background)
-            .padding(horizontal = 20.dp, vertical = 8.dp),
-    ) {
-        NeuCard(modifier = Modifier.fillMaxWidth().padding(4.dp)) {
-            Row(
-                modifier              = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-            ) {
-                NavTabItem(
-                    icon      = Icons.Default.Home,
-                    label     = stringResource(R.string.home_nav_inicio),
-                    isActive  = selectedTab == TAB_INICIO,
-                    onClick   = onInicioClick,
-                )
-                NavTabItem(
-                    icon      = Icons.Default.DateRange,
-                    label     = stringResource(R.string.home_nav_historial),
-                    isActive  = selectedTab == TAB_HISTORIAL,
-                    onClick   = onHistorialClick,
-                )
-                NavTabItem(
-                    icon      = Icons.Default.Person,
-                    label     = stringResource(R.string.home_nav_perfil),
-                    isActive  = selectedTab == TAB_PERFIL,
-                    onClick   = onPerfilClick,
-                )
-            }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        HorizontalDivider(color = Muted.copy(alpha = 0.2f))
+        Row(
+            modifier              = Modifier
+                .fillMaxWidth()
+                .background(Background)
+                .padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            NavTabItem(
+                icon      = Icons.Default.Home,
+                label     = stringResource(R.string.home_nav_inicio),
+                isActive  = selectedTab == TAB_INICIO,
+                onClick   = onInicioClick,
+            )
+            NavTabItem(
+                icon      = Icons.Default.DateRange,
+                label     = stringResource(R.string.home_nav_historial),
+                isActive  = selectedTab == TAB_HISTORIAL,
+                onClick   = onHistorialClick,
+            )
+            NavTabItem(
+                icon      = Icons.Default.Person,
+                label     = stringResource(R.string.home_nav_perfil),
+                isActive  = selectedTab == TAB_PERFIL,
+                onClick   = onPerfilClick,
+            )
         }
     }
 }
