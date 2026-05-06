@@ -322,7 +322,7 @@ private fun AvatarCard(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .size(80.dp)
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(20.dp))
                         .background(Ink),
                 ) {
                     Text(

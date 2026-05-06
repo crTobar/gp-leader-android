@@ -15,9 +15,10 @@ val Accent      = Color(0xFF4A7FD4) // Azul principal — botones, selección ac
 val AccentLight = Color(0xFF6497E0) // Azul claro — hover, secundario
 
 // ── Semánticos ──────────────────────────────────────────────────────────────
-val Gold  = Color(0xFFC9A84C) // Dorado — badges oficiales, Unión
-val Sage  = Color(0xFF6AAB8E) // Verde sage — éxito, presentes
-val Blush = Color(0xFFD4836A) // Naranja — alertas, ausentes
+val Gold   = Color(0xFFC9A84C) // Dorado — badges oficiales, Unión
+val Sage   = Color(0xFF6AAB8E) // Verde sage — éxito, presentes
+val Blush  = Color(0xFFD4836A) // Naranja — alertas, ausentes
+val Violet = Color(0xFF7B61C4) // Violeta — culto de sábado
 
 // ── Texto ────────────────────────────────────────────────────────────────────
 val Ink   = Color(0xFF1E2733) // Texto principal

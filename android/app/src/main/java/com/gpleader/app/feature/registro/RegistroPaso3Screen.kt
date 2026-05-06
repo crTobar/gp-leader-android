@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -22,8 +23,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -34,7 +38,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -43,9 +50,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gpleader.app.R
 import com.gpleader.app.core.ui.components.NeuButtonPrimary
-import com.gpleader.app.core.ui.components.NeuButtonSecondary
 import com.gpleader.app.core.ui.components.NeuCard
 import com.gpleader.app.core.ui.theme.Accent
+import com.gpleader.app.core.ui.theme.AccentLight
 import com.gpleader.app.core.ui.theme.Background
 import com.gpleader.app.core.ui.theme.BackgroundDeep
 import com.gpleader.app.core.ui.theme.Blush
@@ -55,6 +62,7 @@ import com.gpleader.app.core.ui.theme.Mid
 import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.Gold
 import com.gpleader.app.core.ui.theme.Sage
+import com.gpleader.app.core.ui.theme.neuElevated
 import com.gpleader.app.core.ui.theme.neuElevatedSm
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -85,9 +93,10 @@ fun RegistroPaso3Screen(
     }
 
     RegistroPaso3Content(
-        uiState        = uiState,
-        onNavigateBack = onNavigateBack,
-        onEnviar       = viewModel::onEnviarClick,
+        uiState             = uiState,
+        onNavigateBack      = onNavigateBack,
+        onEnviar            = viewModel::onEnviarClick,
+        onGuardarBorrador   = viewModel::onGuardarBorradorClick,
     )
 }
 
@@ -95,9 +104,10 @@ fun RegistroPaso3Screen(
 
 @Composable
 private fun RegistroPaso3Content(
-    uiState:        RegistroUiState,
-    onNavigateBack: () -> Unit,
-    onEnviar:       () -> Unit,
+    uiState:           RegistroUiState,
+    onNavigateBack:    () -> Unit,
+    onEnviar:          () -> Unit,
+    onGuardarBorrador: () -> Unit,
 ) {
     val isEnviando = uiState.isEnviando
     val errorEnvio = uiState.errorEnvio
@@ -110,12 +120,15 @@ private fun RegistroPaso3Content(
             modifier       = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 128.dp),
         ) {
-            item { Paso3TopBar(onNavigateBack = onNavigateBack) }
+            item { Paso3TopBar(pasoActivo = 3, onNavigateBack = onNavigateBack) }
             item { StepperRow(pasoActivo = 3) }
             item { Spacer(Modifier.height(20.dp)) }
             item {
                 ResumenCard(
                     uiState  = uiState,
+                    nombreGrupo = uiState.nombreGrupo.ifBlank {
+                        stringResource(R.string.paso3_grupo_sin_nombre)
+                    },
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
             }
@@ -132,7 +145,7 @@ private fun RegistroPaso3Content(
                     modifier    = Modifier.padding(horizontal = 16.dp),
                 )
             }
-            item { Spacer(Modifier.height(8.dp)) }
+            item { Spacer(Modifier.height(108.dp)) }
         }
 
         // ── Botones flotantes ──────────────────────────────────────────────────
@@ -143,8 +156,16 @@ private fun RegistroPaso3Content(
                 .background(Background)
                 .navigationBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+            uiState.mensajePaso3?.let { info ->
+                Text(
+                    text     = info,
+                    style    = MaterialTheme.typography.bodySmall,
+                    color    = Mid,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
             if (errorEnvio != null) {
                 Text(
                     text     = errorEnvio,
@@ -162,16 +183,48 @@ private fun RegistroPaso3Content(
                 }
             } else {
                 NeuButtonPrimary(
-                    text     = stringResource(R.string.paso3_btn_enviar),
-                    onClick  = onEnviar,
-                    modifier = Modifier.fillMaxWidth(),
+                    text         = stringResource(R.string.paso3_btn_enviar),
+                    onClick      = onEnviar,
+                    modifier     = Modifier.fillMaxWidth(),
+                    cornerRadius = 24.dp,
                 )
             }
-            NeuButtonSecondary(
-                text     = stringResource(R.string.paso3_btn_editar),
-                onClick  = onNavigateBack,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            if (!isEnviando) {
+                Row(
+                    modifier          = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(onClick = onGuardarBorrador)
+                        .padding(vertical = 10.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment     = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector        = Icons.Outlined.Save,
+                        contentDescription = null,
+                        tint               = Accent,
+                        modifier           = Modifier.size(20.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text       = stringResource(R.string.paso3_btn_borrador),
+                        style      = MaterialTheme.typography.titleLarge,
+                        color      = Accent,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                Text(
+                    text       = stringResource(R.string.paso3_btn_editar_actividades),
+                    style      = MaterialTheme.typography.bodyLarge,
+                    color      = Muted,
+                    modifier   = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onNavigateBack)
+                        .padding(vertical = 10.dp),
+                    textAlign  = TextAlign.Center,
+                )
+            }
         }
     }
 }
@@ -179,10 +232,16 @@ private fun RegistroPaso3Content(
 // ── Top bar ───────────────────────────────────────────────────────────────────
 
 @Composable
-private fun Paso3TopBar(onNavigateBack: () -> Unit) {
+private fun Paso3TopBar(pasoActivo: Int, onNavigateBack: () -> Unit) {
+    val stepLabel = when (pasoActivo) {
+        1    -> stringResource(R.string.registro_step_asistencia)
+        2    -> stringResource(R.string.registro_step_actividades)
+        else -> stringResource(R.string.registro_step_resumen)
+    }
     Row(
         modifier          = Modifier
             .fillMaxWidth()
+            .statusBarsPadding()
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -202,26 +261,24 @@ private fun Paso3TopBar(onNavigateBack: () -> Unit) {
                 modifier           = Modifier.size(20.dp),
             )
         }
-        Text(
-            text      = stringResource(R.string.registro_titulo),
-            style     = MaterialTheme.typography.titleLarge,
-            color     = Ink,
-            textAlign = TextAlign.Center,
-            modifier  = Modifier.weight(1f),
-        )
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(Ink)
-                .padding(horizontal = 10.dp, vertical = 5.dp),
+        Column(
+            modifier            = Modifier.weight(1f),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text  = stringResource(R.string.registro_badge_paso3),
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.White,
+                text      = stringResource(R.string.registro_titulo),
+                style     = MaterialTheme.typography.titleLarge,
+                color     = Ink,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text      = stringResource(R.string.registro_subtitulo_paso, pasoActivo, stepLabel),
+                style     = MaterialTheme.typography.bodySmall,
+                color     = Muted,
+                textAlign = TextAlign.Center,
             )
         }
+        Spacer(Modifier.size(40.dp))
     }
 }
 
@@ -234,69 +291,90 @@ private fun StepperRow(pasoActivo: Int) {
         stringResource(R.string.registro_step_actividades),
         stringResource(R.string.registro_step_resumen),
     )
-    Row(
-        modifier              = Modifier
+
+    Column(
+        modifier = Modifier
             .fillMaxWidth()
             .background(Background)
             .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalAlignment     = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
-        labels.forEachIndexed { idx, label ->
-            val numero = idx + 1
-            val activo = numero == pasoActivo
-            val completado = numero < pasoActivo
+        Row(modifier = Modifier.fillMaxWidth()) {
+            labels.forEachIndexed { idx, label ->
+                val numero         = idx + 1
+                val activo         = numero == pasoActivo
+                val completado     = numero < pasoActivo
+                val lineColorLeft  = if (pasoActivo > idx)     Accent else Muted.copy(alpha = 0.4f)
+                val lineColorRight = if (pasoActivo > idx + 1) Accent else Muted.copy(alpha = 0.4f)
 
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier            = Modifier.weight(1f),
-            ) {
-                Box(
-                    contentAlignment = Alignment.Center,
+                Column(
                     modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(if (activo || completado) Accent else Color.Transparent)
-                        .then(
-                            if (!activo && !completado)
-                                Modifier.border(1.5.dp, Muted, CircleShape)
-                            else Modifier
-                        ),
+                        .weight(1f)
+                        .drawBehind {
+                            val circleR  = 22.dp.toPx()
+                            val lineY    = circleR
+                            val centerX  = size.width / 2f
+                            val strokePx = 1.5.dp.toPx()
+                            if (idx > 0) {
+                                drawLine(lineColorLeft,  Offset(0f, lineY),               Offset(centerX - circleR, lineY), strokePx)
+                            }
+                            if (idx < labels.size - 1) {
+                                drawLine(lineColorRight, Offset(centerX + circleR, lineY), Offset(size.width, lineY),       strokePx)
+                            }
+                        },
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier         = Modifier.size(44.dp),
+                    ) {
+                        if (activo) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(CircleShape)
+                                    .background(Accent.copy(alpha = 0.15f)),
+                            )
+                        }
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(if (activo || completado) Accent else Color.Transparent)
+                                .then(
+                                    if (!activo && !completado)
+                                        Modifier.border(1.5.dp, Muted, CircleShape)
+                                    else Modifier
+                                ),
+                        ) {
+                            Text(
+                                text       = "$numero",
+                                style      = MaterialTheme.typography.labelSmall,
+                                color      = if (activo || completado) Color.White else Muted,
+                                fontWeight = if (activo) FontWeight.Bold else FontWeight.Normal,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
                     Text(
-                        text  = "$numero",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (activo || completado) Color.White else Muted,
+                        text      = label,
+                        style     = MaterialTheme.typography.labelSmall,
+                        color     = if (activo) Accent else Muted,
+                        textAlign = TextAlign.Center,
                     )
                 }
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text      = label,
-                    style     = MaterialTheme.typography.labelSmall,
-                    color     = if (activo) Accent else Muted,
-                    textAlign = TextAlign.Center,
-                )
-            }
-
-            if (idx < labels.size - 1) {
-                Box(
-                    modifier = Modifier
-                        .weight(0.5f)
-                        .height(1.dp)
-                        .padding(bottom = 20.dp)
-                        .background(if (pasoActivo > idx + 1) Accent else Muted.copy(alpha = 0.4f)),
-                )
             }
         }
     }
 }
 
-// ── Resumen card (dark) ───────────────────────────────────────────────────────
+// ── Resumen card (claro, estilo mock) ─────────────────────────────────────────
 
 @Composable
 private fun ResumenCard(
-    uiState:  RegistroUiState,
-    modifier: Modifier = Modifier,
+    uiState:     RegistroUiState,
+    nombreGrupo: String,
+    modifier:    Modifier = Modifier,
 ) {
     val miembrosPresentes    = uiState.miembros.count { it.estado == EstadoAsistencia.PRESENTE }
     val miembrosAusentes     = uiState.miembros.count { it.estado == EstadoAsistencia.AUSENTE }
@@ -304,143 +382,133 @@ private fun ResumenCard(
     val presentes            = miembrosPresentes + uiState.visitasDeHoy.count { it.estado == EstadoAsistencia.PRESENTE }
     val total                = uiState.miembros.size + uiState.visitasDeHoy.size
     val pct                  = if (total > 0) presentes * 100 / total else 0
+    val frac                 = if (total > 0) presentes.toFloat() / total else 0f
     val visitasCount         = uiState.visitasDeHoy.size
 
-    val pctColor  = when { pct >= 70 -> Sage; pct >= 40 -> Gold; else -> Blush }
-    val fechaStr  = uiState.fecha.formatoResumen()
+    val fechaStr = uiState.fecha.formatoResumen()
     val visitasStr = if (visitasCount == 1)
         stringResource(R.string.paso3_visitas_singular, visitasCount)
     else
         stringResource(R.string.paso3_visitas_plural, visitasCount)
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(Ink)
-            .padding(20.dp),
-    ) {
-        // ── Header ────────────────────────────────────────────────────────────
-        Row(
-            modifier              = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment     = Alignment.CenterVertically,
-        ) {
-            Text(
-                text  = stringResource(R.string.paso3_label_resumen),
-                style = MaterialTheme.typography.labelSmall,
-                color = Muted,
+    val chipPresente = pluralStringResource(R.plurals.paso3_chip_presente, miembrosPresentes, miembrosPresentes)
+    val chipAusente  = pluralStringResource(R.plurals.paso3_chip_ausente, miembrosAusentes, miembrosAusentes)
+    val chipJust     = pluralStringResource(R.plurals.paso3_chip_justificado, miembrosJustificados, miembrosJustificados)
+
+    NeuCard(modifier = modifier.fillMaxWidth()) {
+        Column(Modifier.padding(20.dp)) {
+            Row(
+                modifier              = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment     = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text       = nombreGrupo,
+                    style      = MaterialTheme.typography.titleLarge,
+                    color      = Ink,
+                    fontWeight = FontWeight.Bold,
+                    modifier   = Modifier.weight(1f),
+                )
+                Icon(
+                    imageVector        = Icons.Default.Groups,
+                    contentDescription = null,
+                    tint               = Accent,
+                    modifier           = Modifier.size(26.dp),
+                )
+            }
+
+            Spacer(Modifier.height(18.dp))
+
+            ResumenRowLight(
+                label = stringResource(R.string.paso3_label_fecha),
+                value = fechaStr,
             )
-            Text(
-                text       = stringResource(R.string.paso3_label_grupo_header),
-                style      = MaterialTheme.typography.bodyMedium,
-                color      = Color.White,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
 
-        Spacer(Modifier.height(12.dp))
-        HorizontalDivider(color = Mid.copy(alpha = 0.25f))
-        Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(16.dp))
+            HorizontalDivider(color = BackgroundDeep, thickness = 1.dp)
+            Spacer(Modifier.height(14.dp))
 
-        // ── FECHA ─────────────────────────────────────────────────────────────
-        ResumenRow(label = stringResource(R.string.paso3_label_fecha), value = fechaStr)
-
-        Spacer(Modifier.height(10.dp))
-        HorizontalDivider(color = Mid.copy(alpha = 0.12f))
-        Spacer(Modifier.height(10.dp))
-
-        // ── MIEMBROS ──────────────────────────────────────────────────────────
-        Row(
-            modifier          = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Top,
-        ) {
             Text(
                 text     = stringResource(R.string.paso3_label_miembros),
                 style    = MaterialTheme.typography.labelSmall,
                 color    = Muted,
-                modifier = Modifier.weight(1f).padding(top = 4.dp),
             )
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                MiembroStatRow(
-                    count = miembrosPresentes,
-                    label = "presente${if (miembrosPresentes != 1) "s" else ""}",
-                    color = if (miembrosPresentes > 0) Sage else Muted,
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier          = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                AsistenciaChip(
+                    text       = chipPresente,
+                    textColor  = if (miembrosPresentes > 0) Sage else Muted,
                 )
-                MiembroStatRow(
-                    count = miembrosAusentes,
-                    label = "ausente${if (miembrosAusentes != 1) "s" else ""}",
-                    color = if (miembrosAusentes > 0) Blush else Muted,
+                AsistenciaChip(
+                    text       = chipAusente,
+                    textColor  = if (miembrosAusentes > 0) Blush else Muted,
                 )
-                MiembroStatRow(
-                    count = miembrosJustificados,
-                    label = "justificado${if (miembrosJustificados != 1) "s" else ""}",
-                    color = if (miembrosJustificados > 0) Gold else Muted,
+                AsistenciaChip(
+                    text       = chipJust,
+                    textColor  = if (miembrosJustificados > 0) Gold else Muted,
                 )
             }
-        }
 
-        Spacer(Modifier.height(10.dp))
-        HorizontalDivider(color = Mid.copy(alpha = 0.12f))
-        Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(16.dp))
+            HorizontalDivider(color = BackgroundDeep, thickness = 1.dp)
+            Spacer(Modifier.height(14.dp))
 
-        // ── ASISTENCIA ────────────────────────────────────────────────────────
-        Row(
-            modifier          = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
             Text(
                 text     = stringResource(R.string.paso3_label_asistencia),
                 style    = MaterialTheme.typography.labelSmall,
                 color    = Muted,
-                modifier = Modifier.weight(1f),
             )
-            Column(horizontalAlignment = Alignment.End) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text       = stringResource(R.string.paso3_asistencia_fraccion, presentes, total),
+                style      = MaterialTheme.typography.headlineSmall,
+                color      = Ink,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier          = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(
-                    text  = stringResource(R.string.paso3_asistencia_fraccion, presentes, total),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White.copy(alpha = 0.75f),
+                    text       = "$presentes/$total",
+                    style      = MaterialTheme.typography.bodySmall,
+                    color      = Mid,
+                )
+                LinearProgressIndicator(
+                    progress = { frac },
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 10.dp)
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+                    color      = Accent,
+                    trackColor = BackgroundDeep,
                 )
                 Text(
                     text       = stringResource(R.string.paso3_asistencia_pct, pct),
-                    style      = MaterialTheme.typography.titleLarge,
-                    color      = pctColor,
-                    fontWeight = FontWeight.Bold,
+                    style      = MaterialTheme.typography.bodySmall,
+                    color      = Mid,
                 )
             }
+
+            Spacer(Modifier.height(16.dp))
+            HorizontalDivider(color = BackgroundDeep, thickness = 1.dp)
+            Spacer(Modifier.height(14.dp))
+
+            ResumenRowLight(
+                label = stringResource(R.string.paso3_label_visitas),
+                value = visitasStr,
+            )
         }
-
-        Spacer(Modifier.height(10.dp))
-        HorizontalDivider(color = Mid.copy(alpha = 0.12f))
-        Spacer(Modifier.height(10.dp))
-
-        // ── VISITAS ───────────────────────────────────────────────────────────
-        ResumenRow(label = stringResource(R.string.paso3_label_visitas), value = visitasStr)
     }
 }
 
 @Composable
-private fun MiembroStatRow(count: Int, label: String, color: Color) {
-    Row(
-        verticalAlignment     = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.End,
-    ) {
-        Text(
-            text       = "$count",
-            style      = MaterialTheme.typography.bodyMedium,
-            color      = color,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            text     = " $label",
-            style    = MaterialTheme.typography.bodyMedium,
-            color    = Color.White.copy(alpha = 0.65f),
-        )
-    }
-}
-
-@Composable
-private fun ResumenRow(label: String, value: String) {
+private fun ResumenRowLight(label: String, value: String) {
     Row(
         modifier          = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -452,23 +520,29 @@ private fun ResumenRow(label: String, value: String) {
             modifier = Modifier.weight(1f),
         )
         Text(
-            text  = value,
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color.White,
+            text       = value,
+            style      = MaterialTheme.typography.bodyLarge,
+            color      = Ink,
+            fontWeight = FontWeight.Medium,
         )
     }
 }
 
 @Composable
-private fun BadgeResumen(text: String, bg: Color) {
+private fun AsistenciaChip(text: String, textColor: Color) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(bg)
-            .padding(horizontal = 8.dp, vertical = 3.dp),
+            .clip(RoundedCornerShape(50))
+            .background(textColor.copy(alpha = 0.14f))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
-        Text(text = text, style = MaterialTheme.typography.labelSmall, color = Color.White)
+        Text(
+            text       = text,
+            style      = MaterialTheme.typography.labelSmall,
+            color      = textColor,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 
@@ -491,7 +565,7 @@ private fun ActividadesSeparador(modifier: Modifier = Modifier) {
     }
 }
 
-// ── Actividades agrupadas ─────────────────────────────────────────────────────
+// ── Actividades agrupadas (tarjetas claras + acento vertical) ─────────────────
 
 @Composable
 private fun ActividadesResumen(
@@ -512,75 +586,84 @@ private fun ActividadesResumen(
         return
     }
 
-    NeuCard(modifier = modifier.fillMaxWidth()) {
-        Column {
-            if (union.isNotEmpty()) {
-                SeccionResumen(
-                    labelNivel      = stringResource(R.string.detalle_actividad_nivel_union),
-                    headerBg        = Ink,
-                    headerTextColor = Color.White,
-                    actividades     = union,
-                )
-            }
-            if (pastor.isNotEmpty()) {
-                if (union.isNotEmpty()) HorizontalDivider(color = BackgroundDeep, thickness = 1.dp)
-                SeccionResumen(
-                    labelNivel      = stringResource(R.string.detalle_actividad_nivel_pastor),
-                    headerBg        = Mid,
-                    headerTextColor = Color.White,
-                    actividades     = pastor,
-                )
-            }
-            if (gp.isNotEmpty()) {
-                if (union.isNotEmpty() || pastor.isNotEmpty()) HorizontalDivider(color = BackgroundDeep, thickness = 1.dp)
-                SeccionResumen(
-                    labelNivel      = stringResource(R.string.registro_nivel_mi_gp),
-                    headerBg        = BackgroundDeep,
-                    headerTextColor = Ink,
-                    actividades     = gp,
-                )
-            }
+    Column(
+        modifier              = modifier.fillMaxWidth(),
+        verticalArrangement   = Arrangement.spacedBy(12.dp),
+    ) {
+        if (union.isNotEmpty()) {
+            SeccionActividadesCard(
+                labelNivel  = stringResource(R.string.detalle_actividad_nivel_union),
+                accentColor = Gold,
+                actividades = union,
+            )
+        }
+        if (pastor.isNotEmpty()) {
+            SeccionActividadesCard(
+                labelNivel  = stringResource(R.string.detalle_actividad_nivel_pastor),
+                accentColor = Accent,
+                actividades = pastor,
+            )
+        }
+        if (gp.isNotEmpty()) {
+            SeccionActividadesCard(
+                labelNivel  = stringResource(R.string.registro_nivel_mi_gp),
+                accentColor = AccentLight,
+                actividades = gp,
+            )
         }
     }
 }
 
 @Composable
-private fun SeccionResumen(
-    labelNivel:      String,
-    headerBg:        Color,
-    headerTextColor: Color,
-    actividades:     List<ActividadRegistro>,
+private fun SeccionActividadesCard(
+    labelNivel:   String,
+    accentColor:  Color,
+    actividades:  List<ActividadRegistro>,
 ) {
-    Column {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(headerBg)
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .neuElevated(cornerRadius = 16.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Background),
+    ) {
+        Row(
+            modifier          = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .heightIn(min = 48.dp)
+                    .background(accentColor),
+            )
             Text(
-                text  = labelNivel,
-                style = MaterialTheme.typography.labelSmall,
-                color = headerTextColor,
+                text       = labelNivel,
+                style      = MaterialTheme.typography.labelSmall,
+                color      = Ink,
+                fontWeight = FontWeight.Bold,
+                modifier   = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
             )
         }
+        HorizontalDivider(color = BackgroundDeep, thickness = 1.dp)
         actividades.forEach { act ->
             Row(
                 modifier          = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text     = act.nombre,
-                    style    = MaterialTheme.typography.bodyMedium,
+                    style    = MaterialTheme.typography.bodyLarge,
                     color    = Ink,
                     modifier = Modifier.weight(1f),
                 )
                 Text(
-                    text  = "${act.cantidad} ${act.unidad}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Mid,
+                    text       = "${act.cantidad} ${act.unidad}",
+                    style      = MaterialTheme.typography.bodyLarge,
+                    color      = Accent,
+                    fontWeight = FontWeight.SemiBold,
                 )
             }
         }
@@ -606,6 +689,7 @@ private fun RegistroPaso3Preview() {
     GpLeaderTheme {
         RegistroPaso3Content(
             uiState = RegistroUiState(
+                nombreGrupo = "GP Los Olivos",
                 fecha  = LocalDate.of(2026, 3, 16),
                 miembros = listOf(
                     MiembroAsistencia("m1", "Ana Castillo",   "AC", EstadoAsistencia.PRESENTE),
@@ -628,8 +712,9 @@ private fun RegistroPaso3Preview() {
                     ActividadRegistro("a6", "Oración especial",     NivelActividad.GP,     "veces",    esOficial = false, esExtra = true, cantidad = 4),
                 ),
             ),
-            onNavigateBack = {},
-            onEnviar       = {},
+            onNavigateBack      = {},
+            onEnviar            = {},
+            onGuardarBorrador   = {},
         )
     }
 }

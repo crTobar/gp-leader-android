@@ -63,6 +63,7 @@ import com.gpleader.app.core.ui.theme.Ink
 import com.gpleader.app.core.ui.theme.Mid
 import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.Sage
+import com.gpleader.app.core.ui.theme.Violet
 import com.gpleader.app.core.ui.theme.neuElevated
 import com.gpleader.app.core.ui.theme.neuElevatedSm
 import com.gpleader.app.core.data.repository.SabbathMeetingResumen
@@ -270,20 +271,30 @@ private fun SabbathMeetingCard(
         modifier = Modifier
             .fillMaxWidth()
             .neuElevated(cornerRadius = 20.dp)
-            .background(Background, RoundedCornerShape(20.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 16.dp),
+            .background(Violet.copy(alpha = 0.08f), RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // Accent strip izquierdo
+        Box(
+            modifier = Modifier
+                .width(4.dp)
+                .height(72.dp)
+                .clip(RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp))
+                .background(Violet),
+        )
+
+        Spacer(Modifier.width(14.dp))
+
         // Fecha
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier            = Modifier.width(40.dp),
         ) {
             Text(
-                text       = mes,
-                style      = MaterialTheme.typography.labelSmall,
-                color      = Accent,
+                text  = mes,
+                style = MaterialTheme.typography.labelSmall,
+                color = Violet,
             )
             Text(
                 text       = dia.toString(),
@@ -295,7 +306,11 @@ private fun SabbathMeetingCard(
 
         Spacer(Modifier.width(14.dp))
 
-        Column(modifier = Modifier.weight(1f)) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(top = 16.dp, bottom = 16.dp, end = 18.dp),
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text       = stringResource(R.string.sabado_card_titulo),
@@ -324,11 +339,11 @@ private fun SabbathMeetingCard(
             )
             Spacer(Modifier.height(6.dp))
             LinearProgressIndicator(
-                progress         = { progreso },
-                modifier         = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
-                color            = Sage,
-                trackColor       = BackgroundDeep,
-                strokeCap        = StrokeCap.Round,
+                progress  = { progreso },
+                modifier  = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
+                color     = Violet,
+                trackColor = BackgroundDeep,
+                strokeCap = StrokeCap.Round,
             )
         }
     }

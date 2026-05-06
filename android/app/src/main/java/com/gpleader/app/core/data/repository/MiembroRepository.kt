@@ -13,6 +13,7 @@ data class MiembroData(
     val correo: String? = null,
     val estado: String = "ACTIVO",
     val createdAt: String? = null,
+    val isLider: Boolean = false,
 )
 
 val MiembroData.nombreCompleto: String

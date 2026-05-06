@@ -2,19 +2,23 @@ package com.gpleader.app.feature.historial
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.gpleader.app.core.data.repository.ReunionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import javax.inject.Inject
 
-// ── Modelos ───────────────────────────────────────────────────────────────────
+// ── Modelos de UI ─────────────────────────────────────────────────────────────
 
 data class AsistenciaDetalle(
-    val nombre:   String,
-    val estado:   String,    // "P", "A", "J"
-    val esVisita: Boolean = false,
+    val nombre:          String,
+    val estado:          String,    // "P", "A", "J"
+    val esVisita:        Boolean = false,
+    val iglesiaVisitada: String? = null,
 )
 
 data class ActividadDetalle(
@@ -36,90 +40,9 @@ data class DetalleReunionUiState(
     val suplementeNombre:     String?                  = null,
     val asistencias:          List<AsistenciaDetalle>  = emptyList(),
     val actividades:          List<ActividadDetalle>   = emptyList(),
+    val tipoReunion:          String                   = "gp_meeting",
     val isLoading:            Boolean                  = false,
-)
-
-// ── Sample data ───────────────────────────────────────────────────────────────
-
-private val sampleAsistencias = listOf(
-    AsistenciaDetalle("Carlos Ramírez",   "P"),
-    AsistenciaDetalle("Ana López",        "P"),
-    AsistenciaDetalle("Luis Hernández",   "A"),
-    AsistenciaDetalle("Sofía Vargas",     "P"),
-    AsistenciaDetalle("Pedro Castillo",   "J"),
-    AsistenciaDetalle("Laura Jiménez",    "P"),
-    AsistenciaDetalle("Roberto Mora",     "P"),
-    AsistenciaDetalle("Carmen Torres",    "P"),
-    AsistenciaDetalle("Juan García",      "P", esVisita = true),
-)
-
-private val sampleActividades = listOf(
-    ActividadDetalle("Estudio bíblico",     "UNION",  1,    "sesión"),
-    ActividadDetalle("Ofrendas",            "UNION",  null, "personas"),
-    ActividadDetalle("Misioneros del mes",  "PASTOR", 3,    "personas"),
-    ActividadDetalle("Visitas realizadas",  "GP",     2,    "personas"),
-    ActividadDetalle("Llamadas de seguimiento", "GP", 5,    "llamadas"),
-)
-
-private val sampleDetalles = mapOf(
-    "r1" to DetalleReunionUiState(
-        reunionId            = "r1",
-        fecha                = LocalDate.of(2026, 3, 4),
-        estado               = EstadoReunionHistorial.ENVIADA,
-        presentes            = 6,
-        ausentes             = 1,
-        justificados         = 1,
-        porcentajeAsistencia = 75,
-        asistencias          = sampleAsistencias,
-        actividades          = sampleActividades,
-    ),
-    "r2" to DetalleReunionUiState(
-        reunionId            = "r2",
-        fecha                = LocalDate.of(2026, 2, 26),
-        estado               = EstadoReunionHistorial.ENVIADA,
-        presentes            = 7,
-        ausentes             = 1,
-        justificados         = 0,
-        porcentajeAsistencia = 86,
-        asistencias          = sampleAsistencias.dropLast(1),
-        actividades          = sampleActividades,
-    ),
-    "r3" to DetalleReunionUiState(
-        reunionId            = "r3",
-        fecha                = LocalDate.of(2026, 2, 19),
-        estado               = EstadoReunionHistorial.ENVIADA,
-        presentes            = 6,
-        ausentes             = 2,
-        justificados         = 0,
-        porcentajeAsistencia = 71,
-        creadaPorSuplente    = true,
-        suplementeNombre     = "José Ramírez",
-        asistencias          = sampleAsistencias,
-        actividades          = sampleActividades.take(3),
-    ),
-    "r4" to DetalleReunionUiState(
-        reunionId            = "r4",
-        fecha                = LocalDate.of(2026, 2, 12),
-        estado               = EstadoReunionHistorial.PENDIENTE_SYNC,
-        presentes            = 5,
-        ausentes             = 3,
-        justificados         = 0,
-        porcentajeAsistencia = 62,
-        asistencias          = sampleAsistencias.take(6),
-        actividades          = sampleActividades,
-    ),
-)
-
-private fun fallbackDetalle(id: String) = DetalleReunionUiState(
-    reunionId            = id,
-    fecha                = LocalDate.of(2026, 2, 26),
-    estado               = EstadoReunionHistorial.ENVIADA,
-    presentes            = 7,
-    ausentes             = 1,
-    justificados         = 0,
-    porcentajeAsistencia = 86,
-    asistencias          = sampleAsistencias,
-    actividades          = sampleActividades,
+    val error:                String?                  = null,
 )
 
 // ── ViewModel ─────────────────────────────────────────────────────────────────
@@ -127,12 +50,61 @@ private fun fallbackDetalle(id: String) = DetalleReunionUiState(
 @HiltViewModel
 class DetalleReunionViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
+    private val reunionRepo: ReunionRepository,
 ) : ViewModel() {
 
     private val reunionId: String = savedStateHandle["reunionId"] ?: ""
 
-    private val _uiState = MutableStateFlow(
-        sampleDetalles[reunionId] ?: fallbackDetalle(reunionId)
-    )
+    private val _uiState = MutableStateFlow(DetalleReunionUiState(isLoading = true))
     val uiState: StateFlow<DetalleReunionUiState> = _uiState.asStateFlow()
+
+    init {
+        cargarDetalle()
+    }
+
+    private fun cargarDetalle() {
+        if (reunionId.isBlank()) {
+            _uiState.value = DetalleReunionUiState(isLoading = false, error = "ID de reunión inválido")
+            return
+        }
+        viewModelScope.launch {
+            reunionRepo.getDetalleReunion(reunionId)
+                .onSuccess { data ->
+                    val total = data.presentes + data.ausentes + data.justificados
+                    val pct   = if (total > 0) (data.presentes * 100 / total) else 0
+                    val estado = when (data.estado.uppercase()) {
+                        "SUBMITTED", "SENT", "APPROVED", "ENVIADA", "APROBADA" ->
+                            EstadoReunionHistorial.ENVIADA
+                        else ->
+                            EstadoReunionHistorial.PENDIENTE_SYNC
+                    }
+                    _uiState.value = DetalleReunionUiState(
+                        reunionId            = data.id,
+                        fecha                = data.fecha,
+                        estado               = estado,
+                        presentes            = data.presentes,
+                        ausentes             = data.ausentes,
+                        justificados         = data.justificados,
+                        porcentajeAsistencia = pct,
+                        tipoReunion          = data.tipoReunion,
+                        asistencias          = data.asistencias.map { a ->
+                            AsistenciaDetalle(
+                                nombre              = a.nombre,
+                                estado              = a.estado,
+                                esVisita            = a.esVisita,
+                                iglesiaVisitada     = a.iglesiaVisitadaNombre,
+                            )
+                        },
+                        isLoading = false,
+                    )
+                }
+                .onFailure { e ->
+                    _uiState.value = DetalleReunionUiState(
+                        reunionId = reunionId,
+                        isLoading = false,
+                        error     = "No se pudo cargar la reunión",
+                    )
+                }
+        }
+    }
 }

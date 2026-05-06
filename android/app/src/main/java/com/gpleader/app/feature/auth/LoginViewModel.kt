@@ -9,9 +9,6 @@ import com.gpleader.app.core.data.repository.GrupoRepository
 import com.gpleader.app.core.data.repository.IglesiaItem
 import com.gpleader.app.core.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
-import io.github.jan.supabase.SupabaseClient
-import io.github.jan.supabase.auth.auth
-import io.github.jan.supabase.auth.providers.builtin.Email
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,16 +37,12 @@ data class LoginUiState(
     val selectedIglesia:  IglesiaItem?  = null,
     val selectedGrupo:    GrupoItem?    = null,
 
-    // Contraseña
-    val contrasena: String = "",
-
     // Estado UI
     val isLoading: Boolean = false,
     val error:     String? = null,
 
     // Navegación
-    val navigateToQuienEres:         Boolean = false,
-    val navigateToCambiarContrasena: Boolean = false,
+    val navigateToQuienEres: Boolean = false,
 )
 
 // ── ViewModel ─────────────────────────────────────────────────────────────────
@@ -58,7 +51,6 @@ data class LoginUiState(
 class LoginViewModel @Inject constructor(
     private val grupoRepo: GrupoRepository,
     private val session:   SessionManager,
-    private val supabase:  SupabaseClient,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LoginUiState())
@@ -207,51 +199,26 @@ class LoginViewModel @Inject constructor(
         }
     }
 
-    // ── Contraseña ─────────────────────────────────────────────────────────────
+    // ── Continuar ──────────────────────────────────────────────────────────────
 
-    fun onContrasenaChange(value: String) {
-        _uiState.update { it.copy(contrasena = value, error = null) }
-    }
-
-    // ── Login ──────────────────────────────────────────────────────────────────
-
-    fun onLoginClick() {
+    fun onContinuarClick() {
         val grupo = _uiState.value.selectedGrupo ?: run {
             _uiState.update { it.copy(error = "Seleccioná un grupo pequeño") }
             return
         }
-        val username = grupo.username ?: run {
+        if (grupo.username == null) {
             _uiState.update { it.copy(error = "Este grupo aún no tiene acceso digital. Contactá al administrador.") }
             return
         }
-        val contrasena = _uiState.value.contrasena
-        if (contrasena.isBlank()) {
-            _uiState.update { it.copy(error = "Ingresá la contraseña") }
-            return
-        }
-
-        _uiState.update { it.copy(isLoading = true, error = null) }
-        viewModelScope.launch {
-            runCatching {
-                supabase.auth.signInWith(Email) {
-                    email    = "$username@login.presencia.app"
-                    password = contrasena
-                }
-            }.onSuccess {
-                session.grupoId     = grupo.id
-                session.grupoNombre = grupo.nombre
-                _uiState.update { it.copy(isLoading = false) }
-                if (!grupo.passwordSet) {
-                    _uiState.update { it.copy(navigateToCambiarContrasena = true) }
-                } else {
-                    _uiState.update { it.copy(navigateToQuienEres = true) }
-                }
-            }.onFailure {
-                _uiState.update { it.copy(isLoading = false, error = "Contraseña incorrecta") }
-            }
-        }
+        val iglesia = _uiState.value.selectedIglesia
+        session.grupoId          = grupo.id
+        session.grupoNombre      = grupo.nombre
+        session.grupoUsername    = grupo.username
+        session.grupoPasswordSet = grupo.passwordSet
+        session.iglesiaId        = grupo.iglesiaId
+        session.iglesiaNombre    = iglesia?.nombre ?: ""
+        _uiState.update { it.copy(navigateToQuienEres = true) }
     }
 
-    fun consumeQuienEresNavigation()         { _uiState.update { it.copy(navigateToQuienEres = false) } }
-    fun consumeCambiarContrasenaNavigation() { _uiState.update { it.copy(navigateToCambiarContrasena = false) } }
+    fun consumeQuienEresNavigation() { _uiState.update { it.copy(navigateToQuienEres = false) } }
 }

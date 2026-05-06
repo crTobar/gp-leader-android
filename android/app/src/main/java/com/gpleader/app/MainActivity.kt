@@ -18,11 +18,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Limpiar sesión de la app al arrancar — el usuario siempre debe hacer login.
+        // La sesión de Supabase se mantiene para que los dropdowns del login funcionen.
+        session.clear()
         enableEdgeToEdge()
         setContent {
             GpLeaderTheme {
-                val startDestination = if (session.isLoggedIn) NavRoutes.HOME else NavRoutes.LOGIN
-                AppNavGraph(startDestination = startDestination)
+                AppNavGraph(startDestination = NavRoutes.LOGIN)
             }
         }
     }

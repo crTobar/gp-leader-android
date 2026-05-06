@@ -61,6 +61,7 @@ class MiembroRepositoryImpl @Inject constructor(
                 correo          = obj["email"]?.jsonPrimitive?.contentOrNull,
                 estado          = estado,
                 createdAt       = obj["created_at"]?.jsonPrimitive?.contentOrNull,
+                isLider         = obj["is_leader"]?.jsonPrimitive?.booleanOrNull ?: false,
             )
         }
 }

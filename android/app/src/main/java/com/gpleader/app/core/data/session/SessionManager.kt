@@ -28,6 +28,22 @@ class SessionManager @Inject constructor(
         get() = prefs.getString("miembroNombre", "") ?: ""
         set(value) { prefs.edit { putString("miembroNombre", value) } }
 
+    var grupoUsername: String
+        get() = prefs.getString("grupoUsername", "") ?: ""
+        set(value) { prefs.edit { putString("grupoUsername", value) } }
+
+    var grupoPasswordSet: Boolean
+        get() = prefs.getBoolean("grupoPasswordSet", true)
+        set(value) { prefs.edit { putBoolean("grupoPasswordSet", value) } }
+
+    var iglesiaId: String
+        get() = prefs.getString("iglesiaId", "") ?: ""
+        set(value) { prefs.edit { putString("iglesiaId", value) } }
+
+    var iglesiaNombre: String
+        get() = prefs.getString("iglesiaNombre", "") ?: ""
+        set(value) { prefs.edit { putString("iglesiaNombre", value) } }
+
     val isLoggedIn: Boolean
         get() = grupoId.isNotEmpty() && miembroId.isNotEmpty()
 

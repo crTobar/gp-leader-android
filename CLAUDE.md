@@ -2,7 +2,6 @@
 
 Contexto completo del proyecto para Claude Code. Leer antes de tocar cualquier archivo.
 
----
 
 ## Relación wireframe → diseño visual
 

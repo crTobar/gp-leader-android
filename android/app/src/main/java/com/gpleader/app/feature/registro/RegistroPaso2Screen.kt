@@ -39,11 +39,19 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,12 +73,15 @@ import com.gpleader.app.core.ui.theme.BackgroundDeep
 import com.gpleader.app.core.ui.theme.Blush
 import com.gpleader.app.core.ui.theme.GpLeaderTheme
 import com.gpleader.app.core.ui.theme.Gold
+import com.gpleader.app.core.ui.theme.Sage
 import com.gpleader.app.core.ui.theme.Ink
 import com.gpleader.app.core.ui.theme.Mid
 import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.neuElevatedSm
 import com.gpleader.app.core.ui.theme.neuInsetSm
 import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntOffset
 import java.time.LocalDate
 import kotlin.math.roundToInt
@@ -100,8 +111,11 @@ fun RegistroPaso2Screen(
         onActividadClick     = onNavigateToDetalle,
         onAgregarExtra       = onNavigateToAgregar,
         onCantidadChange     = viewModel::onCantidadChange,
+        onCheckboxToggle     = viewModel::onCheckboxToggle,
+        onMontoChange        = viewModel::onMontoChange,
         onToggleDesglose     = viewModel::onToggleDesglose,
         onDesgloseChange     = viewModel::onDesgloseChange,
+        onDesgloseMontoChange = viewModel::onDesgloseMontoChange,
         onSiguiente          = viewModel::onSiguienteClick,
     )
 }
@@ -115,9 +129,12 @@ private fun RegistroPaso2Content(
     onActividadClick: (String) -> Unit,
     onAgregarExtra:   () -> Unit,
     onCantidadChange: (String, Int?) -> Unit,
-    onToggleDesglose: (String) -> Unit,
-    onDesgloseChange: (String, String, Int) -> Unit,
-    onSiguiente:      () -> Unit,
+    onCheckboxToggle:     (String) -> Unit,
+    onMontoChange:        (String, Double?) -> Unit,
+    onToggleDesglose:     (String) -> Unit,
+    onDesgloseChange:     (String, String, Int) -> Unit,
+    onDesgloseMontoChange: (String, String, Double) -> Unit,
+    onSiguiente:          () -> Unit,
 ) {
     val actividadesUnion  = uiState.actividades.filter { it.nivel == NivelActividad.UNION }
     val actividadesPastor = uiState.actividades.filter { it.nivel == NivelActividad.PASTOR }
@@ -148,7 +165,7 @@ private fun RegistroPaso2Content(
             modifier       = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 96.dp),
         ) {
-            item { Paso2TopBar(onNavigateBack = onNavigateBack) }
+            item { Paso2TopBar(pasoActivo = 2, onNavigateBack = onNavigateBack) }
             item { StepperRow(pasoActivo = 2) }
             item { Spacer(Modifier.height(16.dp)) }
 
@@ -169,10 +186,13 @@ private fun RegistroPaso2Content(
                     actividades      = actividadesUnion,
                     onActividadClick = { /* bloqueada */ },
                     onCantidadChange = { _, _ -> },
-                    onToggleDesglose = { _ -> },
-                    onDesgloseChange = { _, _, _ -> },
-                    onAgregarExtra   = null,
-                    modifier         = Modifier.padding(horizontal = 16.dp),
+                    onCheckboxToggle      = { },
+                    onMontoChange         = { _, _ -> },
+                    onToggleDesglose      = { _ -> },
+                    onDesgloseChange      = { _, _, _ -> },
+                    onDesgloseMontoChange = { _, _, _ -> },
+                    onAgregarExtra        = null,
+                    modifier              = Modifier.padding(horizontal = 16.dp),
                 )
             }
 
@@ -181,10 +201,10 @@ private fun RegistroPaso2Content(
             // ── PASTOR ────────────────────────────────────────────────────────
             item {
                 SeccionActividades(
-                    labelNivel       = stringResource(R.string.registro_nivel_pastor),
-                    headerBg         = Color(0xFF4A5568),
-                    headerTextColor  = Color.White,
-                    headerIcon       = {
+                    labelNivel            = stringResource(R.string.registro_nivel_pastor),
+                    headerBg              = Color(0xFF4A5568),
+                    headerTextColor       = Color.White,
+                    headerIcon            = {
                         Icon(
                             imageVector        = Icons.Filled.Star,
                             contentDescription = null,
@@ -192,13 +212,16 @@ private fun RegistroPaso2Content(
                             modifier           = Modifier.size(14.dp),
                         )
                     },
-                    actividades      = actividadesPastor,
-                    onActividadClick = onActividadClick,
-                    onCantidadChange = onCantidadChange,
-                    onToggleDesglose = onToggleDesglose,
-                    onDesgloseChange = onDesgloseChange,
-                    onAgregarExtra   = null,
-                    modifier         = Modifier.padding(horizontal = 16.dp),
+                    actividades           = actividadesPastor,
+                    onActividadClick      = onActividadClick,
+                    onCantidadChange      = onCantidadChange,
+                    onCheckboxToggle      = onCheckboxToggle,
+                    onMontoChange         = onMontoChange,
+                    onToggleDesglose      = onToggleDesglose,
+                    onDesgloseChange      = onDesgloseChange,
+                    onDesgloseMontoChange = onDesgloseMontoChange,
+                    onAgregarExtra        = null,
+                    modifier              = Modifier.padding(horizontal = 16.dp),
                 )
             }
 
@@ -207,10 +230,10 @@ private fun RegistroPaso2Content(
             // ── MI GP ─────────────────────────────────────────────────────────
             item {
                 SeccionActividades(
-                    labelNivel       = stringResource(R.string.registro_nivel_mi_gp),
-                    headerBg         = BackgroundDeep,
-                    headerTextColor  = Ink,
-                    headerIcon       = {
+                    labelNivel            = stringResource(R.string.registro_nivel_mi_gp),
+                    headerBg              = BackgroundDeep,
+                    headerTextColor       = Ink,
+                    headerIcon            = {
                         Icon(
                             imageVector        = Icons.Filled.Star,
                             contentDescription = null,
@@ -218,12 +241,15 @@ private fun RegistroPaso2Content(
                             modifier           = Modifier.size(14.dp),
                         )
                     },
-                    actividades      = actividadesGP,
-                    onActividadClick = onActividadClick,
-                    onCantidadChange = onCantidadChange,
-                    onToggleDesglose = onToggleDesglose,
-                    onDesgloseChange = onDesgloseChange,
-                    onAgregarExtra   = onAgregarExtra,
+                    actividades           = actividadesGP,
+                    onActividadClick      = onActividadClick,
+                    onCantidadChange      = onCantidadChange,
+                    onCheckboxToggle      = onCheckboxToggle,
+                    onMontoChange         = onMontoChange,
+                    onToggleDesglose      = onToggleDesglose,
+                    onDesgloseChange      = onDesgloseChange,
+                    onDesgloseMontoChange = onDesgloseMontoChange,
+                    onAgregarExtra        = onAgregarExtra,
                     modifier         = Modifier.padding(horizontal = 16.dp),
                 )
             }
@@ -265,7 +291,12 @@ private fun RegistroPaso2Content(
 // ── Top bar ───────────────────────────────────────────────────────────────────
 
 @Composable
-private fun Paso2TopBar(onNavigateBack: () -> Unit) {
+private fun Paso2TopBar(pasoActivo: Int, onNavigateBack: () -> Unit) {
+    val stepLabel = when (pasoActivo) {
+        1    -> stringResource(R.string.registro_step_asistencia)
+        2    -> stringResource(R.string.registro_step_actividades)
+        else -> stringResource(R.string.registro_step_resumen)
+    }
     Row(
         modifier          = Modifier
             .fillMaxWidth()
@@ -289,26 +320,24 @@ private fun Paso2TopBar(onNavigateBack: () -> Unit) {
                 modifier           = Modifier.size(20.dp),
             )
         }
-        Text(
-            text      = stringResource(R.string.registro_titulo),
-            style     = MaterialTheme.typography.titleLarge,
-            color     = Ink,
-            textAlign = TextAlign.Center,
-            modifier  = Modifier.weight(1f),
-        )
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(Ink)
-                .padding(horizontal = 10.dp, vertical = 5.dp),
+        Column(
+            modifier            = Modifier.weight(1f),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text  = stringResource(R.string.registro_badge_paso2),
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.White,
+                text      = stringResource(R.string.registro_titulo),
+                style     = MaterialTheme.typography.titleLarge,
+                color     = Ink,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text      = stringResource(R.string.registro_subtitulo_paso, pasoActivo, stepLabel),
+                style     = MaterialTheme.typography.bodySmall,
+                color     = Muted,
+                textAlign = TextAlign.Center,
             )
         }
+        Spacer(Modifier.size(40.dp))
     }
 }
 
@@ -321,58 +350,78 @@ private fun StepperRow(pasoActivo: Int) {
         stringResource(R.string.registro_step_actividades),
         stringResource(R.string.registro_step_resumen),
     )
-    Row(
-        modifier              = Modifier
+
+    Column(
+        modifier = Modifier
             .fillMaxWidth()
             .background(Background)
             .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalAlignment     = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
-        labels.forEachIndexed { idx, label ->
-            val numero = idx + 1
-            val activo = numero == pasoActivo
-            val completado = numero < pasoActivo
+        Row(modifier = Modifier.fillMaxWidth()) {
+            labels.forEachIndexed { idx, label ->
+                val numero         = idx + 1
+                val activo         = numero == pasoActivo
+                val completado     = numero < pasoActivo
+                val lineColorLeft  = if (pasoActivo > idx)     Accent else Muted.copy(alpha = 0.4f)
+                val lineColorRight = if (pasoActivo > idx + 1) Accent else Muted.copy(alpha = 0.4f)
 
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier            = Modifier.weight(1f),
-            ) {
-                Box(
-                    contentAlignment = Alignment.Center,
+                Column(
                     modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(if (activo || completado) Accent else Color.Transparent)
-                        .then(
-                            if (!activo && !completado)
-                                Modifier.border(1.5.dp, Muted, CircleShape)
-                            else Modifier
-                        ),
+                        .weight(1f)
+                        .drawBehind {
+                            val circleR  = 22.dp.toPx()
+                            val lineY    = circleR
+                            val centerX  = size.width / 2f
+                            val strokePx = 1.5.dp.toPx()
+                            if (idx > 0) {
+                                drawLine(lineColorLeft,  Offset(0f, lineY),              Offset(centerX - circleR, lineY), strokePx)
+                            }
+                            if (idx < labels.size - 1) {
+                                drawLine(lineColorRight, Offset(centerX + circleR, lineY), Offset(size.width, lineY),      strokePx)
+                            }
+                        },
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier         = Modifier.size(44.dp),
+                    ) {
+                        if (activo) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(CircleShape)
+                                    .background(Accent.copy(alpha = 0.15f)),
+                            )
+                        }
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(if (activo || completado) Accent else Color.Transparent)
+                                .then(
+                                    if (!activo && !completado)
+                                        Modifier.border(1.5.dp, Muted, CircleShape)
+                                    else Modifier
+                                ),
+                        ) {
+                            Text(
+                                text       = "$numero",
+                                style      = MaterialTheme.typography.labelSmall,
+                                color      = if (activo || completado) Color.White else Muted,
+                                fontWeight = if (activo) FontWeight.Bold else FontWeight.Normal,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
                     Text(
-                        text  = "$numero",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (activo || completado) Color.White else Muted,
+                        text      = label,
+                        style     = MaterialTheme.typography.labelSmall,
+                        color     = if (activo) Accent else Muted,
+                        textAlign = TextAlign.Center,
                     )
                 }
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text      = label,
-                    style     = MaterialTheme.typography.labelSmall,
-                    color     = if (activo) Accent else Muted,
-                    textAlign = TextAlign.Center,
-                )
-            }
-
-            if (idx < labels.size - 1) {
-                Box(
-                    modifier = Modifier
-                        .weight(0.5f)
-                        .height(1.dp)
-                        .padding(bottom = 20.dp)
-                        .background(if (pasoActivo > idx + 1) Accent else Muted.copy(alpha = 0.4f)),
-                )
             }
         }
     }
@@ -389,10 +438,13 @@ private fun SeccionActividades(
     actividades:      List<ActividadRegistro>,
     onActividadClick: (String) -> Unit,
     onCantidadChange: (String, Int?) -> Unit,
-    onToggleDesglose: (String) -> Unit,
-    onDesgloseChange: (String, String, Int) -> Unit,
-    onAgregarExtra:   (() -> Unit)?,
-    modifier:         Modifier = Modifier,
+    onCheckboxToggle:      (String) -> Unit,
+    onMontoChange:         (String, Double?) -> Unit,
+    onToggleDesglose:      (String) -> Unit,
+    onDesgloseChange:      (String, String, Int) -> Unit,
+    onDesgloseMontoChange: (String, String, Double) -> Unit,
+    onAgregarExtra:        (() -> Unit)?,
+    modifier:              Modifier = Modifier,
 ) {
     NeuCard(modifier = modifier.fillMaxWidth()) {
         Column {
@@ -421,12 +473,15 @@ private fun SeccionActividades(
             // Actividades
             actividades.forEachIndexed { idx, actividad ->
                 ActividadRow(
-                    actividad        = actividad,
-                    onClick          = { if (!actividad.bloqueada) onActividadClick(actividad.id) },
-                    onCantidadChange = { cant -> onCantidadChange(actividad.id, cant) },
-                    onToggleDesglose = { onToggleDesglose(actividad.id) },
-                    onDesgloseChange = { miembroId, cant -> onDesgloseChange(actividad.id, miembroId, cant) },
-                    modifier         = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    actividad             = actividad,
+                    onClick               = { if (!actividad.bloqueada) onActividadClick(actividad.id) },
+                    onCantidadChange      = { cant -> onCantidadChange(actividad.id, cant) },
+                    onCheckboxToggle      = { onCheckboxToggle(actividad.id) },
+                    onMontoChange         = { monto -> onMontoChange(actividad.id, monto) },
+                    onToggleDesglose      = { onToggleDesglose(actividad.id) },
+                    onDesgloseChange      = { miembroId, cant -> onDesgloseChange(actividad.id, miembroId, cant) },
+                    onDesgloseMontoChange = { miembroId, monto -> onDesgloseMontoChange(actividad.id, miembroId, monto) },
+                    modifier              = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                 )
                 if (idx < actividades.lastIndex || onAgregarExtra != null) {
                     HorizontalDivider(
@@ -451,29 +506,67 @@ private fun SeccionActividades(
 
 @Composable
 private fun ActividadRow(
-    actividad:        ActividadRegistro,
-    onClick:          () -> Unit,
-    onCantidadChange: (Int?) -> Unit,
-    onToggleDesglose: () -> Unit = {},
-    onDesgloseChange: (miembroId: String, cantidad: Int) -> Unit = { _, _ -> },
-    modifier:         Modifier = Modifier,
+    actividad:             ActividadRegistro,
+    onClick:               () -> Unit,
+    onCantidadChange:      (Int?) -> Unit,
+    onCheckboxToggle:      () -> Unit = {},
+    onMontoChange:         (Double?) -> Unit = {},
+    onToggleDesglose:      () -> Unit = {},
+    onDesgloseChange:      (miembroId: String, cantidad: Int) -> Unit = { _, _ -> },
+    onDesgloseMontoChange: (miembroId: String, monto: Double) -> Unit = { _, _ -> },
+    modifier:              Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(
-                    if (!actividad.bloqueada) Modifier.clickable(onClick = onClick)
+                    if (!actividad.bloqueada && actividad.tipoMarcador == TipoMarcador.CONTADOR)
+                        Modifier.clickable(onClick = onClick)
                     else Modifier
                 ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Checkbox placeholder
-            Box(
-                modifier = Modifier
-                    .size(18.dp)
-                    .border(1.5.dp, Muted.copy(alpha = 0.5f), RoundedCornerShape(4.dp)),
-            )
+            // Ícono de tipo (izquierda)
+            when (actividad.tipoMarcador) {
+                TipoMarcador.CHECKBOX -> {
+                    // Toggle circular interactivo
+                    val realizado = actividad.realizado == true
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clip(CircleShape)
+                            .background(if (realizado) Sage else BackgroundDeep)
+                            .then(
+                                if (!actividad.bloqueada) Modifier.clickable(onClick = onCheckboxToggle)
+                                else Modifier
+                            ),
+                    ) {
+                        if (realizado) {
+                            Text(text = "✓", style = MaterialTheme.typography.labelSmall, color = Color.White)
+                        }
+                    }
+                }
+                TipoMarcador.MONETARIO -> {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Gold.copy(alpha = 0.15f)),
+                    ) {
+                        Text(text = "₡", style = MaterialTheme.typography.labelSmall, color = Gold)
+                    }
+                }
+                TipoMarcador.CONTADOR -> {
+                    Box(
+                        modifier = Modifier
+                            .size(18.dp)
+                            .border(1.5.dp, Muted.copy(alpha = 0.5f), RoundedCornerShape(4.dp)),
+                    )
+                }
+            }
 
             Spacer(Modifier.width(10.dp))
 
@@ -492,58 +585,91 @@ private fun ActividadRow(
                         ActividadBadge(texto = stringResource(R.string.registro_badge_oficial), color = Gold)
                     }
                 }
-                Text(
-                    text  = actividad.unidad,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Muted,
-                )
+                if (actividad.tipoMarcador != TipoMarcador.CHECKBOX) {
+                    Text(
+                        text  = actividad.unidad,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Muted,
+                    )
+                }
             }
 
             Spacer(Modifier.width(8.dp))
 
-            ContadorInline(
-                valor    = actividad.cantidad,
-                enabled  = !actividad.bloqueada,
-                onChange = onCantidadChange,
-            )
-
-            Spacer(Modifier.width(6.dp))
-
-            when {
-                actividad.bloqueada -> Icon(
-                    imageVector        = Icons.Default.Lock,
-                    contentDescription = null,
-                    tint               = Muted,
-                    modifier           = Modifier.size(16.dp),
-                )
-                actividad.tieneDesglose -> Box(
-                    modifier         = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .clickable(onClick = onToggleDesglose)
-                        .padding(4.dp),
-                ) {
-                    Icon(
-                        imageVector        = if (actividad.desgloseExpandido)
-                            Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                        contentDescription = null,
-                        tint               = Accent,
-                        modifier           = Modifier.size(20.dp),
+            // Control derecho según tipo
+            when (actividad.tipoMarcador) {
+                TipoMarcador.CONTADOR -> {
+                    ContadorInline(
+                        valor    = actividad.cantidad,
+                        enabled  = !actividad.bloqueada,
+                        onChange = onCantidadChange,
                     )
+                    Spacer(Modifier.width(6.dp))
+                    when {
+                        actividad.bloqueada -> Icon(
+                            imageVector        = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint               = Muted,
+                            modifier           = Modifier.size(16.dp),
+                        )
+                        actividad.tieneDesglose -> Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable(onClick = onToggleDesglose)
+                                .padding(4.dp),
+                        ) {
+                            Icon(
+                                imageVector        = if (actividad.desgloseExpandido)
+                                    Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                contentDescription = null,
+                                tint               = Accent,
+                                modifier           = Modifier.size(20.dp),
+                            )
+                        }
+                        else -> Icon(
+                            imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint               = Muted,
+                            modifier           = Modifier.size(20.dp),
+                        )
+                    }
                 }
-                else -> Icon(
-                    imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint               = Muted,
-                    modifier           = Modifier.size(20.dp),
-                )
+                TipoMarcador.CHECKBOX -> {
+                    // Nada extra — el toggle está a la izquierda
+                }
+                TipoMarcador.MONETARIO -> {
+                    MontoInline(
+                        monto    = actividad.monto,
+                        enabled  = !actividad.bloqueada,
+                        onChange = onMontoChange,
+                    )
+                    if (actividad.tieneDesglose) {
+                        Spacer(Modifier.width(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable(onClick = onToggleDesglose)
+                                .padding(4.dp),
+                        ) {
+                            Icon(
+                                imageVector        = if (actividad.desgloseExpandido)
+                                    Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                contentDescription = null,
+                                tint               = Accent,
+                                modifier           = Modifier.size(20.dp),
+                            )
+                        }
+                    }
+                }
             }
         }
 
-        // ── Desglose por miembro (expandible) ────────────────────────────────
-        if (actividad.tieneDesglose && actividad.desgloseExpandido) {
-            val totalGeneral  = actividad.cantidad ?: 0
-            val sumDesglose   = actividad.desgloseMiembros.sumOf { it.cantidad }
-            val disponibles   = totalGeneral - sumDesglose
+        // ── Desglose contador (expandible) ────────────────────────────────────
+        if (actividad.tipoMarcador == TipoMarcador.CONTADOR &&
+            actividad.tieneDesglose && actividad.desgloseExpandido) {
+            val totalGeneral = actividad.cantidad ?: 0
+            val sumDesglose  = actividad.desgloseMiembros.sumOf { it.cantidad }
+            val disponibles  = totalGeneral - sumDesglose
 
             Spacer(Modifier.height(8.dp))
             HorizontalDivider(color = BackgroundDeep)
@@ -576,6 +702,49 @@ private fun ActividadRow(
                     maxAdicional = disponibles,
                     onChange     = { nuevaCant -> onDesgloseChange(miembro.miembroId, nuevaCant) },
                     modifier     = Modifier.padding(vertical = 4.dp),
+                )
+            }
+
+            Spacer(Modifier.height(4.dp))
+        }
+
+        // ── Desglose monetario (expandible) ───────────────────────────────────
+        if (actividad.tipoMarcador == TipoMarcador.MONETARIO &&
+            actividad.tieneDesglose && actividad.desgloseExpandido) {
+            val montoTotal  = actividad.monto ?: 0.0
+            val sumDesglose = actividad.desgloseMiembros.sumOf { it.montoDesglose }
+            val disponible  = (montoTotal - sumDesglose).coerceAtLeast(0.0)
+
+            Spacer(Modifier.height(8.dp))
+            HorizontalDivider(color = BackgroundDeep)
+            Spacer(Modifier.height(4.dp))
+
+            Row(
+                modifier              = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment     = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text  = "Distribuido por miembro",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Muted,
+                )
+                Text(
+                    text       = "₡${sumDesglose.toLong()} / ₡${montoTotal.toLong()}",
+                    style      = MaterialTheme.typography.labelSmall,
+                    color      = if (disponible == 0.0) Accent else Muted,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            actividad.desgloseMiembros.forEach { miembro ->
+                MiembroDesgloseMonetarioRow(
+                    miembro    = miembro,
+                    maxMonto   = disponible,
+                    onChange   = { nuevoMonto -> onDesgloseMontoChange(miembro.miembroId, nuevoMonto) },
+                    modifier   = Modifier.padding(vertical = 4.dp),
                 )
             }
 
@@ -622,11 +791,61 @@ internal fun MiembroDesgloseRow(
         )
 
         ContadorInline(
-            valor    = miembro.cantidad,
-            enabled  = miembro.cantidad > 0 || maxAdicional > 0,
-            onChange = { nuevo ->
+            valor            = miembro.cantidad,
+            enabled          = miembro.cantidad > 0 || maxAdicional > 0,
+            allowDirectInput = false,
+            onChange         = { nuevo ->
                 val v = nuevo ?: 0
                 onChange(v.coerceIn(0, miembro.cantidad + maxAdicional))
+            },
+        )
+    }
+}
+
+// ── Fila de miembro en desglose monetario ─────────────────────────────────────
+
+@Composable
+internal fun MiembroDesgloseMonetarioRow(
+    miembro:  MiembroDesglose,
+    maxMonto: Double,
+    onChange: (Double) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier          = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier         = Modifier
+                .size(32.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(BackgroundDeep),
+        ) {
+            Text(
+                text       = miembro.iniciales,
+                style      = MaterialTheme.typography.labelSmall,
+                color      = Mid,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+
+        Spacer(Modifier.width(10.dp))
+
+        Text(
+            text     = miembro.nombre,
+            style    = MaterialTheme.typography.bodyMedium,
+            color    = Ink,
+            modifier = Modifier.weight(1f),
+        )
+
+        MontoInline(
+            monto    = miembro.montoDesglose.takeIf { it > 0 },
+            enabled  = miembro.montoDesglose > 0 || maxMonto > 0,
+            maxMonto = miembro.montoDesglose + maxMonto,
+            onChange = { nuevoMonto ->
+                val v = (nuevoMonto ?: 0.0).coerceIn(0.0, miembro.montoDesglose + maxMonto)
+                onChange(v)
             },
         )
     }
@@ -636,11 +855,15 @@ internal fun MiembroDesgloseRow(
 
 @Composable
 internal fun ContadorInline(
-    valor:     Int?,
-    enabled:   Boolean = true,
-    onBlocked: (() -> Unit)? = null,
-    onChange:  (Int?) -> Unit,
+    valor:            Int?,
+    enabled:          Boolean = true,
+    allowDirectInput: Boolean = true,
+    onBlocked:        (() -> Unit)? = null,
+    onChange:         (Int?) -> Unit,
 ) {
+    var editando  by remember { mutableStateOf(false) }
+    var inputText by remember { mutableStateOf("") }
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -654,9 +877,12 @@ internal fun ContadorInline(
             modifier = Modifier
                 .clip(RoundedCornerShape(7.dp))
                 .then(when {
-                    enabled && valor != null -> Modifier.clickable { onChange(if (valor <= 0) null else valor - 1) }
-                    onBlocked != null        -> Modifier.clickable { onBlocked() }
-                    else                     -> Modifier
+                    enabled && valor != null -> Modifier.clickable {
+                        editando = false
+                        onChange(if (valor <= 0) null else valor - 1)
+                    }
+                    onBlocked != null -> Modifier.clickable { onBlocked() }
+                    else              -> Modifier
                 })
                 .padding(horizontal = 10.dp, vertical = 6.dp),
         ) {
@@ -667,14 +893,51 @@ internal fun ContadorInline(
             )
         }
 
-        // Valor
-        Text(
-            text      = valor?.toString() ?: "—",
-            style     = MaterialTheme.typography.labelSmall,
-            color     = if (enabled) Ink else Muted.copy(alpha = 0.5f),
-            textAlign = TextAlign.Center,
-            modifier  = Modifier.widthIn(min = 24.dp),
-        )
+        // Valor — tappable para escritura directa
+        if (editando && enabled && allowDirectInput) {
+            BasicTextField(
+                value         = inputText,
+                onValueChange = { inputText = it.filter { c -> c.isDigit() } },
+                singleLine    = true,
+                textStyle     = MaterialTheme.typography.labelSmall.copy(
+                    color     = Ink,
+                    textAlign = TextAlign.Center,
+                ),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction    = ImeAction.Done,
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        editando = false
+                        onChange(inputText.toIntOrNull())
+                    },
+                ),
+                modifier = Modifier
+                    .widthIn(min = 32.dp)
+                    .padding(horizontal = 4.dp),
+            )
+            DisposableEffect(Unit) {
+                onDispose {
+                    if (editando) onChange(inputText.toIntOrNull())
+                }
+            }
+        } else {
+            Text(
+                text      = valor?.toString() ?: "—",
+                style     = MaterialTheme.typography.labelSmall,
+                color     = if (enabled) Ink else Muted.copy(alpha = 0.5f),
+                textAlign = TextAlign.Center,
+                modifier  = Modifier
+                    .widthIn(min = 24.dp)
+                    .then(
+                        if (enabled && allowDirectInput) Modifier.clickable {
+                            inputText = valor?.toString() ?: ""
+                            editando = true
+                        } else Modifier
+                    ),
+            )
+        }
 
         // + button
         Box(
@@ -682,9 +945,12 @@ internal fun ContadorInline(
             modifier = Modifier
                 .clip(RoundedCornerShape(7.dp))
                 .then(when {
-                    enabled   -> Modifier.clickable { onChange(valor?.plus(1) ?: 0) }
+                    enabled           -> Modifier.clickable {
+                        editando = false
+                        onChange(valor?.plus(1) ?: 0)
+                    }
                     onBlocked != null -> Modifier.clickable { onBlocked() }
-                    else      -> Modifier
+                    else              -> Modifier
                 })
                 .padding(horizontal = 10.dp, vertical = 6.dp),
         ) {
@@ -694,6 +960,72 @@ internal fun ContadorInline(
                 color = if (enabled) Ink else Muted.copy(alpha = 0.5f),
             )
         }
+    }
+}
+
+// ── Campo monto inline (₡) ───────────────────────────────────────────────────
+
+@Composable
+internal fun MontoInline(
+    monto:    Double?,
+    enabled:  Boolean = true,
+    maxMonto: Double? = null,
+    onChange: (Double?) -> Unit,
+) {
+    var texto by remember(monto) {
+        mutableStateOf(monto?.let { if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString() } ?: "")
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .border(
+                width = 1.5.dp,
+                color = if (enabled) Gold.copy(alpha = 0.6f) else Muted.copy(alpha = 0.3f),
+                shape = RoundedCornerShape(8.dp),
+            )
+            .clip(RoundedCornerShape(8.dp))
+            .background(BackgroundDeep)
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+    ) {
+        Text(
+            text  = "₡",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (enabled) Gold else Muted.copy(alpha = 0.5f),
+        )
+        Spacer(Modifier.width(4.dp))
+        BasicTextField(
+            value         = texto,
+            onValueChange = { new ->
+                val filtrado = new.filter { it.isDigit() || it == '.' }
+                val parsed   = filtrado.toDoubleOrNull()
+                // No exceder el máximo si está definido
+                if (maxMonto != null && parsed != null && parsed > maxMonto) return@BasicTextField
+                texto = filtrado
+                onChange(parsed)
+            },
+            enabled       = enabled,
+            singleLine    = true,
+            textStyle     = MaterialTheme.typography.labelSmall.copy(
+                color     = if (enabled) Ink else Muted.copy(alpha = 0.5f),
+                textAlign = TextAlign.End,
+            ),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Decimal,
+            ),
+            decorationBox = { inner ->
+                Box {
+                    if (texto.isEmpty()) {
+                        Text(
+                            text  = "0",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Muted.copy(alpha = 0.5f),
+                        )
+                    }
+                    inner()
+                }
+            },
+            modifier = Modifier.widthIn(min = 52.dp, max = 104.dp),
+        )
     }
 }
 
@@ -766,9 +1098,12 @@ private fun Paso2Preview() {
             onActividadClick = {},
             onAgregarExtra   = {},
             onCantidadChange = { _, _ -> },
-            onToggleDesglose = { _ -> },
-            onDesgloseChange = { _, _, _ -> },
-            onSiguiente      = {},
+            onCheckboxToggle      = { },
+            onMontoChange         = { _, _ -> },
+            onToggleDesglose      = { _ -> },
+            onDesgloseChange      = { _, _, _ -> },
+            onDesgloseMontoChange = { _, _, _ -> },
+            onSiguiente           = {},
         )
     }
 }
@@ -783,9 +1118,12 @@ private fun Paso2ErrorPreview() {
             onActividadClick = {},
             onAgregarExtra   = {},
             onCantidadChange = { _, _ -> },
-            onToggleDesglose = { _ -> },
-            onDesgloseChange = { _, _, _ -> },
-            onSiguiente      = {},
+            onCheckboxToggle      = { },
+            onMontoChange         = { _, _ -> },
+            onToggleDesglose      = { _ -> },
+            onDesgloseChange      = { _, _, _ -> },
+            onDesgloseMontoChange = { _, _, _ -> },
+            onSiguiente           = {},
         )
     }
 }

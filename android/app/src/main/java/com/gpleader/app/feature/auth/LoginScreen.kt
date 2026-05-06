@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -55,7 +54,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
@@ -68,7 +66,6 @@ import com.gpleader.app.core.data.repository.DistritoItem
 import com.gpleader.app.core.data.repository.GrupoItem
 import com.gpleader.app.core.data.repository.IglesiaItem
 import com.gpleader.app.core.ui.components.NeuButtonPrimary
-import com.gpleader.app.core.ui.components.NeuTextField
 import com.gpleader.app.core.ui.theme.Accent
 import com.gpleader.app.core.ui.theme.Background
 import com.gpleader.app.core.ui.theme.BackgroundDeep
@@ -85,8 +82,7 @@ import com.gpleader.app.core.ui.theme.neuInset
 
 @Composable
 fun LoginScreen(
-    onNavigateToQuienEres:        () -> Unit,
-    onNavigateToCambiarContrasena: () -> Unit,
+    onNavigateToQuienEres: () -> Unit,
     viewModel: LoginViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -97,12 +93,6 @@ fun LoginScreen(
             viewModel.consumeQuienEresNavigation()
         }
     }
-    LaunchedEffect(uiState.navigateToCambiarContrasena) {
-        if (uiState.navigateToCambiarContrasena) {
-            onNavigateToCambiarContrasena()
-            viewModel.consumeCambiarContrasenaNavigation()
-        }
-    }
 
     LoginScreenContent(
         uiState            = uiState,
@@ -110,8 +100,7 @@ fun LoginScreen(
         onDistritoSelected = viewModel::onDistritoSelected,
         onIglesiaSelected  = viewModel::onIglesiaSelected,
         onGrupoSelected    = viewModel::onGrupoSelected,
-        onContrasenaChange = viewModel::onContrasenaChange,
-        onLoginClick       = viewModel::onLoginClick,
+        onContinuarClick   = viewModel::onContinuarClick,
     )
 }
 
@@ -124,10 +113,10 @@ private fun LoginScreenContent(
     onDistritoSelected: (DistritoItem?) -> Unit,
     onIglesiaSelected:  (IglesiaItem?) -> Unit,
     onGrupoSelected:    (GrupoItem?) -> Unit,
-    onContrasenaChange: (String) -> Unit,
-    onLoginClick:       () -> Unit,
+    onContinuarClick:   () -> Unit,
 ) {
     var active by remember { mutableStateOf(ActiveDropdown.NONE) }
+    var mostrarFiltros by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
 
     fun expand(d: ActiveDropdown) { active = d }
@@ -202,66 +191,10 @@ private fun LoginScreenContent(
 
         Spacer(Modifier.height(24.dp))
 
-        // ── Campo ─────────────────────────────────────────────────────────────
-        SimpleCardDropdown(
-            label        = stringResource(R.string.login_label_campo),
-            placeholder  = stringResource(R.string.login_placeholder_campo),
-            selectedName = uiState.selectedCampo?.nombre ?: "",
-            items        = uiState.allCampos,
-            itemLabel    = { it.nombre },
-            onItemSelected = { item ->
-                onCampoSelected(item)
-                collapse()
-            },
-            expanded   = active == ActiveDropdown.CAMPO,
-            onExpand   = { expand(ActiveDropdown.CAMPO) },
-            onCollapse = ::collapse,
-            modifier   = Modifier.fillMaxWidth(),
-        )
-
-        Spacer(Modifier.height(12.dp))
-
-        // ── Distrito ──────────────────────────────────────────────────────────
-        SimpleCardDropdown(
-            label        = stringResource(R.string.login_label_distrito),
-            placeholder  = stringResource(R.string.login_placeholder_distrito),
-            selectedName = uiState.selectedDistrito?.nombre ?: "",
-            items        = uiState.filteredDistritos,
-            itemLabel    = { it.nombre },
-            onItemSelected = { item ->
-                onDistritoSelected(item)
-                collapse()
-            },
-            expanded   = active == ActiveDropdown.DISTRITO,
-            onExpand   = { expand(ActiveDropdown.DISTRITO) },
-            onCollapse = ::collapse,
-            modifier   = Modifier.fillMaxWidth(),
-        )
-
-        Spacer(Modifier.height(12.dp))
-
-        // ── Iglesia (dropdown con tarjetas) ───────────────────────────────────
-        IglesiaDropdown(
-            label        = stringResource(R.string.login_label_iglesia),
-            placeholder  = stringResource(R.string.login_placeholder_iglesia),
-            selectedIglesia = uiState.selectedIglesia,
-            items        = uiState.filteredIglesias,
-            onItemSelected = { iglesia ->
-                onIglesiaSelected(iglesia)
-                collapse()
-            },
-            expanded   = active == ActiveDropdown.IGLESIA,
-            onExpand   = { expand(ActiveDropdown.IGLESIA) },
-            onCollapse = ::collapse,
-            modifier   = Modifier.fillMaxWidth(),
-        )
-
-        Spacer(Modifier.height(12.dp))
-
-        // ── Grupo ─────────────────────────────────────────────────────────────
+        // ── Grupo (primario, siempre visible) ─────────────────────────────────
         GrupoDropdown(
-            label          = stringResource(R.string.login_label_grupo),
-            placeholder    = stringResource(R.string.login_placeholder_grupo),
+            label          = stringResource(R.string.login_label_tu_gp),
+            placeholder    = stringResource(R.string.login_buscar_gp_hint),
             selectedGrupo  = uiState.selectedGrupo,
             items          = uiState.filteredGrupos,
             onItemSelected = { item -> onGrupoSelected(item); collapse() },
@@ -273,22 +206,84 @@ private fun LoginScreenContent(
 
         Spacer(Modifier.height(12.dp))
 
-        // ── Contraseña ────────────────────────────────────────────────────────
-        NeuTextField(
-            value           = uiState.contrasena,
-            onValueChange   = onContrasenaChange,
-            label           = stringResource(R.string.login_label_contrasena),
-            placeholder     = "",
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            isPassword      = true,
-            modifier        = Modifier.fillMaxWidth(),
-        )
+        // ── Filtros avanzados (colapsados por defecto) ────────────────────────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    mostrarFiltros = !mostrarFiltros
+                    if (!mostrarFiltros) {
+                        collapse()
+                    }
+                }
+                .padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text      = stringResource(R.string.login_mas_opciones),
+                style     = MaterialTheme.typography.bodyMedium,
+                color     = Mid,
+                modifier  = Modifier.weight(1f),
+            )
+            Icon(
+                imageVector        = if (mostrarFiltros) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = null,
+                tint               = Muted,
+                modifier           = Modifier.size(18.dp),
+            )
+        }
 
-        Spacer(Modifier.height(16.dp))
+        AnimatedVisibility(visible = mostrarFiltros) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Spacer(Modifier.height(4.dp))
 
-        NoticeCard()
+                SimpleCardDropdown(
+                    label        = stringResource(R.string.login_label_campo),
+                    placeholder  = stringResource(R.string.login_placeholder_campo),
+                    selectedName = uiState.selectedCampo?.nombre ?: "",
+                    items        = uiState.allCampos,
+                    itemLabel    = { it.nombre },
+                    onItemSelected = { item -> onCampoSelected(item); collapse() },
+                    expanded   = active == ActiveDropdown.CAMPO,
+                    onExpand   = { expand(ActiveDropdown.CAMPO) },
+                    onCollapse = ::collapse,
+                    modifier   = Modifier.fillMaxWidth(),
+                )
 
-        Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(12.dp))
+
+                SimpleCardDropdown(
+                    label        = stringResource(R.string.login_label_distrito),
+                    placeholder  = stringResource(R.string.login_placeholder_distrito),
+                    selectedName = uiState.selectedDistrito?.nombre ?: "",
+                    items        = uiState.filteredDistritos,
+                    itemLabel    = { it.nombre },
+                    onItemSelected = { item -> onDistritoSelected(item); collapse() },
+                    expanded   = active == ActiveDropdown.DISTRITO,
+                    onExpand   = { expand(ActiveDropdown.DISTRITO) },
+                    onCollapse = ::collapse,
+                    modifier   = Modifier.fillMaxWidth(),
+                )
+
+                Spacer(Modifier.height(12.dp))
+
+                IglesiaDropdown(
+                    label        = stringResource(R.string.login_label_iglesia),
+                    placeholder  = stringResource(R.string.login_placeholder_iglesia),
+                    selectedIglesia = uiState.selectedIglesia,
+                    items        = uiState.filteredIglesias,
+                    onItemSelected = { iglesia -> onIglesiaSelected(iglesia); collapse() },
+                    expanded   = active == ActiveDropdown.IGLESIA,
+                    onExpand   = { expand(ActiveDropdown.IGLESIA) },
+                    onCollapse = ::collapse,
+                    modifier   = Modifier.fillMaxWidth(),
+                )
+
+                Spacer(Modifier.height(12.dp))
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
 
         if (uiState.error != null) {
             Text(
@@ -308,8 +303,8 @@ private fun LoginScreenContent(
             }
         } else {
             NeuButtonPrimary(
-                text     = stringResource(R.string.login_btn_entrar),
-                onClick  = onLoginClick,
+                text     = stringResource(R.string.login_btn_continuar),
+                onClick  = onContinuarClick,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -771,7 +766,7 @@ private fun LoginPreviewEmpty() {
         LoginScreenContent(
             uiState = LoginUiState(),
             onCampoSelected = {}, onDistritoSelected = {}, onIglesiaSelected = {},
-            onGrupoSelected = {}, onContrasenaChange = {}, onLoginClick = {},
+            onGrupoSelected = {}, onContinuarClick = {},
         )
     }
 }
@@ -794,7 +789,7 @@ private fun LoginPreviewData() {
                 selectedIglesia = iglesias.first(),
             ),
             onCampoSelected = {}, onDistritoSelected = {}, onIglesiaSelected = {},
-            onGrupoSelected = {}, onContrasenaChange = {}, onLoginClick = {},
+            onGrupoSelected = {}, onContinuarClick = {},
         )
     }
 }

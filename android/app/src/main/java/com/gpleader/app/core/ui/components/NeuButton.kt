@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gpleader.app.core.ui.theme.Accent
 import com.gpleader.app.core.ui.theme.Background
@@ -26,7 +27,6 @@ import com.gpleader.app.core.ui.theme.neuGlow
 
 // ── Shared internals ──────────────────────────────────────────────────────────
 
-private val ButtonShape   = RoundedCornerShape(14.dp)
 private val ButtonPadding = PaddingValues(horizontal = 24.dp, vertical = 14.dp)
 
 @Composable
@@ -37,13 +37,15 @@ private fun NeuButtonBase(
     background: Color,
     textColor: Color,
     shadowModifier: Modifier,
+    cornerRadius: Dp,
 ) {
+    val shape = RoundedCornerShape(cornerRadius)
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
             .then(shadowModifier)
-            .clip(ButtonShape)
-            .background(color = background, shape = ButtonShape)
+            .clip(shape)
+            .background(color = background, shape = shape)
             .clickable(onClick = onClick)
             .padding(ButtonPadding),
     ) {
@@ -66,6 +68,7 @@ fun NeuButtonPrimary(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    cornerRadius: Dp = 14.dp,
 ) {
     NeuButtonBase(
         text           = text,
@@ -73,7 +76,8 @@ fun NeuButtonPrimary(
         modifier       = modifier,
         background     = Accent,
         textColor      = Color.White,
-        shadowModifier = Modifier.neuGlow(cornerRadius = 14.dp),
+        shadowModifier = Modifier.neuGlow(cornerRadius = cornerRadius),
+        cornerRadius   = cornerRadius,
     )
 }
 
@@ -85,6 +89,7 @@ fun NeuButtonSecondary(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    cornerRadius: Dp = 14.dp,
 ) {
     NeuButtonBase(
         text           = text,
@@ -92,7 +97,8 @@ fun NeuButtonSecondary(
         modifier       = modifier,
         background     = Background,
         textColor      = Accent,
-        shadowModifier = Modifier.neuElevated(cornerRadius = 14.dp),
+        shadowModifier = Modifier.neuElevated(cornerRadius = cornerRadius),
+        cornerRadius   = cornerRadius,
     )
 }
 

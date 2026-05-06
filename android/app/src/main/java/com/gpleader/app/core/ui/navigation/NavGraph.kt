@@ -12,7 +12,10 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.gpleader.app.feature.auth.LoginScreen
 import com.gpleader.app.feature.auth.QuienEresScreen
+import com.gpleader.app.feature.auth.SabadoAutoMarcarScreen
+import com.gpleader.app.feature.auth.SabadoConfirmacionScreen
 import com.gpleader.app.feature.historial.HistorialScreen
+import com.gpleader.app.feature.sabado.SabadoCultoScreen
 import com.gpleader.app.feature.home.HomeScreen
 import com.gpleader.app.feature.perfil.PerfilCambiarContrasenaScreen
 import com.gpleader.app.feature.perfil.PerfilDatosGrupoScreen
@@ -49,6 +52,11 @@ object NavRoutes {
     const val PERFIL_REPORTES             = "perfil/reportes"
     const val DETALLE_REUNION             = "detalle_reunion/{reunionId}"
 
+    // ── Sábado ────────────────────────────────────────────────────────────────
+    const val SABADO_AUTOMARCAR   = "sabado_automarcar/{miembroId}"
+    const val SABADO_CONFIRMACION = "sabado_confirmacion/{iglesiaName}"
+    const val SABADO_CULTO        = "sabado_culto"
+
     // ── Miembros nested graph ─────────────────────────────────────────────────
     const val MIEMBROS_GRAPH   = "miembros_graph"
     const val MIEMBROS_LISTA   = "miembros"
@@ -68,6 +76,8 @@ object NavRoutes {
 
     fun detalleReunion(reunionId: String)     = "detalle_reunion/$reunionId"
     fun detalleActividad(actividadId: String) = "registro/detalle/$actividadId"
+    fun sabadoAutoMarcar(miembroId: String)   = "sabado_automarcar/$miembroId"
+    fun sabadoConfirmacion(iglesiaName: String) = "sabado_confirmacion/${android.net.Uri.encode(iglesiaName)}"
 }
 
 @Composable
@@ -86,9 +96,6 @@ fun AppNavGraph(
                         popUpTo(NavRoutes.LOGIN) { inclusive = true }
                     }
                 },
-                onNavigateToCambiarContrasena = {
-                    navController.navigate(NavRoutes.CAMBIAR_CONTRASENA_INICIAL)
-                },
             )
         }
 
@@ -97,6 +104,45 @@ fun AppNavGraph(
                 onNavigateToHome = {
                     navController.navigate(NavRoutes.HOME) {
                         popUpTo(NavRoutes.QUIEN_ERES) { inclusive = true }
+                    }
+                },
+                onNavigateToCambiarContrasena = {
+                    navController.navigate(NavRoutes.CAMBIAR_CONTRASENA_INICIAL)
+                },
+                onNavigateToConfirmacion = { iglesiaName ->
+                    navController.navigate(NavRoutes.sabadoConfirmacion(iglesiaName)) {
+                        popUpTo(NavRoutes.QUIEN_ERES) { inclusive = false }
+                    }
+                },
+            )
+        }
+
+        composable(
+            route     = NavRoutes.SABADO_AUTOMARCAR,
+            arguments = listOf(navArgument("miembroId") { type = NavType.StringType }),
+        ) {
+            SabadoAutoMarcarScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToConfirmacion = { iglesiaName ->
+                    navController.navigate(NavRoutes.sabadoConfirmacion(iglesiaName)) {
+                        popUpTo(NavRoutes.QUIEN_ERES) { inclusive = false }
+                    }
+                },
+            )
+        }
+
+        composable(
+            route     = NavRoutes.SABADO_CONFIRMACION,
+            arguments = listOf(navArgument("iglesiaName") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val iglesiaName = backStackEntry.arguments?.getString("iglesiaName")?.let {
+                android.net.Uri.decode(it)
+            } ?: ""
+            SabadoConfirmacionScreen(
+                iglesiaNombre = iglesiaName,
+                onCerrar = {
+                    navController.navigate(NavRoutes.LOGIN) {
+                        popUpTo(0) { inclusive = true }
                     }
                 },
             )
@@ -114,10 +160,22 @@ fun AppNavGraph(
 
         composable(NavRoutes.HOME) {
             HomeScreen(
-                onNavigateToRegistro  = { navController.navigate(NavRoutes.REGISTRO_GRAPH) },
-                onNavigateToHistorial = { navController.navigate(NavRoutes.HISTORIAL) },
-                onNavigateToDetalle   = { id -> navController.navigate(NavRoutes.detalleReunion(id)) },
-                onNavigateToPerfil    = { navController.navigate(NavRoutes.PERFIL) },
+                onNavigateToRegistro    = { navController.navigate(NavRoutes.REGISTRO_GRAPH) },
+                onNavigateToHistorial   = { navController.navigate(NavRoutes.HISTORIAL) },
+                onNavigateToDetalle     = { id -> navController.navigate(NavRoutes.detalleReunion(id)) },
+                onNavigateToPerfil      = { navController.navigate(NavRoutes.PERFIL) },
+                onNavigateToSabadoCulto = { navController.navigate(NavRoutes.SABADO_CULTO) },
+            )
+        }
+
+        composable(NavRoutes.SABADO_CULTO) {
+            SabadoCultoScreen(
+                onNavigateBack   = { navController.popBackStack() },
+                onNavigateToHome = {
+                    navController.navigate(NavRoutes.HOME) {
+                        popUpTo(NavRoutes.HOME) { inclusive = false }
+                    }
+                },
             )
         }
 
@@ -128,8 +186,9 @@ fun AppNavGraph(
                         popUpTo(NavRoutes.HOME) { inclusive = false }
                     }
                 },
-                onNavigateToDetalle = { id -> navController.navigate(NavRoutes.detalleReunion(id)) },
-                onNavigateToPerfil  = { navController.navigate(NavRoutes.PERFIL) },
+                onNavigateToDetalle  = { id -> navController.navigate(NavRoutes.detalleReunion(id)) },
+                onNavigateToPerfil   = { navController.navigate(NavRoutes.PERFIL) },
+                onNavigateToRegistro = { navController.navigate(NavRoutes.REGISTRO_GRAPH) },
             )
         }
 
@@ -260,13 +319,23 @@ fun AppNavGraph(
             }
         }
 
-        // Placeholder — DetalleReunionScreen
         composable(
             route     = NavRoutes.DETALLE_REUNION,
             arguments = listOf(navArgument("reunionId") { type = NavType.StringType }),
         ) {
             DetalleReunionScreen(
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack        = { navController.popBackStack() },
+                onNavigateToHome      = {
+                    navController.navigate(NavRoutes.HOME) {
+                        popUpTo(NavRoutes.HOME) { inclusive = false }
+                    }
+                },
+                onNavigateToHistorial = {
+                    navController.navigate(NavRoutes.HISTORIAL) {
+                        popUpTo(NavRoutes.HOME) { inclusive = false }
+                    }
+                },
+                onNavigateToPerfil    = { navController.navigate(NavRoutes.PERFIL) },
             )
         }
 

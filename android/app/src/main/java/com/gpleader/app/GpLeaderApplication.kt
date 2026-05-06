@@ -24,16 +24,6 @@ class GpLeaderApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         appScope.launch {
-            // Si el usuario ya está autenticado (sesión persistida por el SDK de Supabase),
-            // NO sobrescribir con sesión anónima — eso causaría errores de RLS en el backend.
-            // Solo usar anónimo si no hay sesión activa (p.ej. primera vez / datos borrados).
-            val haySession = runCatching {
-                supabase.auth.currentSessionOrNull() != null
-            }.getOrDefault(false)
-
-            if (!haySession) {
-                runCatching { connector.loginAnonymously() }
-            }
             database.connect(connector)
         }
     }

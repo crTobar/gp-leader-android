@@ -7,15 +7,15 @@
     <string name="login_header_subtitle">Gestión de grupos pequeños SDA</string>
     <string name="login_section_label">INICIAR SESIÓN</string>
     <string name="login_title">Bienvenido</string>
-    <string name="login_subtitle">Selecciona campo, distrito, iglesia y grupo; tu usuario se forma solo.</string>
+    <string name="login_subtitle">Elige tu GP y luego accede como líder o suplente.</string>
     <string name="login_label_correo">CORREO ELECTRÓNICO</string>
     <string name="login_placeholder_correo">correo@iglesia.org</string>
     <string name="login_label_contrasena">CONTRASEÑA</string>
     <string name="login_olvide_contrasena">¿Olvidaste tu contraseña?</string>
-    <string name="login_notice_prefix">Tu cuenta usa el mismo formato que te dio tu </string>
+    <string name="login_notice_prefix">Tu usuario sigue el formato que te dio tu </string>
     <string name="login_notice_bold">pastor o administrador</string>
-    <string name="login_notice_suffix"> (campo, iglesia y GP). Si no tienes acceso, contáctalo.</string>
-    <string name="login_btn_entrar">Entrar</string>
+    <string name="login_notice_suffix">. Si no tienes acceso, contáctalo.</string>
+    <string name="login_btn_entrar">Acceder</string>
     <string name="login_separator_o">o</string>
     <string name="login_btn_suplente">Ingresar como suplente</string>
     <string name="login_label_campo">CAMPO</string>
@@ -31,9 +31,17 @@
     <string name="login_iglesia_seleccionada">IGLESIA SELECCIONADA</string>
     <string name="login_sin_resultados">Sin resultados</string>
     <string name="login_buscar">Buscar…</string>
+    <string name="login_label_tu_gp">TU GP</string>
+    <string name="login_buscar_gp_hint">Buscar grupo pequeño…</string>
+    <string name="login_cambiar_gp">Cambiar de GP</string>
+    <string name="login_usar_otro_grupo">Usar otro grupo</string>
+    <string name="login_gp_recordado">GP RECORDADO</string>
+    <string name="login_mas_opciones">Más opciones</string>
+    <string name="login_mostrar_todos">Mostrar todos (%1$d)</string>
+    <string name="login_cargando_lista">Cargando grupos…</string>
 
     <!-- ── Home ──────────────────────────────────────────────────────────── -->
-    <string name="home_label_bienvenida">USANDO LA APP COMO</string>
+    <string name="home_label_bienvenida">Hola,</string>
     <string name="home_btn_suplente">Suplente</string>
     <string name="home_btn_registrar">+ Registrar</string>
     <string name="home_label_tu_grupo">TU GRUPO PEQUEÑO</string>
@@ -41,7 +49,7 @@
     <string name="home_label_asistencia">ASISTENCIA</string>
     <string name="home_label_presentes">PRESENTES</string>
     <string name="home_label_ausentes">AUSENTES</string>
-    <string name="home_label_justificados">JUSTIFIC.</string>
+    <string name="home_label_justificados">JUSTIFICAR</string>
     <string name="home_label_promedio">PROMEDIO</string>
     <string name="home_label_ult_reunion">ÚLT. REUNIÓN</string>
     <string name="home_section_recientes">REUNIONES RECIENTES</string>
@@ -62,6 +70,7 @@
 
     <!-- ── Registro ───────────────────────────────────────────────────────── -->
     <string name="registro_titulo">Registrar reunión</string>
+    <string name="registro_subtitulo_paso">Paso %1$d de 3 · %2$s</string>
     <string name="registro_badge_paso">1/3</string>
     <string name="registro_step_asistencia">Fecha y asistencia</string>
     <string name="registro_step_actividades">Actividades</string>
@@ -87,7 +96,7 @@
     <string name="registro_visita_quitar">Quitar</string>
     <string name="registro_badge_visita">Visita</string>
     <string name="registro_placeholder_visita">+ Agregar visita…</string>
-    <string name="registro_btn_continuar">Continuar → Actividades</string>
+    <string name="registro_btn_continuar">Continuar</string>
     <string name="registro_error_sin_asistencia">Marca la asistencia de al menos un miembro para continuar.</string>
     <string name="registro_confirm_ausentes_titulo">Todos ausentes</string>
     <string name="registro_confirm_ausentes_cuerpo">Marcaste a todos los miembros como Ausente. ¿Es correcto?</string>
@@ -113,7 +122,7 @@
     <string name="registro_nivel_pastor">PASTOR</string>
     <string name="registro_nivel_mi_gp">MI GP</string>
     <string name="registro_badge_oficial">Oficial</string>
-    <string name="registro_btn_siguiente">Siguiente → Resumen</string>
+    <string name="registro_btn_siguiente">Continuar</string>
     <string name="registro_agregar_extra">+ Agregar actividad extra</string>
     <string name="registro_error_obligatorias">Todas las actividades deben tener un valor. Registra la cantidad aunque sea 0.</string>
     <string name="paso2_contador_requiere_desglose">Este contador se llena desde el detalle de la actividad, asignando un valor por cada miembro.</string>
@@ -135,13 +144,27 @@
     <string name="agregar_actividad_titulo">Agregar actividad extra</string>
     <string name="agregar_actividad_label_nombre">NOMBRE DE LA ACTIVIDAD *</string>
     <string name="agregar_actividad_hint_nombre">Escribe el nombre de la actividad</string>
+    <string name="agregar_actividad_label_tipo">TIPO DE MARCADOR</string>
     <string name="agregar_actividad_label_cantidad">CANTIDAD</string>
     <string name="agregar_actividad_label_unidad">UNIDAD</string>
+    <string name="agregar_actividad_label_monto">MONTO (₡)</string>
     <string name="agregar_actividad_unidad_personas">personas</string>
     <string name="agregar_actividad_unidad_visitas">visitas</string>
     <string name="agregar_actividad_unidad_sesiones">sesiones</string>
     <string name="agregar_actividad_unidad_otro">otro</string>
     <string name="agregar_actividad_btn_agregar">Agregar actividad</string>
+    <!-- Tipos de marcador -->
+    <string name="tipo_marcador_contador">Contador</string>
+    <string name="tipo_marcador_checkbox">Completado</string>
+    <string name="tipo_marcador_monetario">Monto ₡</string>
+    <string name="tipo_marcador_contador_desc">Registra un número (personas, sesiones, libros…)</string>
+    <string name="tipo_marcador_checkbox_desc">Solo marca si se realizó o no</string>
+    <string name="tipo_marcador_monetario_desc">Registra un monto en colones</string>
+    <string name="tipo_marcador_checkbox_nota">Al registrar la reunión, simplemente marca si esta actividad se realizó.</string>
+    <string name="tipo_marcador_checkbox_preview_label">VISTA PREVIA</string>
+    <string name="tipo_marcador_checkbox_preview_hint">Toca el cuadro de arriba para probar cómo funciona.</string>
+    <string name="agregar_actividad_desglose_titulo">Desglose por miembro</string>
+    <string name="agregar_actividad_desglose_desc">Permite distribuir el total entre los miembros del grupo</string>
 
     <!-- ── Registro Paso 3 ────────────────────────────────────────────────── -->
     <string name="paso3_label_resumen">Resumen</string>
@@ -161,6 +184,10 @@
     <string name="paso3_sin_actividades">Sin actividades registradas</string>
     <string name="paso3_btn_enviar">Enviar al pastor</string>
     <string name="paso3_btn_editar">← Editar actividades</string>
+    <string name="paso3_btn_borrador">Guardar como borrador</string>
+    <string name="paso3_btn_editar_actividades">Editar actividades</string>
+    <string name="paso3_grupo_sin_nombre">Grupo pequeño</string>
+    <string name="paso3_borrador_proximo">El borrador en el dispositivo estará disponible en una próxima versión.</string>
 
     <!-- ── Éxito enviado ──────────────────────────────────────────────────── -->
     <string name="exito_enviado_titulo">¡Reporte enviado!</string>
@@ -179,12 +206,13 @@
     <!-- ── Historial ─────────────────────────────────────────────────────── -->
     <string name="historial_titulo">Historial</string>
     <string name="historial_btn_buscar">Buscar</string>
+    <string name="historial_btn_registrar">Registrar reunión</string>
     <string name="historial_tab_ver_todo">Ver todo</string>
     <string name="historial_stat_promedio">PROMEDIO</string>
     <string name="historial_stat_reuniones">REUNIONES</string>
     <string name="historial_stat_enviadas">ENVIADAS</string>
     <string name="historial_stat_pendiente">PENDIENTE</string>
-    <string name="historial_reunion_titulo">Reunión Semanal</string>
+    <string name="historial_reunion_titulo">Reunión de GP</string>
     <string name="historial_badge_enviada">Enviada</string>
     <string name="historial_badge_pendiente">Pendiente</string>
     <string name="historial_badge_editar">Editar</string>
@@ -380,4 +408,30 @@
     <string name="exito_offline_esperando">%s · Esperando conexión</string>
     <string name="exito_offline_nota">Tu reporte está seguro. No necesitas hacer nada, se enviará solo cuando vuelva la conexión.</string>
     <string name="exito_offline_btn">Volver al inicio</string>
+
+    <plurals name="paso3_chip_presente">
+        <item quantity="one">%d Presente</item>
+        <item quantity="other">%d Presentes</item>
+    </plurals>
+    <plurals name="paso3_chip_ausente">
+        <item quantity="one">%d Ausente</item>
+        <item quantity="other">%d Ausentes</item>
+    </plurals>
+    <plurals name="paso3_chip_justificado">
+        <item quantity="one">%d Justificado</item>
+        <item quantity="other">%d Justificados</item>
+    </plurals>
+
+    <!-- ── Sábado ───────────────────────────────────────────────────────────── -->
+    <string name="login_btn_continuar">Ver miembros del grupo</string>
+    <string name="quien_eres_password_titulo">Contraseña del grupo</string>
+    <string name="quien_eres_no_sabado">El acceso de miembros está disponible el sábado</string>
+    <string name="sabado_culto_titulo">Culto de Sábado</string>
+    <string name="sabado_automarcar_titulo">¿A qué iglesia fuiste?</string>
+    <string name="sabado_automarcar_btn">Marcar asistencia</string>
+    <string name="sabado_confirmacion_titulo">¡Asistencia registrada!</string>
+    <string name="sabado_confirmacion_btn">Cerrar</string>
+    <string name="sabado_card_titulo">Culto de Sábado</string>
+    <string name="sabado_card_marcados">%1$d de %2$d marcados</string>
+
 </resources>

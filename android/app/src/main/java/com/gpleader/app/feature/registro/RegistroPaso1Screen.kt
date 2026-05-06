@@ -95,6 +95,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import com.gpleader.app.core.ui.theme.Gold
 import com.gpleader.app.core.ui.theme.Shadow
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import java.time.Instant
 import java.time.LocalDate
@@ -279,7 +281,7 @@ private fun RegistroPaso1Content(
             modifier       = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 96.dp),
         ) {
-            item { RegistroTopBar(onNavigateBack = onNavigateBack) }
+            item { RegistroTopBar(pasoActivo = 1, onNavigateBack = onNavigateBack) }
 
             item {
                 val presentes = uiState.miembros.count { it.estado == EstadoAsistencia.PRESENTE }
@@ -398,7 +400,12 @@ private fun RegistroPaso1Content(
 // ── Top bar ───────────────────────────────────────────────────────────────────
 
 @Composable
-private fun RegistroTopBar(onNavigateBack: () -> Unit) {
+private fun RegistroTopBar(pasoActivo: Int, onNavigateBack: () -> Unit) {
+    val stepLabel = when (pasoActivo) {
+        1    -> stringResource(R.string.registro_step_asistencia)
+        2    -> stringResource(R.string.registro_step_actividades)
+        else -> stringResource(R.string.registro_step_resumen)
+    }
     Row(
         modifier          = Modifier
             .fillMaxWidth()
@@ -423,27 +430,25 @@ private fun RegistroTopBar(onNavigateBack: () -> Unit) {
             )
         }
 
-        Text(
-            text      = stringResource(R.string.registro_titulo),
-            style     = MaterialTheme.typography.titleLarge,
-            color     = Ink,
-            textAlign = TextAlign.Center,
-            modifier  = Modifier.weight(1f),
-        )
-
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(Ink)
-                .padding(horizontal = 10.dp, vertical = 5.dp),
+        Column(
+            modifier            = Modifier.weight(1f),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text  = stringResource(R.string.registro_badge_paso),
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.White,
+                text      = stringResource(R.string.registro_titulo),
+                style     = MaterialTheme.typography.titleLarge,
+                color     = Ink,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text      = stringResource(R.string.registro_subtitulo_paso, pasoActivo, stepLabel),
+                style     = MaterialTheme.typography.bodySmall,
+                color     = Muted,
+                textAlign = TextAlign.Center,
             )
         }
+
+        Spacer(Modifier.size(40.dp))
     }
 }
 
@@ -456,43 +461,79 @@ private fun StepperRow(pasoActivo: Int, presentes: Int = 0, total: Int = 0) {
         stringResource(R.string.registro_step_actividades),
         stringResource(R.string.registro_step_resumen),
     )
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(Background)
             .padding(horizontal = 20.dp, vertical = 12.dp),
     ) {
-        Row(
-            modifier              = Modifier.fillMaxWidth(),
-            verticalAlignment     = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceEvenly,
-        ) {
+        Row(modifier = Modifier.fillMaxWidth()) {
             labels.forEachIndexed { idx, label ->
-                val numero = idx + 1
-                val activo = numero == pasoActivo
-                val completado = numero < pasoActivo
+                val numero         = idx + 1
+                val activo         = numero == pasoActivo
+                val completado     = numero < pasoActivo
+                val lineColorLeft  = if (pasoActivo > idx)       Accent else Muted.copy(alpha = 0.4f)
+                val lineColorRight = if (pasoActivo > idx + 1)   Accent else Muted.copy(alpha = 0.4f)
 
                 Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .drawBehind {
+                            val circleR    = 22.dp.toPx()
+                            val lineY      = circleR
+                            val centerX    = size.width / 2f
+                            val strokePx   = 1.5.dp.toPx()
+                            if (idx > 0) {
+                                drawLine(
+                                    color       = lineColorLeft,
+                                    start       = Offset(0f, lineY),
+                                    end         = Offset(centerX - circleR, lineY),
+                                    strokeWidth = strokePx,
+                                )
+                            }
+                            if (idx < labels.size - 1) {
+                                drawLine(
+                                    color       = lineColorRight,
+                                    start       = Offset(centerX + circleR, lineY),
+                                    end         = Offset(size.width, lineY),
+                                    strokeWidth = strokePx,
+                                )
+                            }
+                        },
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier            = Modifier.weight(1f),
                 ) {
                     Box(
                         contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(if (activo || completado) Accent else Color.Transparent)
-                            .then(
-                                if (!activo && !completado)
-                                    Modifier.border(1.5.dp, Muted, CircleShape)
-                                else Modifier
-                            ),
+                        modifier         = Modifier.size(44.dp),
                     ) {
-                        Text(
-                            text  = "$numero",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (activo || completado) Color.White else Muted,
-                        )
+                        if (activo) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(CircleShape)
+                                    .background(Accent.copy(alpha = 0.15f)),
+                            )
+                        }
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(if (activo || completado) Accent else Color.Transparent)
+                                .then(
+                                    if (!activo && !completado)
+                                        Modifier.border(1.5.dp, Muted, CircleShape)
+                                    else Modifier
+                                ),
+                        ) {
+                            Text(
+                                text       = "$numero",
+                                style      = MaterialTheme.typography.labelSmall,
+                                color      = if (activo || completado) Color.White else Muted,
+                                fontWeight = if (activo) FontWeight.Bold else FontWeight.Normal,
+                            )
+                        }
                     }
                     Spacer(Modifier.height(4.dp))
                     Text(
@@ -502,18 +543,9 @@ private fun StepperRow(pasoActivo: Int, presentes: Int = 0, total: Int = 0) {
                         textAlign = TextAlign.Center,
                     )
                 }
-
-                if (idx < labels.size - 1) {
-                    Box(
-                        modifier = Modifier
-                            .weight(0.5f)
-                            .height(1.dp)
-                            .padding(bottom = 20.dp)
-                            .background(if (pasoActivo > idx + 1) Accent else Muted.copy(alpha = 0.4f)),
-                    )
-                }
             }
         }
+
         if (total > 0) {
             Spacer(Modifier.height(6.dp))
             Text(

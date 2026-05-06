@@ -12,6 +12,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -32,11 +33,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -95,9 +96,10 @@ import java.time.Month
 
 @Composable
 fun HistorialScreen(
-    onNavigateToHome:    () -> Unit,
-    onNavigateToDetalle: (String) -> Unit,
-    onNavigateToPerfil:  () -> Unit = {},
+    onNavigateToHome:      () -> Unit,
+    onNavigateToDetalle:   (String) -> Unit,
+    onNavigateToPerfil:    () -> Unit = {},
+    onNavigateToRegistro:  () -> Unit = {},
     viewModel: HistorialViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -111,14 +113,14 @@ fun HistorialScreen(
     }
 
     HistorialContent(
-        uiState                = uiState,
-        onNavigateToHome       = onNavigateToHome,
-        onNavigateToPerfil     = onNavigateToPerfil,
-        onTrimestralChange     = viewModel::onTrimestralChange,
-        onVerTodoClick         = viewModel::onVerTodoClick,
-        onBuscarClick          = viewModel::onBuscarClick,
-        onReunionClick         = viewModel::onReunionClick,
-        onEditarReunionClick   = viewModel::onEditarReunionClick,
+        uiState              = uiState,
+        onNavigateToHome     = onNavigateToHome,
+        onNavigateToPerfil   = onNavigateToPerfil,
+        onTrimestralChange   = viewModel::onTrimestralChange,
+        onVerTodoClick       = viewModel::onVerTodoClick,
+        onRegistrarClick     = onNavigateToRegistro,
+        onReunionClick       = viewModel::onReunionClick,
+        onEditarReunionClick = viewModel::onEditarReunionClick,
     )
 }
 
@@ -131,7 +133,7 @@ private fun HistorialContent(
     onNavigateToPerfil:   () -> Unit,
     onTrimestralChange:   (String) -> Unit,
     onVerTodoClick:       () -> Unit,
-    onBuscarClick:        () -> Unit,
+    onRegistrarClick:     () -> Unit,
     onReunionClick:       (String) -> Unit,
     onEditarReunionClick: (String) -> Unit = {},
 ) {
@@ -158,8 +160,8 @@ private fun HistorialContent(
             // ── Top bar ───────────────────────────────────────────────────────
             item {
                 HistorialTopBar(
-                    onBuscarClick = onBuscarClick,
-                    modifier      = Modifier
+                    onRegistrarClick = onRegistrarClick,
+                    modifier         = Modifier
                         .statusBarsPadding()
                         .padding(horizontal = 20.dp, vertical = 16.dp),
                 )
@@ -324,8 +326,8 @@ private fun HistorialSkeletonContent(modifier: Modifier = Modifier) {
 
 @Composable
 private fun HistorialTopBar(
-    onBuscarClick: () -> Unit,
-    modifier:      Modifier = Modifier,
+    onRegistrarClick: () -> Unit,
+    modifier:         Modifier = Modifier,
 ) {
     Row(
         modifier          = modifier.fillMaxWidth(),
@@ -338,17 +340,17 @@ private fun HistorialTopBar(
             color    = Ink,
             modifier = Modifier.weight(1f),
         )
-        // Ícono +
+        // Ícono + para registrar nueva reunión
+        TopBarIconButton(
+            icon               = Icons.Filled.Add,
+            contentDescription = stringResource(R.string.historial_btn_registrar),
+            onClick            = onRegistrarClick,
+        )
+        // Ícono calendario (decorativo)
         TopBarIconButton(
             icon               = Icons.Filled.DateRange,
             contentDescription = null,
             onClick            = {},
-        )
-        // Ícono búsqueda
-        TopBarIconButton(
-            icon               = Icons.Filled.Search,
-            contentDescription = stringResource(R.string.historial_btn_buscar),
-            onClick            = onBuscarClick,
         )
     }
 }
@@ -565,10 +567,10 @@ private fun StatsRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         StatCelda(
-            valor    = "${stats.promedioAsistencia}%",
-            label    = stringResource(R.string.historial_stat_promedio),
-            fondoInk = true,
-            modifier = Modifier.weight(1f),
+            valor       = "${stats.promedioAsistencia}%",
+            label       = stringResource(R.string.historial_stat_promedio),
+            accentValor = true,
+            modifier    = Modifier.weight(1f),
         )
         StatCelda(
             valor    = stats.totalReuniones.toString(),
@@ -590,30 +592,25 @@ private fun StatsRow(
 
 @Composable
 private fun StatCelda(
-    valor:    String,
-    label:    String,
-    fondoInk: Boolean  = false,
-    modifier: Modifier = Modifier,
+    valor:       String,
+    label:       String,
+    accentValor: Boolean  = false,
+    modifier:    Modifier = Modifier,
 ) {
-    val cardBg   = if (fondoInk) Ink else Background
-    val numColor = if (fondoInk) Color.White else Ink
-    val lblColor = if (fondoInk) Sage else Muted
+    val numColor = if (accentValor) Accent else Ink
 
     Box(
         modifier = modifier
             .height(90.dp)
             .neuElevated(cornerRadius = 16.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(cardBg),
+            .background(Background),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text      = valor,
-                style     = if (fondoInk)
-                    MaterialTheme.typography.displayLarge
-                else
-                    MaterialTheme.typography.headlineMedium,
+                style     = MaterialTheme.typography.headlineMedium,
                 color     = numColor,
                 textAlign = TextAlign.Center,
             )
@@ -621,7 +618,7 @@ private fun StatCelda(
             Text(
                 text          = label,
                 style         = MaterialTheme.typography.labelSmall,
-                color         = lblColor,
+                color         = Muted,
                 textAlign     = TextAlign.Center,
                 maxLines      = 1,
                 fontSize      = 9.sp,
@@ -654,29 +651,15 @@ private fun MesHeader(
     anio:     Int,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier              = modifier
+    Text(
+        text      = "${MESES_HISTORIAL[mes]} $anio",
+        style     = MaterialTheme.typography.labelSmall,
+        color     = Muted,
+        textAlign = TextAlign.Center,
+        modifier  = modifier
             .fillMaxWidth()
             .padding(vertical = 16.dp),
-        verticalAlignment     = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        HorizontalDivider(
-            modifier  = Modifier.weight(1f),
-            color     = Shadow,
-            thickness = 1.dp,
-        )
-        Text(
-            text  = "${MESES_HISTORIAL[mes]} $anio",
-            style = MaterialTheme.typography.labelSmall,
-            color = Muted,
-        )
-        HorizontalDivider(
-            modifier  = Modifier.weight(1f),
-            color     = Shadow,
-            thickness = 1.dp,
-        )
-    }
+    )
 }
 
 // ── Tarjeta de reunión ────────────────────────────────────────────────────────
@@ -720,6 +703,9 @@ private fun ReunionCard(
         label = "progress",
     )
 
+    val semana    = (reunion.fecha.dayOfMonth - 1) / 7 + 1
+    val subTitulo = "Mes ${reunion.fecha.monthValue}, Semana $semana"
+
     SwipeableItem(
         itemKey      = reunion.id,
         onItemClick  = onClick,
@@ -732,16 +718,24 @@ private fun ReunionCard(
         ) else emptyList(),
         modifier = modifier,
     ) {
-    Box(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
+            .height(IntrinsicSize.Min)
             .neuElevated(cornerRadius = 20.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(Background),
-            // Sin .clickable — el tap lo maneja SwipeableItem via onItemClick
     ) {
+        // Barra de color izquierda
+        Box(
+            modifier = Modifier
+                .width(4.dp)
+                .fillMaxHeight()
+                .background(if (esPendiente) Gold else Accent),
+        )
+
         Row(
-            modifier          = Modifier.padding(12.dp),
+            modifier          = Modifier.weight(1f).padding(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // ── Columna fecha ──────────────────────────────────────────────────
@@ -777,9 +771,16 @@ private fun ReunionCard(
             // ── Contenido ─────────────────────────────────────────────────────
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text  = stringResource(R.string.historial_reunion_titulo),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Ink,
+                    text       = stringResource(R.string.historial_reunion_titulo),
+                    style      = MaterialTheme.typography.titleLarge,
+                    color      = Accent,
+                    fontWeight = FontWeight.Bold,
+                )
+
+                Text(
+                    text  = subTitulo,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Muted,
                 )
 
                 Spacer(Modifier.height(5.dp))
@@ -815,12 +816,11 @@ private fun ReunionCard(
 
                 Spacer(Modifier.height(7.dp))
 
-                // Barra de progreso neumórfica
+                // Barra de progreso plana
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(6.dp)
-                        .neuInsetSm(cornerRadius = 3.dp)
+                        .height(5.dp)
                         .clip(RoundedCornerShape(3.dp))
                         .background(BackgroundDeep),
                 ) {
@@ -844,7 +844,7 @@ private fun ReunionCard(
                 modifier           = Modifier.size(20.dp),
             )
         }
-    }
+    } // Row outer card
     } // SwipeableItem
 }
 
@@ -957,24 +957,22 @@ private fun BottomNavBar(
     onHistorialClick: () -> Unit,
     onPerfilClick:    () -> Unit,
 ) {
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Background)
-            .navigationBarsPadding()
-            .padding(horizontal = 20.dp, vertical = 8.dp),
+            .navigationBarsPadding(),
     ) {
-        NeuCard(modifier = Modifier.fillMaxWidth().padding(4.dp)) {
-            Row(
-                modifier              = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-            ) {
-                NavTabItem(Icons.Default.Home,      stringResource(R.string.home_nav_inicio),    false, onInicioClick)
-                NavTabItem(Icons.Default.DateRange, stringResource(R.string.home_nav_historial), true,  onHistorialClick)
-                NavTabItem(Icons.Default.Person,    stringResource(R.string.home_nav_perfil),    false, onPerfilClick)
-            }
+        HorizontalDivider(color = Muted.copy(alpha = 0.2f))
+        Row(
+            modifier              = Modifier
+                .fillMaxWidth()
+                .background(Background)
+                .padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            NavTabItem(Icons.Default.Home,      stringResource(R.string.home_nav_inicio),    false, onInicioClick)
+            NavTabItem(Icons.Default.DateRange, stringResource(R.string.home_nav_historial), true,  onHistorialClick)
+            NavTabItem(Icons.Default.Person,    stringResource(R.string.home_nav_perfil),    false, onPerfilClick)
         }
     }
 }
@@ -1039,7 +1037,7 @@ private fun HistorialPreview() {
             onNavigateToPerfil = {},
             onTrimestralChange = {},
             onVerTodoClick     = {},
-            onBuscarClick      = {},
+            onRegistrarClick   = {},
             onReunionClick     = {},
         )
     }
