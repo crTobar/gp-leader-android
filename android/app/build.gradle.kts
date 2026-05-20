@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.kotlin.ksp)
+    id("io.sentry.android.gradle") version "6.7.0"
 }
 
 val localProperties = Properties().apply {
