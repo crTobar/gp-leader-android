@@ -2,8 +2,12 @@ package com.gpleader.app.feature.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gpleader.app.core.data.repository.AsignadoPotencial
+import com.gpleader.app.core.data.repository.GrupoRepository
 import com.gpleader.app.core.data.repository.ReunionRepository
 import com.gpleader.app.core.data.repository.SabbathMeetingResumen
+import com.gpleader.app.core.data.repository.Solicitud
+import com.gpleader.app.core.data.repository.SolicitudRepository
 import com.gpleader.app.core.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -53,14 +57,26 @@ data class HomeUiState(
     val navigateToHistorial:  Boolean                  = false,
     val navigateToDetalle:    String?                  = null,
     val navigateToSabadoCulto: Boolean                 = false,
+
+    // ── Solicitudes ──────────────────────────────────────────────────────────
+    val solicitudesActivas:    List<Solicitud>          = emptyList(),
+    val solicitudAsignada:     Solicitud?               = null,  // pendiente para este usuario
+    val showDelegarSheet:      Boolean                  = false,
+    val asignadosPotenciales:  List<AsignadoPotencial>  = emptyList(),
+    val isLoadingAsignados:    Boolean                  = false,
+    val isCreandoSolicitud:    Boolean                  = false,
+    val solicitudError:        String?                  = null,
+    val showActivarDialog:     Boolean                  = false,
 )
 
 // ── ViewModel ─────────────────────────────────────────────────────────────────
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val reunionRepo: ReunionRepository,
-    private val session: SessionManager,
+    private val reunionRepo:   ReunionRepository,
+    private val grupoRepo:     GrupoRepository,
+    private val solicitudRepo: SolicitudRepository,
+    private val session:       SessionManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -81,18 +97,51 @@ class HomeViewModel @Inject constructor(
         }
         observarReuniones()
         cargarSabbath()
+        cargarGrupoDetalle()
+        cargarSolicitudes()
+    }
+
+    private fun cargarGrupoDetalle() {
+        viewModelScope.launch {
+            val detalle = grupoRepo.getGrupoDetalle(session.grupoId) ?: return@launch
+            _uiState.update { state ->
+                state.copy(
+                    grupo = state.grupo?.copy(
+                        diaSemana  = detalle.meetingDay,
+                        horaInicio = detalle.meetingTime,
+                    )
+                )
+            }
+        }
     }
 
     private fun cargarSabbath() {
         viewModelScope.launch {
-            val today = LocalDate.now()
-            val sabado = if (today.dayOfWeek == DayOfWeek.SATURDAY) today
-                         else today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SATURDAY))
-            runCatching {
+            val today  = LocalDate.now()
+            val sabado = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SATURDAY))
+
+            var resumen = runCatching {
                 reunionRepo.getSabbathMeeting(session.grupoId, sabado).getOrNull()
-            }.onSuccess { resumen ->
-                _uiState.update { it.copy(sabbathMeeting = resumen) }
+            }.getOrNull()
+
+            // Solo crear borrador si HOY es sábado y todavía no existe la sesión
+            if (resumen == null && today.dayOfWeek == DayOfWeek.SATURDAY) {
+                runCatching {
+                    reunionRepo.saveReunion(
+                        grupoId       = session.grupoId,
+                        fecha         = sabado,
+                        noHuboReunion = false,
+                        asistencias   = emptyList(),
+                        tipoReunion   = "saturday_worship",
+                        status        = "draft",
+                    )
+                }
+                resumen = runCatching {
+                    reunionRepo.getSabbathMeeting(session.grupoId, sabado).getOrNull()
+                }.getOrNull()
             }
+
+            _uiState.update { it.copy(sabbathMeeting = resumen) }
         }
     }
 
@@ -164,5 +213,104 @@ class HomeViewModel @Inject constructor(
 
     fun consumeSabadoCultoNavigation() {
         _uiState.update { it.copy(navigateToSabadoCulto = false) }
+    }
+
+    // ── Solicitudes ───────────────────────────────────────────────────────────
+
+    fun cargarSolicitudes() {
+        viewModelScope.launch {
+            val grupoId = session.grupoId
+            // Solicitudes que el líder creó (pendientes o activas)
+            runCatching { solicitudRepo.getSolicitudesCreadas(grupoId) }
+                .onSuccess { lista ->
+                    _uiState.update { it.copy(solicitudesActivas = lista) }
+                }
+            // Solicitudes asignadas al usuario autenticado (pendientes)
+            runCatching { solicitudRepo.getSolicitudesAsignadas() }
+                .onSuccess { lista ->
+                    _uiState.update { it.copy(
+                        solicitudAsignada = lista.firstOrNull { it.smallGroupId != grupoId },
+                        showActivarDialog = lista.any { it.smallGroupId != grupoId },
+                    ) }
+                }
+        }
+    }
+
+    fun onDelegarClick() {
+        _uiState.update { it.copy(showDelegarSheet = true, isLoadingAsignados = true, solicitudError = null) }
+        viewModelScope.launch {
+            runCatching { solicitudRepo.getAsignadosPotenciales(session.grupoId) }
+                .onSuccess { lista ->
+                    _uiState.update { it.copy(asignadosPotenciales = lista, isLoadingAsignados = false) }
+                }
+                .onFailure {
+                    _uiState.update { it.copy(isLoadingAsignados = false) }
+                }
+        }
+    }
+
+    fun onDismissDelegarSheet() {
+        _uiState.update { it.copy(showDelegarSheet = false, solicitudError = null) }
+    }
+
+    fun onCrearSolicitud(assignedToId: String, nota: String?) {
+        _uiState.update { it.copy(isCreandoSolicitud = true, solicitudError = null) }
+        viewModelScope.launch {
+            runCatching {
+                solicitudRepo.createSolicitud(assignedToId, session.grupoId, nota)
+            }.onSuccess { nueva ->
+                _uiState.update { state ->
+                    state.copy(
+                        isCreandoSolicitud = false,
+                        showDelegarSheet   = false,
+                        solicitudesActivas = state.solicitudesActivas + nueva,
+                    )
+                }
+            }.onFailure { e ->
+                val msg = when {
+                    e.message?.contains("duplicate_solicitude") == true ->
+                        "Esta persona ya tiene una solicitud pendiente para este grupo"
+                    else -> "No se pudo crear la delegación"
+                }
+                _uiState.update { it.copy(isCreandoSolicitud = false, solicitudError = msg) }
+            }
+        }
+    }
+
+    fun onCancelarSolicitud(solicitudId: String) {
+        viewModelScope.launch {
+            runCatching { solicitudRepo.cancelSolicitud(solicitudId) }
+                .onSuccess { _ ->
+                    _uiState.update { state ->
+                        state.copy(
+                            solicitudesActivas = state.solicitudesActivas
+                                .filter { it.id != solicitudId }
+                        )
+                    }
+                }
+        }
+    }
+
+    fun onActivarSolicitud(solicitudId: String) {
+        viewModelScope.launch {
+            runCatching { solicitudRepo.activateSolicitud(solicitudId) }
+                .onSuccess { activada ->
+                    _uiState.update { it.copy(
+                        showActivarDialog  = false,
+                        solicitudAsignada  = activada,
+                    ) }
+                }
+                .onFailure {
+                    _uiState.update { it.copy(showActivarDialog = false) }
+                }
+        }
+    }
+
+    fun onDismissActivarDialog() {
+        _uiState.update { it.copy(showActivarDialog = false) }
+    }
+
+    fun consumeSolicitudError() {
+        _uiState.update { it.copy(solicitudError = null) }
     }
 }

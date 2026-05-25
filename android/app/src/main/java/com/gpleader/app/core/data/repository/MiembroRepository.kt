@@ -31,4 +31,25 @@ interface MiembroRepository {
     fun getMiembros(grupoId: String): Flow<List<MiembroData>>
     fun getMiembrosActivos(grupoId: String): Flow<List<MiembroData>>
     fun getVisitasAnteriores(grupoId: String): Flow<List<MiembroData>>
+    suspend fun getMiembroById(miembroId: String): MiembroData?
+    suspend fun agregarMiembro(
+        grupoId: String,
+        primerNombre: String,
+        segundoNombre: String?,
+        primerApellido: String,
+        segundoApellido: String?,
+        telefono: String?,
+        correo: String?,
+    ): MiembroData
+    suspend fun actualizarMiembro(
+        miembroId: String,
+        primerNombre: String,
+        segundoNombre: String?,
+        primerApellido: String,
+        segundoApellido: String?,
+        telefono: String?,
+        correo: String?,
+        isActive: Boolean,
+    ): MiembroData
+    suspend fun toggleActivoMiembro(miembroId: String, isActive: Boolean)
 }

@@ -1,11 +1,18 @@
 package com.gpleader.app.feature.miembros
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.gpleader.app.core.data.repository.MiembroData
+import com.gpleader.app.core.data.repository.MiembroRepository
+import com.gpleader.app.core.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import java.time.LocalDate
 import javax.inject.Inject
 
 // ── Modelos ───────────────────────────────────────────────────────────────────
@@ -13,8 +20,8 @@ import javax.inject.Inject
 enum class EstadoMiembro { ACTIVO, ARCHIVADO }
 
 data class AsistenciaResumen(
-    val fecha:  String,   // "12 Mar"
-    val estado: String,   // "P", "A", "J"
+    val fecha:  String,
+    val estado: String,
 )
 
 data class MiembroUi(
@@ -26,8 +33,8 @@ data class MiembroUi(
     val telefono:        String = "",
     val correo:          String = "",
     val direccion:       String = "",
-    val estado:          EstadoMiembro       = EstadoMiembro.ACTIVO,
-    val mesIngreso:      String              = "Ene 2025",
+    val estado:          EstadoMiembro           = EstadoMiembro.ACTIVO,
+    val mesIngreso:      String                  = "",
     val historial:       List<AsistenciaResumen> = emptyList(),
 ) {
     val nombreCompleto: String
@@ -36,36 +43,14 @@ data class MiembroUi(
         get() = "${primerNombre.firstOrNull() ?: ""}${primerApellido.firstOrNull() ?: ""}".uppercase()
 }
 
-// ── Sample data ───────────────────────────────────────────────────────────────
-
-private val sampleHistorial = listOf(
-    AsistenciaResumen("12 Mar", "P"),
-    AsistenciaResumen("05 Mar", "A"),
-    AsistenciaResumen("26 Feb", "P"),
-    AsistenciaResumen("19 Feb", "P"),
-    AsistenciaResumen("12 Feb", "J"),
-)
-
-private val sampleMiembros = listOf(
-    MiembroUi("1", "Carlos",   "",      "Ramírez",   "",       "8812-3456", "carlos.ramirez@gmail.com",  "San José, Costa Rica",     EstadoMiembro.ACTIVO,    "Mar 2024", sampleHistorial),
-    MiembroUi("2", "Ana",      "María", "López",     "",       "8823-4567", "ana.lopez@gmail.com",       "Alajuela, Costa Rica",     EstadoMiembro.ACTIVO,    "Jun 2024", sampleHistorial),
-    MiembroUi("3", "Luis",     "",      "Hernández", "Mora",   "8834-5678", "",                          "Heredia, Costa Rica",      EstadoMiembro.ACTIVO,    "Ene 2025", sampleHistorial),
-    MiembroUi("4", "Sofía",    "",      "Vargas",    "",       "8845-6789", "sofia.vargas@gmail.com",    "Cartago, Costa Rica",      EstadoMiembro.ACTIVO,    "Feb 2025", sampleHistorial),
-    MiembroUi("5", "Pedro",    "José",  "Castillo",  "",       "8856-7890", "",                          "San José, Costa Rica",     EstadoMiembro.ACTIVO,    "Ago 2024", sampleHistorial),
-    MiembroUi("6", "Laura",    "",      "Jiménez",   "Solís",  "8867-8901", "laura.jimenez@gmail.com",   "San José, Costa Rica",     EstadoMiembro.ACTIVO,    "Nov 2024", sampleHistorial),
-    MiembroUi("7", "Roberto",  "",      "Mora",      "",       "8878-9012", "roberto.mora@gmail.com",    "Desamparados, Costa Rica", EstadoMiembro.ACTIVO,    "Dic 2024", sampleHistorial),
-    MiembroUi("8", "Carmen",   "",      "Torres",    "Bravo",  "8889-0123", "",                          "San José, Costa Rica",     EstadoMiembro.ACTIVO,    "Ene 2025", sampleHistorial),
-    MiembroUi("9", "Miguel",   "",      "Soto",      "",       "",           "miguel.soto@gmail.com",     "Escazú, Costa Rica",       EstadoMiembro.ARCHIVADO, "Jul 2023", sampleHistorial),
-    MiembroUi("10","Patricia", "",      "Rojas",     "",       "8800-1234", "patricia.rojas@gmail.com",  "",                         EstadoMiembro.ARCHIVADO, "Ene 2023", sampleHistorial),
-)
-
 // ── UI State ──────────────────────────────────────────────────────────────────
 
 data class MiembrosUiState(
-    val miembros: List<MiembroUi> = sampleMiembros,
-    val query:    String          = "",
+    val miembros:  List<MiembroUi> = emptyList(),
+    val query:     String          = "",
+    val isLoading: Boolean         = false,
+    val error:     String?         = null,
 
-    // Miembro seleccionado (detalle / editar)
     val miembroId: String? = null,
 
     // Editar — campos
@@ -78,17 +63,14 @@ data class MiembrosUiState(
     val editDireccion:       String = "",
     val editEstado:          EstadoMiembro = EstadoMiembro.ACTIVO,
 
-    // Expandibles
     val editSegundoNombreExpandido:   Boolean = false,
     val editSegundoApellidoExpandido: Boolean = false,
 
-    // Validación
     val editPrimerNombreError:   Boolean = false,
     val editPrimerApellidoError: Boolean = false,
 
-    // Guardado
-    val isSaving:     Boolean = false,
-    val saveSuccess:  Boolean = false,
+    val isSaving:    Boolean = false,
+    val saveSuccess: Boolean = false,
 
     // Agregar — campos
     val agregarPrimerNombre:    String = "",
@@ -99,19 +81,17 @@ data class MiembrosUiState(
     val agregarCorreo:          String = "",
     val agregarDireccion:       String = "",
 
-    // Agregar — expandibles
     val agregarSegundoNombreExpandido:   Boolean = false,
     val agregarSegundoApellidoExpandido: Boolean = false,
 
-    // Agregar — validación
     val agregarPrimerNombreError:   Boolean = false,
     val agregarPrimerApellidoError: Boolean = false,
 
     // Navegación
-    val navigateToDetalle:  Boolean = false,
-    val navigateToEditar:   Boolean = false,
-    val navigateEditarBack: Boolean = false,
-    val navigateListaBack:  Boolean = false,
+    val navigateToDetalle:   Boolean = false,
+    val navigateToEditar:    Boolean = false,
+    val navigateEditarBack:  Boolean = false,
+    val navigateListaBack:   Boolean = false,
     val navigateAgregarBack: Boolean = false,
 ) {
     val miembroSeleccionado: MiembroUi?
@@ -144,10 +124,26 @@ private fun matchesQuery(m: MiembroUi, q: String): Boolean =
 // ── ViewModel ─────────────────────────────────────────────────────────────────
 
 @HiltViewModel
-class MiembrosViewModel @Inject constructor() : ViewModel() {
+class MiembrosViewModel @Inject constructor(
+    private val miembroRepo: MiembroRepository,
+    private val session:     SessionManager,
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MiembrosUiState())
     val uiState: StateFlow<MiembrosUiState> = _uiState.asStateFlow()
+
+    init { cargarMiembros() }
+
+    private fun cargarMiembros() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            miembroRepo.getMiembros(session.grupoId)
+                .catch { e -> _uiState.update { it.copy(isLoading = false, error = e.message) } }
+                .collect { lista ->
+                    _uiState.update { it.copy(isLoading = false, miembros = lista.map { m -> m.toUi() }) }
+                }
+        }
+    }
 
     // ── Lista ─────────────────────────────────────────────────────────────────
 
@@ -156,14 +152,17 @@ class MiembrosViewModel @Inject constructor() : ViewModel() {
     }
 
     fun onToggleEstadoDesdeListado(miembroId: String) {
+        val miembro = _uiState.value.miembros.find { it.id == miembroId } ?: return
+        val nuevoActivo = miembro.estado != EstadoMiembro.ACTIVO
         _uiState.update { s ->
-            s.copy(
-                miembros = s.miembros.map { m ->
-                    if (m.id == miembroId)
-                        m.copy(estado = if (m.estado == EstadoMiembro.ACTIVO) EstadoMiembro.ARCHIVADO else EstadoMiembro.ACTIVO)
-                    else m
-                }
-            )
+            s.copy(miembros = s.miembros.map { m ->
+                if (m.id == miembroId) m.copy(
+                    estado = if (nuevoActivo) EstadoMiembro.ACTIVO else EstadoMiembro.ARCHIVADO
+                ) else m
+            })
+        }
+        viewModelScope.launch {
+            runCatching { miembroRepo.toggleActivoMiembro(miembroId, nuevoActivo) }
         }
     }
 
@@ -229,21 +228,33 @@ class MiembrosViewModel @Inject constructor() : ViewModel() {
             _uiState.update { it.copy(editPrimerNombreError = nombreError, editPrimerApellidoError = apellidoError) }
             return
         }
-        val id = _uiState.value.miembroId ?: return
-        _uiState.update { state ->
-            val updated = state.miembros.map { m ->
-                if (m.id == id) m.copy(
+        val id    = _uiState.value.miembroId ?: return
+        val state = _uiState.value
+        _uiState.update { it.copy(isSaving = true, error = null) }
+        viewModelScope.launch {
+            runCatching {
+                miembroRepo.actualizarMiembro(
+                    miembroId       = id,
                     primerNombre    = state.editPrimerNombre.trim(),
-                    segundoNombre   = state.editSegundoNombre.trim(),
+                    segundoNombre   = state.editSegundoNombre.trim().takeIf { it.isNotBlank() },
                     primerApellido  = state.editPrimerApellido.trim(),
-                    segundoApellido = state.editSegundoApellido.trim(),
-                    telefono        = state.editTelefono.trim(),
-                    correo          = state.editCorreo.trim(),
-                    direccion       = state.editDireccion.trim(),
-                    estado          = state.editEstado,
-                ) else m
+                    segundoApellido = state.editSegundoApellido.trim().takeIf { it.isNotBlank() },
+                    telefono        = state.editTelefono.trim().takeIf { it.isNotBlank() },
+                    correo          = state.editCorreo.trim().takeIf { it.isNotBlank() },
+                    isActive        = state.editEstado == EstadoMiembro.ACTIVO,
+                )
+            }.onSuccess { updated ->
+                _uiState.update { s ->
+                    s.copy(
+                        isSaving           = false,
+                        saveSuccess        = true,
+                        navigateEditarBack = true,
+                        miembros           = s.miembros.map { if (it.id == id) updated.toUi() else it },
+                    )
+                }
+            }.onFailure {
+                _uiState.update { it.copy(isSaving = false, error = "Error al guardar los cambios") }
             }
-            state.copy(miembros = updated, navigateEditarBack = true)
         }
     }
 
@@ -264,17 +275,17 @@ class MiembrosViewModel @Inject constructor() : ViewModel() {
     fun onPrepararAgregar() {
         _uiState.update {
             it.copy(
-                agregarPrimerNombre             = "",
-                agregarSegundoNombre            = "",
-                agregarPrimerApellido            = "",
-                agregarSegundoApellido           = "",
-                agregarTelefono                  = "",
-                agregarCorreo                    = "",
-                agregarDireccion                 = "",
-                agregarSegundoNombreExpandido    = false,
-                agregarSegundoApellidoExpandido  = false,
-                agregarPrimerNombreError         = false,
-                agregarPrimerApellidoError       = false,
+                agregarPrimerNombre            = "",
+                agregarSegundoNombre           = "",
+                agregarPrimerApellido          = "",
+                agregarSegundoApellido         = "",
+                agregarTelefono                = "",
+                agregarCorreo                  = "",
+                agregarDireccion               = "",
+                agregarSegundoNombreExpandido  = false,
+                agregarSegundoApellidoExpandido = false,
+                agregarPrimerNombreError       = false,
+                agregarPrimerApellidoError     = false,
             )
         }
     }
@@ -297,26 +308,58 @@ class MiembrosViewModel @Inject constructor() : ViewModel() {
             _uiState.update { it.copy(agregarPrimerNombreError = nombreError, agregarPrimerApellidoError = apellidoError) }
             return
         }
-        _uiState.update { state ->
-            val nuevoId = (state.miembros.size + 1).toString()
-            val nuevo = MiembroUi(
-                id              = nuevoId,
-                primerNombre    = state.agregarPrimerNombre.trim(),
-                segundoNombre   = state.agregarSegundoNombre.trim(),
-                primerApellido  = state.agregarPrimerApellido.trim(),
-                segundoApellido = state.agregarSegundoApellido.trim(),
-                telefono        = state.agregarTelefono.trim(),
-                correo          = state.agregarCorreo.trim(),
-                direccion       = state.agregarDireccion.trim(),
-                estado          = EstadoMiembro.ACTIVO,   // SIEMPRE ACTIVO al agregar
-                mesIngreso      = "Mar 2026",
-            )
-            // TODO: supabaseClient.insert(nuevo)
-            state.copy(miembros = state.miembros + nuevo, navigateAgregarBack = true)
+        val state = _uiState.value
+        _uiState.update { it.copy(isSaving = true, error = null) }
+        viewModelScope.launch {
+            runCatching {
+                miembroRepo.agregarMiembro(
+                    grupoId         = session.grupoId,
+                    primerNombre    = state.agregarPrimerNombre.trim(),
+                    segundoNombre   = state.agregarSegundoNombre.trim().takeIf { it.isNotBlank() },
+                    primerApellido  = state.agregarPrimerApellido.trim(),
+                    segundoApellido = state.agregarSegundoApellido.trim().takeIf { it.isNotBlank() },
+                    telefono        = state.agregarTelefono.trim().takeIf { it.isNotBlank() },
+                    correo          = state.agregarCorreo.trim().takeIf { it.isNotBlank() },
+                )
+            }.onSuccess { nuevo ->
+                _uiState.update { s ->
+                    s.copy(
+                        isSaving            = false,
+                        miembros            = s.miembros + nuevo.toUi(),
+                        navigateAgregarBack = true,
+                    )
+                }
+            }.onFailure {
+                _uiState.update { it.copy(isSaving = false, error = "Error al agregar el miembro") }
+            }
         }
     }
 
     fun consumeNavigateAgregarBack() {
         _uiState.update { it.copy(navigateAgregarBack = false) }
     }
+
+    fun consumeError() {
+        _uiState.update { it.copy(error = null) }
+    }
 }
+
+// ── Mapping ───────────────────────────────────────────────────────────────────
+
+private fun MiembroData.toUi(): MiembroUi = MiembroUi(
+    id              = id,
+    primerNombre    = primerNombre,
+    segundoNombre   = segundoNombre   ?: "",
+    primerApellido  = primerApellido,
+    segundoApellido = segundoApellido ?: "",
+    telefono        = telefono        ?: "",
+    correo          = correo          ?: "",
+    estado          = if (estado == "ARCHIVADO") EstadoMiembro.ARCHIVADO else EstadoMiembro.ACTIVO,
+    mesIngreso      = createdAt?.let { formatMes(it) } ?: "",
+)
+
+private fun formatMes(iso: String): String = runCatching {
+    val date  = LocalDate.parse(iso.take(10))
+    val meses = arrayOf("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic")
+    "${meses[date.monthValue - 1]} ${date.year}"
+}.getOrElse { "" }

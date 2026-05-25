@@ -54,11 +54,8 @@ class SabadoCultoViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(SabadoCultoUiState())
     val uiState: StateFlow<SabadoCultoUiState> = _uiState.asStateFlow()
 
-    private val sabadoDeEstaSemana: LocalDate = run {
-        val today = LocalDate.now()
-        if (today.dayOfWeek == DayOfWeek.SATURDAY) today
-        else today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SATURDAY))
-    }
+    private val sabadoDeEstaSemana: LocalDate = LocalDate.now()
+        .with(TemporalAdjusters.previousOrSame(DayOfWeek.SATURDAY))
 
     init {
         cargarDatos()
@@ -68,23 +65,42 @@ class SabadoCultoViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
 
-            // Cargar meeting de sábado de esta semana
-            val meetingResumen = runCatching {
-                reunionRepo.getSabbathMeeting(session.grupoId, sabadoDeEstaSemana).getOrNull()
-            }.getOrNull()
-            val meetingId = meetingResumen?.id ?: ""
+            // Cargar o crear el meeting de sábado de esta semana
+            val meetingId = run {
+                val existente = runCatching {
+                    reunionRepo.getSabbathMeeting(session.grupoId, sabadoDeEstaSemana).getOrNull()
+                }.getOrNull()
+                if (existente != null) {
+                    existente.id
+                } else if (LocalDate.now().dayOfWeek == DayOfWeek.SATURDAY) {
+                    // Solo crear borrador si hoy es sábado
+                    runCatching {
+                        reunionRepo.saveReunion(
+                            grupoId       = session.grupoId,
+                            fecha         = sabadoDeEstaSemana,
+                            noHuboReunion = false,
+                            asistencias   = emptyList(),
+                            tipoReunion   = "saturday_worship",
+                            status        = "draft",
+                        ).getOrNull()
+                    }.getOrNull() ?: ""
+                } else {
+                    ""
+                }
+            }
 
             // Cargar iglesias para el sheet
             val iglesias = runCatching { grupoRepo.getIglesias() }.getOrElse { emptyList() }
 
             // Si hay meeting, cargar qué miembros ya se marcaron (presentes)
+            // presentesMap: memberId → iglesiaVisitadaNombre (null si no visitó otra iglesia)
             val presentesMap: Map<String, String?> = if (meetingId.isNotBlank()) {
                 val detalle = runCatching {
                     reunionRepo.getDetalleReunion(meetingId).getOrNull()
                 }.getOrNull()
                 detalle?.asistencias
-                    ?.filter { it.estado == "P" }
-                    ?.associate { it.nombre to it.iglesiaVisitadaNombre }
+                    ?.filter { it.estado == "P" && it.memberId != null }
+                    ?.associate { it.memberId!! to it.iglesiaVisitadaNombre }
                     ?: emptyMap()
             } else emptyMap()
 
@@ -99,13 +115,12 @@ class SabadoCultoViewModel @Inject constructor(
                             fecha     = sabadoDeEstaSemana,
                             iglesias  = iglesias,
                             miembros  = miembros.map { m ->
-                                val nc = m.nombreCompleto
-                                val iglesiaVisitadaNombre = presentesMap[nc]
+                                val iglesiaVisitadaNombre = presentesMap[m.id]
                                 MiembroSabado(
                                     id                    = m.id,
-                                    nombre                = nc,
+                                    nombre                = m.nombreCompleto,
                                     iniciales             = m.iniciales,
-                                    presente              = presentesMap.containsKey(nc),
+                                    presente              = presentesMap.containsKey(m.id),
                                     iglesiaVisitadaNombre = iglesiaVisitadaNombre,
                                     iglesiaVisitadaId     = iglesias.find { ig -> ig.nombre == iglesiaVisitadaNombre }?.id,
                                 )
@@ -130,8 +145,9 @@ class SabadoCultoViewModel @Inject constructor(
         }
         val meetingId = _uiState.value.meetingId
         if (meetingId.isBlank()) return
+        val iglesiaId = _uiState.value.miembros.find { it.id == miembroId }?.iglesiaVisitadaId
         viewModelScope.launch {
-            reunionRepo.saveDraftAttendance(meetingId, miembroId, nuevoPresente, iglesiaId = null)
+            reunionRepo.saveDraftAttendance(meetingId, miembroId, nuevoPresente, iglesiaId)
         }
     }
 

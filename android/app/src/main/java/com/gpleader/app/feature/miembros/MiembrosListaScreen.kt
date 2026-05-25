@@ -56,10 +56,10 @@ import com.gpleader.app.R
 import com.gpleader.app.core.ui.components.NeuTextField
 import com.gpleader.app.core.ui.components.SwipeAction
 import com.gpleader.app.core.ui.components.SwipeableItem
-import com.gpleader.app.core.ui.theme.Blush
 import com.gpleader.app.core.ui.theme.Accent
 import com.gpleader.app.core.ui.theme.Background
 import com.gpleader.app.core.ui.theme.BackgroundDeep
+import com.gpleader.app.core.ui.theme.Blush
 import com.gpleader.app.core.ui.theme.GpLeaderTheme
 import com.gpleader.app.core.ui.theme.Ink
 import com.gpleader.app.core.ui.theme.Mid
@@ -180,7 +180,8 @@ private fun MiembrosListaContent(
             if (uiState.activosFiltrados.isNotEmpty() || uiState.query.isBlank()) {
                 item {
                     SectionSeparator(
-                        text     = stringResource(R.string.miembros_seccion_activos, uiState.activosFiltrados.size),
+                        label    = stringResource(R.string.miembros_seccion_activos),
+                        count    = uiState.activosFiltrados.size,
                         modifier = Modifier.padding(vertical = 4.dp),
                     )
                 }
@@ -199,7 +200,8 @@ private fun MiembrosListaContent(
             if (uiState.archivadosFiltrados.isNotEmpty()) {
                 item {
                     SectionSeparator(
-                        text     = stringResource(R.string.miembros_seccion_archivados, uiState.archivadosFiltrados.size),
+                        label    = stringResource(R.string.miembros_seccion_archivados),
+                        count    = uiState.archivadosFiltrados.size,
                         modifier = Modifier.padding(vertical = 4.dp),
                     )
                 }
@@ -255,14 +257,14 @@ private fun MiembrosTopBar(
             color = Ink,
         )
 
-        // Botón "+ Agregar" — fondo Ink
+        // Botón "+ Agregar" — fondo Accent
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .neuElevatedSm(cornerRadius = 12.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(Ink)
+                .background(Accent)
                 .clickable(onClick = onAgregarClick)
                 .padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
@@ -275,11 +277,12 @@ private fun MiembrosTopBar(
     }
 }
 
-// ── Section separator "──── ACTIVOS (8) ────" ─────────────────────────────────
+// ── Section separator "──── ACTIVOS  3  ────" ────────────────────────────────
 
 @Composable
 private fun SectionSeparator(
-    text:     String,
+    label:    String,
+    count:    Int,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -287,12 +290,30 @@ private fun SectionSeparator(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         HorizontalDivider(modifier = Modifier.weight(1f), color = Shadow, thickness = 0.8.dp)
-        Text(
-            text     = text,
-            style    = MaterialTheme.typography.labelSmall,
-            color    = Muted,
-            modifier = Modifier.padding(horizontal = 12.dp),
-        )
+        Row(
+            modifier             = Modifier.padding(horizontal = 12.dp),
+            verticalAlignment    = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text  = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = Muted,
+            )
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Accent)
+                    .padding(horizontal = 7.dp, vertical = 2.dp),
+            ) {
+                Text(
+                    text  = count.toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White,
+                )
+            }
+        }
         HorizontalDivider(modifier = Modifier.weight(1f), color = Shadow, thickness = 0.8.dp)
     }
 }
@@ -318,101 +339,103 @@ private fun MiembroCard(
         stringResource(R.string.miembros_accion_archivar)
     val swipeColor = if (archivado) Sage else Blush
 
-    SwipeableItem(
-        itemKey          = miembro.id,
-        onItemClick      = onClick,
-        dimOnSwipe       = true,
-        clipCornerRadius = 20.dp,
-        openKey          = openItemId,
-        onOpen           = onOpen,
-        swipeActions     = listOf(
-            SwipeAction(
-                label   = swipeLabel,
-                color   = swipeColor,
-                onClick = onToggleEstado,
-            )
-        ),
-    ) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(Background),
-    ) {
-        Row(
-            verticalAlignment     = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            modifier              = Modifier
-                .alpha(contentAlpha)
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+    // Box exterior lleva el shadow neumórfico; sin clip para que las sombras sean visibles
+    Box(modifier = Modifier.neuElevated(cornerRadius = 20.dp)) {
+        SwipeableItem(
+            itemKey          = miembro.id,
+            onItemClick      = onClick,
+            dimOnSwipe       = true,
+            clipCornerRadius = 20.dp,
+            openKey          = openItemId,
+            onOpen           = onOpen,
+            swipeActions     = listOf(
+                SwipeAction(
+                    label   = swipeLabel,
+                    color   = swipeColor,
+                    onClick = onToggleEstado,
+                )
+            ),
         ) {
-            // Avatar
             Box(
-                contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(44.dp)
-                    .neuElevatedSm(cornerRadius = 10.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(BackgroundDeep),
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Background),
             ) {
-                Text(
-                    text  = miembro.iniciales,
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                    color = Mid,
-                )
-            }
-
-            // Nombre + teléfono
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text     = miembro.nombreCompleto,
-                    style    = MaterialTheme.typography.titleLarge,
-                    color    = textColor,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (miembro.telefono.isNotBlank()) {
-                    Text(
-                        text  = miembro.telefono,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Muted,
-                    )
-                }
-            }
-
-            // Badge archivado
-            if (archivado) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Shadow)
-                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                Row(
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier              = Modifier
+                        .alpha(contentAlpha)
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
                 ) {
-                    Text(
-                        text  = stringResource(R.string.miembros_badge_archivado),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Muted,
+                    // Avatar
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .neuElevatedSm(cornerRadius = 10.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(BackgroundDeep),
+                    ) {
+                        Text(
+                            text  = miembro.iniciales,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = Mid,
+                        )
+                    }
+
+                    // Nombre + teléfono
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text     = miembro.nombreCompleto,
+                            style    = MaterialTheme.typography.titleLarge,
+                            color    = textColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (miembro.telefono.isNotBlank()) {
+                            Text(
+                                text  = miembro.telefono,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Muted,
+                            )
+                        }
+                    }
+
+                    // Badge archivado
+                    if (archivado) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Shadow)
+                                .padding(horizontal = 8.dp, vertical = 3.dp),
+                        ) {
+                            Text(
+                                text  = stringResource(R.string.miembros_badge_archivado),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Muted,
+                            )
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(RoundedCornerShape(5.dp))
+                                .background(dotColor),
+                        )
+                    }
+
+                    Icon(
+                        imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint               = Muted,
+                        modifier           = Modifier.size(20.dp),
                     )
                 }
-            } else {
-                // Dot activo
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .clip(RoundedCornerShape(5.dp))
-                        .background(dotColor),
-                )
             }
-
-            Icon(
-                imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint               = Muted,
-                modifier           = Modifier.size(20.dp),
-            )
         }
     }
-    } // SwipeableItem
 }
 
 // ── Bottom nav ────────────────────────────────────────────────────────────────

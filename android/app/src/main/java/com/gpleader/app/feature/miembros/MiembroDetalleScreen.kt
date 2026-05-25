@@ -203,7 +203,7 @@ private fun HeroCard(miembro: MiembroUi) {
                     .size(64.dp)
                     .neuElevatedSm(cornerRadius = 14.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(Ink),
+                    .background(Accent),
             ) {
                 Text(
                     text  = miembro.iniciales,

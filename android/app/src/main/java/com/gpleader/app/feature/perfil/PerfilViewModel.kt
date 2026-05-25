@@ -1,11 +1,27 @@
 package com.gpleader.app.feature.perfil
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.gpleader.app.core.data.repository.MiembroRepository
+import com.gpleader.app.core.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.catch
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.postgrest.postgrest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 // ── Modelos ───────────────────────────────────────────────────────────────────
@@ -132,15 +148,33 @@ data class PerfilUiState(
     // Navegación — pantallas de retorno
     val navigateDatosPersonalesBack: Boolean = false,
     val navigateDatosGrupoBack:      Boolean = false,
+
+    val navigateToActividadesLista:  Boolean = false,
 )
 
 // ── ViewModel ─────────────────────────────────────────────────────────────────
 
 @HiltViewModel
-class PerfilViewModel @Inject constructor() : ViewModel() {
+class PerfilViewModel @Inject constructor(
+    private val supabase:     SupabaseClient,
+    private val session:      SessionManager,
+    private val miembroRepo:  MiembroRepository,
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PerfilUiState())
     val uiState: StateFlow<PerfilUiState> = _uiState.asStateFlow()
+
+    init { cargarTotalMiembros() }
+
+    private fun cargarTotalMiembros() {
+        viewModelScope.launch {
+            miembroRepo.getMiembrosActivos(session.grupoId)
+                .catch { }
+                .collect { lista ->
+                    _uiState.update { it.copy(totalMiembros = lista.size) }
+                }
+        }
+    }
 
     // ── PerfilPrincipal ───────────────────────────────────────────────────────
 
@@ -152,7 +186,14 @@ class PerfilViewModel @Inject constructor() : ViewModel() {
 
     fun onCerrarSesionClick()        { _uiState.update { it.copy(showCerrarSesionDialog = true) } }
     fun onDismissCerrarSesionDialog() { _uiState.update { it.copy(showCerrarSesionDialog = false) } }
-    fun onConfirmarCerrarSesion()    { _uiState.update { it.copy(showCerrarSesionDialog = false, navigateToLogin = true) } }
+    fun onConfirmarCerrarSesion() {
+        _uiState.update { it.copy(showCerrarSesionDialog = false) }
+        viewModelScope.launch {
+            runCatching { supabase.auth.signOut() }
+            session.clear()
+            _uiState.update { it.copy(navigateToLogin = true) }
+        }
+    }
     fun onEditarAvatarClick()        { /* TODO */ }
     fun onCambiarQuienUsaClick()          { _uiState.update { it.copy(navigateToQuienEres = true) } }
     fun consumeQuienEresNavigation()      { _uiState.update { it.copy(navigateToQuienEres = false) } }
@@ -160,6 +201,8 @@ class PerfilViewModel @Inject constructor() : ViewModel() {
     fun consumeRegistroActividadNavigation() { _uiState.update { it.copy(navigateToRegistroActividad = false) } }
     fun onReportesClick()                    { _uiState.update { it.copy(navigateToReportes = true) } }
     fun consumeReportesNavigation()          { _uiState.update { it.copy(navigateToReportes = false) } }
+    fun onActividadesListaClick()            { _uiState.update { it.copy(navigateToActividadesLista = true) } }
+    fun consumeActividadesListaNavigation()  { _uiState.update { it.copy(navigateToActividadesLista = false) } }
 
     // ── DatosPersonales ───────────────────────────────────────────────────────
 
@@ -209,10 +252,56 @@ class PerfilViewModel @Inject constructor() : ViewModel() {
         }
     }
 
-    fun onActualizarContrasenaClick() {
-        if (!_uiState.value.requisitos.todosCompletos || _uiState.value.contrasenaActual.isBlank()) return
-        // TODO: supabaseClient.auth.updateUser { password = nuevaContrasena }
-        _uiState.update { it.copy(isUpdatingPassword = false, passwordUpdateSuccess = true) }
+    fun onActualizarContrasenaClick(esPrimerLogin: Boolean = false) {
+        val state = _uiState.value
+        if (!state.requisitos.todosCompletos) return
+        if (!esPrimerLogin && state.contrasenaActual.isBlank()) return
+
+        _uiState.update { it.copy(isUpdatingPassword = true, passwordUpdateError = null) }
+        viewModelScope.launch {
+            runCatching {
+                val nuevaContrasena = state.nuevaContrasena
+
+                val token: String = if (esPrimerLogin) {
+                    // Usar el token ya guardado al hacer login
+                    session.sessionToken.takeIf { it.isNotBlank() } ?: error("Sin sesión activa")
+                } else {
+                    // Re-autenticar con la contraseña actual para obtener token fresco
+                    val gpCode = session.gpCode
+                    if (gpCode.isBlank()) error("Este grupo no tiene código de acceso configurado")
+                    val resp = supabase.postgrest.rpc("gp_login", buildJsonObject {
+                        put("p_gp_code",    gpCode)
+                        put("p_password",   state.contrasenaActual)
+                        put("p_device_info", "Android")
+                    })
+                    val row = Json.parseToJsonElement(resp.data).jsonArray.firstOrNull()?.jsonObject
+                    row?.get("session_token")?.jsonPrimitive?.contentOrNull
+                        ?: error("Contraseña actual incorrecta")
+                }
+
+                // 1. Actualizar gp_password en small_group vía función segura
+                supabase.postgrest.rpc("gp_set_password", buildJsonObject {
+                    put("p_token",        token)
+                    put("p_new_password", nuevaContrasena)
+                })
+
+                // 2. Actualizar contraseña en Supabase Auth (para future signIn)
+                supabase.auth.updateUser { password = nuevaContrasena }
+
+                // 3. Marcar contraseña como establecida en sesión local
+                session.grupoPasswordSet = true
+                session.sessionToken     = ""
+            }.onSuccess {
+                _uiState.update { it.copy(isUpdatingPassword = false, passwordUpdateSuccess = true) }
+            }.onFailure { e ->
+                val msg = when {
+                    e.message?.contains("invalid_session") == true  -> "La sesión expiró. Intentá cerrar e ingresar de nuevo."
+                    e.message?.contains("Contraseña actual") == true -> "Contraseña actual incorrecta"
+                    else -> "Error al actualizar la contraseña"
+                }
+                _uiState.update { it.copy(isUpdatingPassword = false, passwordUpdateError = msg) }
+            }
+        }
     }
 
     fun consumePasswordUpdateSuccess() {

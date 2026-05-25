@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -53,6 +54,7 @@ import com.gpleader.app.core.ui.components.NeuCard
 import com.gpleader.app.core.ui.components.NeuButtonPrimary
 import com.gpleader.app.core.ui.components.NeuButtonSecondary
 import com.gpleader.app.core.ui.theme.Accent
+import com.gpleader.app.core.ui.theme.AccentLight
 import com.gpleader.app.core.ui.theme.Background
 import com.gpleader.app.core.ui.theme.Blush
 import com.gpleader.app.core.ui.theme.GpLeaderTheme
@@ -77,6 +79,7 @@ fun PerfilPrincipalScreen(
     onNavigateToQuienEres:         () -> Unit = {},
     onNavigateToRegistroActividad: () -> Unit = {},
     onNavigateToReportes:          () -> Unit = {},
+    onNavigateToActividadesLista:  () -> Unit = {},
     viewModel: PerfilViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -129,6 +132,12 @@ fun PerfilPrincipalScreen(
             onNavigateToReportes()
         }
     }
+    LaunchedEffect(uiState.navigateToActividadesLista) {
+        if (uiState.navigateToActividadesLista) {
+            viewModel.consumeActividadesListaNavigation()
+            onNavigateToActividadesLista()
+        }
+    }
 
     PerfilContent(
         uiState                      = uiState,
@@ -136,9 +145,9 @@ fun PerfilPrincipalScreen(
         onNavigateToHistorial        = onNavigateToHistorial,
         onDatosGrupoClick            = viewModel::onDatosGrupoClick,
         onMiembrosClick              = viewModel::onMiembrosClick,
-        onCambiarQuienUsaClick       = viewModel::onCambiarQuienUsaClick,
         onRegistroActividadClick     = viewModel::onRegistroActividadClick,
         onReportesClick              = viewModel::onReportesClick,
+        onActividadesListaClick      = viewModel::onActividadesListaClick,
         onCerrarSesionClick          = viewModel::onCerrarSesionClick,
         onDismissCerrarSesion        = viewModel::onDismissCerrarSesionDialog,
         onConfirmarCerrarSesion      = viewModel::onConfirmarCerrarSesion,
@@ -155,9 +164,9 @@ private fun PerfilContent(
     onNavigateToHistorial:    () -> Unit,
     onDatosGrupoClick:        () -> Unit,
     onMiembrosClick:          () -> Unit,
-    onCambiarQuienUsaClick:   () -> Unit,
     onRegistroActividadClick: () -> Unit,
     onReportesClick:          () -> Unit,
+    onActividadesListaClick:  () -> Unit,
     onCerrarSesionClick:      () -> Unit,
     onDismissCerrarSesion:    () -> Unit,
     onConfirmarCerrarSesion:  () -> Unit,
@@ -198,20 +207,6 @@ private fun PerfilContent(
                     )
                 }
 
-                // ── Sección MI CUENTA ─────────────────────────────────────────
-                item {
-                    SeccionLabel(stringResource(R.string.perfil_seccion_cuenta))
-                }
-                item {
-                    SeccionCard(modifier = Modifier.padding(bottom = 4.dp)) {
-                        FilaMenu(
-                            label   = stringResource(R.string.perfil_cambiar_quien_usa),
-                            onClick = onCambiarQuienUsaClick,
-                            shape   = FilaShape.SINGLE,
-                        )
-                    }
-                }
-
                 // ── Sección MI GRUPO ──────────────────────────────────────────
                 item {
                     SeccionLabel(stringResource(R.string.perfil_seccion_grupo))
@@ -240,6 +235,12 @@ private fun PerfilContent(
                         FilaMenu(
                             label   = stringResource(R.string.perfil_reportes),
                             onClick = onReportesClick,
+                            shape   = FilaShape.MIDDLE,
+                        )
+                        HorizontalDivider(color = Shadow, thickness = 1.dp)
+                        FilaMenu(
+                            label   = stringResource(R.string.perfil_actividades_lista),
+                            onClick = onActividadesListaClick,
                             shape   = FilaShape.BOTTOM,
                         )
                     }
@@ -323,7 +324,7 @@ private fun AvatarCard(
                     modifier = Modifier
                         .size(80.dp)
                         .clip(RoundedCornerShape(20.dp))
-                        .background(Ink),
+                        .background(Accent),
                 ) {
                     Text(
                         text  = iniciales,
@@ -399,8 +400,7 @@ private fun SeccionCard(
         modifier = modifier
             .fillMaxWidth()
             .neuElevated(cornerRadius = 28.dp)
-            .clip(RoundedCornerShape(28.dp))
-            .background(Background),
+            .background(Background, RoundedCornerShape(28.dp)),
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             content()
@@ -426,33 +426,35 @@ private fun FilaMenu(
         FilaShape.MIDDLE -> RoundedCornerShape(0.dp)
     }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(clipShape)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 18.dp),
-        verticalAlignment     = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(
-            text  = label,
-            style = MaterialTheme.typography.titleLarge,
-            color = Ink,
-        )
-
+    Box(modifier = Modifier.fillMaxWidth()) {
         Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(clipShape)
+                .clickable(onClick = onClick)
+                .padding(horizontal = 20.dp, vertical = 18.dp),
             verticalAlignment     = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            if (badge != null) {
-                BadgeNumero(numero = badge)
-            }
+            Text(
+                text  = label,
+                style = MaterialTheme.typography.titleLarge,
+                color = Ink,
+            )
             Icon(
                 imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
                 tint               = Muted,
                 modifier           = Modifier.size(20.dp),
+            )
+        }
+
+        if (badge != null) {
+            BadgeNumero(
+                numero   = badge,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 6.dp, y = (-8).dp),
             )
         }
     }
@@ -463,7 +465,7 @@ private fun FilaCerrarSesion(onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp, bottomStart = 28.dp, bottomEnd = 28.dp))
+            .clip(RoundedCornerShape(28.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 20.dp, vertical = 18.dp),
         verticalAlignment     = Alignment.CenterVertically,
@@ -486,18 +488,18 @@ private fun FilaCerrarSesion(onClick: () -> Unit) {
 // ── Badge número de miembros ──────────────────────────────────────────────────
 
 @Composable
-private fun BadgeNumero(numero: String) {
+private fun BadgeNumero(numero: String, modifier: Modifier = Modifier) {
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(Ink)
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(AccentLight)
             .padding(horizontal = 8.dp, vertical = 3.dp),
     ) {
         Text(
-            text  = numero,
-            style = MaterialTheme.typography.labelSmall,
-            color = Color.White,
+            text       = numero,
+            style      = MaterialTheme.typography.labelSmall,
+            color      = Color.White,
             fontWeight = FontWeight.Bold,
         )
     }
@@ -639,9 +641,9 @@ private fun PerfilPreview() {
             onNavigateToHistorial     = {},
             onDatosGrupoClick         = {},
             onMiembrosClick           = {},
-            onCambiarQuienUsaClick    = {},
             onRegistroActividadClick  = {},
             onReportesClick           = {},
+            onActividadesListaClick   = {},
             onCerrarSesionClick       = {},
             onDismissCerrarSesion     = {},
             onConfirmarCerrarSesion   = {},
@@ -667,9 +669,9 @@ private fun PerfilDialogPreview() {
             onNavigateToHistorial     = {},
             onDatosGrupoClick         = {},
             onMiembrosClick           = {},
-            onCambiarQuienUsaClick    = {},
             onRegistroActividadClick  = {},
             onReportesClick           = {},
+            onActividadesListaClick   = {},
             onCerrarSesionClick       = {},
             onDismissCerrarSesion     = {},
             onConfirmarCerrarSesion   = {},

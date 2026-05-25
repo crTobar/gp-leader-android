@@ -141,7 +141,7 @@
     <string name="detalle_actividad_nivel_gp">NIVEL MI GP</string>
 
     <!-- ── Agregar Actividad ──────────────────────────────────────────────── -->
-    <string name="agregar_actividad_titulo">Agregar actividad extra</string>
+    <string name="agregar_actividad_titulo">Nueva Actividad</string>
     <string name="agregar_actividad_label_nombre">NOMBRE DE LA ACTIVIDAD *</string>
     <string name="agregar_actividad_hint_nombre">Escribe el nombre de la actividad</string>
     <string name="agregar_actividad_label_tipo">TIPO DE MARCADOR</string>
@@ -152,19 +152,27 @@
     <string name="agregar_actividad_unidad_visitas">visitas</string>
     <string name="agregar_actividad_unidad_sesiones">sesiones</string>
     <string name="agregar_actividad_unidad_otro">otro</string>
-    <string name="agregar_actividad_btn_agregar">Agregar actividad</string>
+    <string name="agregar_actividad_btn_agregar">Guardar actividad</string>
+    <string name="agregar_actividad_visible_miembros_titulo">Visible para miembros</string>
+    <string name="agregar_actividad_visible_miembros_desc">Los miembros podrán ver y registrar esta actividad en la app</string>
     <!-- Tipos de marcador -->
     <string name="tipo_marcador_contador">Contador</string>
     <string name="tipo_marcador_checkbox">Completado</string>
     <string name="tipo_marcador_monetario">Monto ₡</string>
+    <string name="tipo_marcador_participantes">Participantes</string>
     <string name="tipo_marcador_contador_desc">Registra un número (personas, sesiones, libros…)</string>
     <string name="tipo_marcador_checkbox_desc">Solo marca si se realizó o no</string>
     <string name="tipo_marcador_monetario_desc">Registra un monto en colones</string>
+    <string name="tipo_marcador_participantes_desc">Contador global con desglose opcional por miembro</string>
     <string name="tipo_marcador_checkbox_nota">Al registrar la reunión, simplemente marca si esta actividad se realizó.</string>
     <string name="tipo_marcador_checkbox_preview_label">VISTA PREVIA</string>
     <string name="tipo_marcador_checkbox_preview_hint">Toca el cuadro de arriba para probar cómo funciona.</string>
+    <string name="tipo_marcador_preview_hint">Así se verá al registrar esta actividad cada semana</string>
     <string name="agregar_actividad_desglose_titulo">Desglose por miembro</string>
     <string name="agregar_actividad_desglose_desc">Permite distribuir el total entre los miembros del grupo</string>
+    <string name="agregar_actividad_label_periodo">PERÍODO (OPCIONAL)</string>
+    <string name="agregar_actividad_fecha_inicio">Inicio</string>
+    <string name="agregar_actividad_fecha_fin">Vencimiento</string>
 
     <!-- ── Registro Paso 3 ────────────────────────────────────────────────── -->
     <string name="paso3_label_resumen">Resumen</string>
@@ -239,6 +247,7 @@
     <string name="perfil_editar_datos_grupo">Editar datos del grupo pequeño</string>
     <string name="perfil_registro_actividad">Registro de actividad</string>
     <string name="perfil_reportes">Reportes</string>
+    <string name="perfil_actividades_lista">Actividades (dev)</string>
     <string name="perfil_cerrar_sesion">Cerrar sesión</string>
     <string name="perfil_cerrar_sesion_titulo">¿Cerrar sesión?</string>
     <string name="perfil_cerrar_sesion_cuerpo">Tu progreso sin sincronizar se mantendrá guardado en el dispositivo.</string>
@@ -290,8 +299,8 @@
     <string name="miembros_titulo">Miembros</string>
     <string name="miembros_btn_agregar">+ Agregar</string>
     <string name="miembros_search_placeholder">Buscar miembro…</string>
-    <string name="miembros_seccion_activos">ACTIVOS (%d)</string>
-    <string name="miembros_seccion_archivados">ARCHIVADOS (%d)</string>
+    <string name="miembros_seccion_activos">ACTIVOS</string>
+    <string name="miembros_seccion_archivados">ARCHIVADOS</string>
     <string name="miembros_badge_archivado">Archivado</string>
     <string name="miembros_accion_archivar">Archivar</string>
     <string name="miembros_accion_activar">Activar</string>
@@ -433,5 +442,11 @@
     <string name="sabado_confirmacion_btn">Cerrar</string>
     <string name="sabado_card_titulo">Culto de Sábado</string>
     <string name="sabado_card_marcados">%1$d de %2$d marcados</string>
+
+    <!-- ── Perfil de miembro ────────────────────────────────────────────────── -->
+    <string name="miembro_home_btn_marcar">Marcar asistencia del sábado</string>
+    <string name="miembro_home_no_sabado">El sábado es cuando puedes marcar tu asistencia al culto</string>
+    <string name="miembro_home_btn_cerrar_sesion">Cerrar sesión</string>
+    <string name="miembro_home_validando">Verificando tu perfil…</string>
 
 </resources>
