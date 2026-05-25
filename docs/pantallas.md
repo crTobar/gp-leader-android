@@ -2,6 +2,21 @@
 
 Documento de referencia para replicar el diseño y la navegación de la app.
 
+**Última actualización:** 2026-05-25
+
+---
+
+## Historial de cambios
+
+### 2026-05-25
+- **MiembrosViewModel**: conectado a Supabase — datos reales, agregar/editar/archivar miembros
+- **MiembrosListaScreen**: avatares con fondo `BackgroundDeep` + texto `Mid`; tarjetas con `neuElevated`; badge de sección con count en `Accent`; botón "+ Agregar" en `Accent`
+- **MiembroDetalleScreen**: avatar en `Accent` (azul); botón "Editar" con fondo `Accent` + texto blanco; badge "Activo" en `Sage` (verde)
+- **PerfilPrincipalScreen**: sección "MI CUENTA" eliminada; avatar en `Accent`; badge de miembros activos en `AccentLight` sobresaliendo del borde de la tarjeta; `SeccionCard` sin `clip` para permitir el overflow del badge
+- **PerfilViewModel**: `totalMiembros` cargado desde `getMiembrosActivos()` real
+- **HomeViewModel + SabadoCultoViewModel**: lógica del sábado usa `previousOrSame` — lunes a viernes muestra el sábado anterior; el borrador solo se crea el día que es sábado
+- **docs/pantallas.md**: creado este documento
+
 ---
 
 ## Sistema de diseño
