@@ -166,14 +166,14 @@ private fun DetalleTopBar(
                 .align(Alignment.CenterEnd)
                 .neuElevatedSm(cornerRadius = 12.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(Background)
+                .background(Accent)
                 .clickable(onClick = onEditarClick)
                 .padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
             Text(
                 text  = stringResource(R.string.miembros_btn_editar),
                 style = MaterialTheme.typography.labelSmall,
-                color = Accent,
+                color = Color.White,
             )
         }
     }
@@ -241,7 +241,7 @@ private fun HeroCard(miembro: MiembroUi) {
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(if (archivado) Muted else Ink)
+                    .background(if (archivado) Muted else Sage)
                     .padding(horizontal = 14.dp, vertical = 5.dp),
             ) {
                 Text(
