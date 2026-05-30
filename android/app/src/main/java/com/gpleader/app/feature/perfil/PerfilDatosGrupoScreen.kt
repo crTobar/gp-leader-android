@@ -37,7 +37,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
@@ -275,7 +274,7 @@ private fun DatosGrupoContent(
             item {
                 Text(
                     text     = stringResource(R.string.datos_grupo_nota_ubicacion),
-                    style    = MaterialTheme.typography.labelSmall.copy(fontStyle = FontStyle.Italic),
+                    style    = MaterialTheme.typography.labelSmall,
                     color    = Muted,
                     modifier = Modifier.padding(start = 4.dp),
                 )

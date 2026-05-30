@@ -24,13 +24,14 @@ private fun Modifier.drawNeuShadows(
     lightOffsetX: Float,
     lightOffsetY: Float,
     glowColor: Color = Color.Transparent,
+    bgColor: Color = NeuBg,
 ): Modifier = this.drawBehind {
     val rPx = cornerRadius.toPx()
 
     fun paint(color: Color, dx: Float, dy: Float) = Paint().apply {
         asFrameworkPaint().apply {
             isAntiAlias = true
-            this.color = NeuBg.toArgb()           // Non-transparent → shadow renders
+            this.color = bgColor.toArgb()          // Must match actual background to avoid visible fill
             setShadowLayer(blurRadius, dx, dy, color.toArgb())
         }
     }
@@ -58,23 +59,25 @@ private fun Modifier.drawNeuShadows(
  * Card flotante — sombra oscura abajo-derecha, sombra clara arriba-izquierda.
  * Nivel normal (neu-up). cornerRadius debe coincidir con el shape del composable.
  */
-fun Modifier.neuElevated(cornerRadius: Dp = 28.dp): Modifier =
+fun Modifier.neuElevated(cornerRadius: Dp = 28.dp, bgColor: Color = NeuBg): Modifier =
     drawNeuShadows(
         cornerRadius  = cornerRadius,
         blurRadius    = 20f,
         darkOffsetX   =  8f, darkOffsetY  =  8f,
         lightOffsetX  = -8f, lightOffsetY = -8f,
+        bgColor       = bgColor,
     )
 
 /**
  * Elemento pequeño flotante (neu-up-sm). Sombras más sutiles.
  */
-fun Modifier.neuElevatedSm(cornerRadius: Dp = 14.dp): Modifier =
+fun Modifier.neuElevatedSm(cornerRadius: Dp = 14.dp, bgColor: Color = NeuBg): Modifier =
     drawNeuShadows(
         cornerRadius  = cornerRadius,
         blurRadius    = 12f,
         darkOffsetX   =  5f, darkOffsetY  =  5f,
         lightOffsetX  = -5f, lightOffsetY = -5f,
+        bgColor       = bgColor,
     )
 
 /**

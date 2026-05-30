@@ -27,15 +27,14 @@ data class LoginUiState(
     val allGrupos:    List<GrupoItem>    = emptyList(),
 
     // Listas filtradas que ve el usuario (dependen de la selección)
-    val filteredDistritos: List<DistritoItem> = emptyList(), // filtrados por campo si hay selección
-    val filteredIglesias:  List<IglesiaItem>  = emptyList(), // filtradas por distrito si hay selección
-    val filteredGrupos:    List<GrupoItem>    = emptyList(), // filtrados por iglesia si hay selección
+    val filteredDistritos: List<DistritoItem> = emptyList(),
+    val filteredIglesias:  List<IglesiaItem>  = emptyList(),
+    val filteredGrupos:    List<GrupoItem>    = emptyList(),
 
     // Selecciones actuales
     val selectedCampo:    CampoItem?    = null,
     val selectedDistrito: DistritoItem? = null,
     val selectedIglesia:  IglesiaItem?  = null,
-    val selectedGrupo:    GrupoItem?    = null,
 
     // Estado UI
     val isLoading: Boolean = false,
@@ -123,7 +122,6 @@ class LoginViewModel @Inject constructor(
 
     fun onCampoSelected(campo: CampoItem?) {
         _uiState.update { state ->
-            // Si hay campo → solo distritos de ese campo; si no → todos
             val filtrados = if (campo != null)
                 state.allDistritos.filter { it.campoId == campo.id }
             else
@@ -132,7 +130,6 @@ class LoginViewModel @Inject constructor(
                 selectedCampo    = campo,
                 selectedDistrito = null,
                 selectedIglesia  = null,
-                selectedGrupo    = null,
                 filteredDistritos = filtrados,
                 filteredIglesias  = state.allIglesias,
                 filteredGrupos    = state.allGrupos,
@@ -143,7 +140,6 @@ class LoginViewModel @Inject constructor(
 
     fun onDistritoSelected(distrito: DistritoItem?) {
         _uiState.update { state ->
-            // Si hay distrito → solo iglesias de ese distrito; si no → todas
             val filtradas = if (distrito != null)
                 state.allIglesias.filter { it.districtId == distrito.id }
             else
@@ -151,7 +147,6 @@ class LoginViewModel @Inject constructor(
             state.copy(
                 selectedDistrito = distrito,
                 selectedIglesia  = null,
-                selectedGrupo    = null,
                 filteredIglesias = filtradas,
                 filteredGrupos   = state.allGrupos,
                 error            = null,
@@ -161,62 +156,36 @@ class LoginViewModel @Inject constructor(
 
     fun onIglesiaSelected(iglesia: IglesiaItem?) {
         _uiState.update { state ->
-            // Si hay iglesia → mostrar solo grupos de esa iglesia; si no → todos
             val filtrados = if (iglesia != null)
                 state.allGrupos.filter { it.iglesiaId == iglesia.id }
             else
                 state.allGrupos
             state.copy(
                 selectedIglesia = iglesia,
-                selectedGrupo   = null,
                 filteredGrupos  = filtrados,
                 error           = null,
             )
         }
     }
 
-    fun onGrupoSelected(grupo: GrupoItem?) {
-        if (grupo == null) {
-            _uiState.update { it.copy(selectedGrupo = null, error = null) }
-            return
-        }
-        // Auto-rellenar iglesia, distrito y campo basado en el GP seleccionado
-        _uiState.update { state ->
-            val iglesia  = state.allIglesias.find { it.id == grupo.iglesiaId }
-            val distrito = iglesia?.let { state.allDistritos.find { d -> d.id == it.districtId } }
-            val campo    = distrito?.let { state.allCampos.find { c -> c.id == it.campoId } }
-
-            state.copy(
-                selectedGrupo    = grupo,
-                selectedIglesia  = iglesia,
-                selectedDistrito = distrito,
-                selectedCampo    = campo,
-                filteredDistritos = if (campo != null) state.allDistritos.filter { it.campoId == campo.id } else state.allDistritos,
-                filteredIglesias  = if (distrito != null) state.allIglesias.filter { it.districtId == distrito.id } else state.allIglesias,
-                filteredGrupos    = if (iglesia != null) state.allGrupos.filter { it.iglesiaId == iglesia.id } else state.allGrupos,
-                error             = null,
-            )
-        }
-    }
-
-    // ── Continuar ──────────────────────────────────────────────────────────────
-
-    fun onContinuarClick() {
-        val grupo = _uiState.value.selectedGrupo ?: run {
-            _uiState.update { it.copy(error = "Seleccioná un grupo pequeño") }
-            return
-        }
+    fun onGrupoTap(grupo: GrupoItem) {
         if (grupo.username == null) {
             _uiState.update { it.copy(error = "Este grupo aún no tiene acceso digital. Contactá al administrador.") }
             return
         }
-        val iglesia = _uiState.value.selectedIglesia
+        val state    = _uiState.value
+        val iglesia  = state.allIglesias.find { it.id == grupo.iglesiaId }
+        val distrito = iglesia?.let { state.allDistritos.find { d -> d.id == it.districtId } }
+        val campo    = distrito?.let { state.allCampos.find { c -> c.id == it.campoId } }
         session.grupoId          = grupo.id
         session.grupoNombre      = grupo.nombre
-        session.grupoUsername    = grupo.username
+        session.grupoUsername    = grupo.username ?: ""
         session.grupoPasswordSet = grupo.passwordSet
+        session.gpCode           = grupo.gpCode ?: ""
         session.iglesiaId        = grupo.iglesiaId
         session.iglesiaNombre    = iglesia?.nombre ?: ""
+        session.districtId       = distrito?.id ?: ""
+        session.campoId          = campo?.id ?: ""
         _uiState.update { it.copy(navigateToQuienEres = true) }
     }
 

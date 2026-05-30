@@ -3,7 +3,6 @@ package com.gpleader.app.core.ui.theme
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.googlefonts.Font
 import androidx.compose.ui.text.googlefonts.GoogleFont
@@ -29,8 +28,6 @@ private val DMMonoGoogleFont            = GoogleFont("DM Mono")
 val CormorantGaramond: FontFamily = FontFamily(
     Font(googleFont = CormorantGaramondGoogleFont, fontProvider = fontProvider, weight = FontWeight.Normal),
     Font(googleFont = CormorantGaramondGoogleFont, fontProvider = fontProvider, weight = FontWeight.SemiBold),
-    Font(googleFont = CormorantGaramondGoogleFont, fontProvider = fontProvider, weight = FontWeight.Normal, style = FontStyle.Italic),
-    Font(googleFont = CormorantGaramondGoogleFont, fontProvider = fontProvider, weight = FontWeight.SemiBold, style = FontStyle.Italic),
 )
 
 val DMSans: FontFamily = FontFamily(
@@ -55,7 +52,6 @@ val GpTypography = Typography(
     headlineMedium = TextStyle(
         fontFamily = CormorantGaramond,
         fontWeight = FontWeight.SemiBold,
-        fontStyle  = FontStyle.Italic,
         fontSize   = 28.sp,
         lineHeight = 36.sp,
     ),

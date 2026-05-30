@@ -23,7 +23,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -65,7 +64,7 @@ import com.gpleader.app.core.data.repository.CampoItem
 import com.gpleader.app.core.data.repository.DistritoItem
 import com.gpleader.app.core.data.repository.GrupoItem
 import com.gpleader.app.core.data.repository.IglesiaItem
-import com.gpleader.app.core.ui.components.NeuButtonPrimary
+import com.gpleader.app.core.ui.components.AppLogo
 import com.gpleader.app.core.ui.theme.Accent
 import com.gpleader.app.core.ui.theme.Background
 import com.gpleader.app.core.ui.theme.BackgroundDeep
@@ -99,8 +98,7 @@ fun LoginScreen(
         onCampoSelected    = viewModel::onCampoSelected,
         onDistritoSelected = viewModel::onDistritoSelected,
         onIglesiaSelected  = viewModel::onIglesiaSelected,
-        onGrupoSelected    = viewModel::onGrupoSelected,
-        onContinuarClick   = viewModel::onContinuarClick,
+        onGrupoTap         = viewModel::onGrupoTap,
     )
 }
 
@@ -112,8 +110,7 @@ private fun LoginScreenContent(
     onCampoSelected:    (CampoItem?) -> Unit,
     onDistritoSelected: (DistritoItem?) -> Unit,
     onIglesiaSelected:  (IglesiaItem?) -> Unit,
-    onGrupoSelected:    (GrupoItem?) -> Unit,
-    onContinuarClick:   () -> Unit,
+    onGrupoTap:         (GrupoItem) -> Unit,
 ) {
     var active by remember { mutableStateOf(ActiveDropdown.NONE) }
     var mostrarFiltros by remember { mutableStateOf(false) }
@@ -134,21 +131,7 @@ private fun LoginScreenContent(
     ) {
         Spacer(Modifier.height(36.dp))
 
-        // ── Ícono ─────────────────────────────────────────────────────────────
-        Box(
-            modifier = Modifier
-                .size(64.dp)
-                .neuElevated(cornerRadius = 18.dp)
-                .background(Background, RoundedCornerShape(18.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector        = Icons.Default.MenuBook,
-                contentDescription = null,
-                tint               = Accent,
-                modifier           = Modifier.size(28.dp),
-            )
-        }
+        AppLogo()
 
         Spacer(Modifier.height(20.dp))
 
@@ -195,9 +178,9 @@ private fun LoginScreenContent(
         GrupoDropdown(
             label          = stringResource(R.string.login_label_tu_gp),
             placeholder    = stringResource(R.string.login_buscar_gp_hint),
-            selectedGrupo  = uiState.selectedGrupo,
+            selectedGrupo  = null,
             items          = uiState.filteredGrupos,
-            onItemSelected = { item -> onGrupoSelected(item); collapse() },
+            onItemSelected = { item -> onGrupoTap(item); collapse() },
             expanded       = active == ActiveDropdown.GRUPO,
             onExpand       = { expand(ActiveDropdown.GRUPO) },
             onCollapse     = ::collapse,
@@ -301,12 +284,6 @@ private fun LoginScreenContent(
             ) {
                 CircularProgressIndicator(color = Accent)
             }
-        } else {
-            NeuButtonPrimary(
-                text     = stringResource(R.string.login_btn_continuar),
-                onClick  = onContinuarClick,
-                modifier = Modifier.fillMaxWidth(),
-            )
         }
 
         Spacer(Modifier.height(40.dp))
@@ -766,7 +743,7 @@ private fun LoginPreviewEmpty() {
         LoginScreenContent(
             uiState = LoginUiState(),
             onCampoSelected = {}, onDistritoSelected = {}, onIglesiaSelected = {},
-            onGrupoSelected = {}, onContinuarClick = {},
+            onGrupoTap = {},
         )
     }
 }
@@ -789,7 +766,7 @@ private fun LoginPreviewData() {
                 selectedIglesia = iglesias.first(),
             ),
             onCampoSelected = {}, onDistritoSelected = {}, onIglesiaSelected = {},
-            onGrupoSelected = {}, onContinuarClick = {},
+            onGrupoTap = {},
         )
     }
 }
