@@ -344,6 +344,10 @@ PERFIL
 ├── PerfilDatosPersonalesScreen    → nombre separado + contacto + iglesia readonly
 ├── PerfilCambiarContrasenaScreen  → 3 campos + checklist requisitos
 └── PerfilDatosGrupoScreen         → identificación + ubicación eclesiástica + horario
+
+ACTIVIDADES
+├── ActividadesListScreen          → lista de actividades con filtros nivel/estado + tarjetas NeuCard
+└── ActividadHistorialScreen       → resumen acumulado + historial semanal editable
 ```
 
 ---
@@ -403,8 +407,8 @@ fun onVerTodasClick() { ... }
 | `member`       | Miembro del GP |
 | `meeting`      | Reunión registrada |
 | `attendance`   | Asistencia por reunión |
-| `activity_type`| Tipo de actividad |
-| `activity_record` | Registro de actividad por reunión |
+| `activity_type`| Tipo de actividad (level, marker_type, scope, start_date, end_date) |
+| `activity_record` | Registro de actividad por reunión (count nullable, monto) |
 | `deputy_code`  | Código de suplente |
 
 ### Columnas importantes
@@ -472,7 +476,7 @@ Todos los dropdowns están **siempre habilitados** — no dependen del superior 
 
 ---
 
-## Implementación actual (2026-04-12)
+## Implementación actual (2026-05-29)
 
 ### Archivos creados — estado COMPLETO
 
@@ -482,12 +486,14 @@ feature/auth/
                                   todos habilitados siempre, filtrado inteligente en cascada
                                   GrupoDropdown: muestra "nombre · Iglesia · Distrito · Campo"
                                   IglesiaDropdown: muestra "nombre · Distrito · Campo"
+                                  tap en tarjeta de GP → navega directo a QuienEres (sin botón intermedio)
   LoginViewModel.kt           ✅ carga 4 tablas en paralelo (getCampos/getDistritos/getIglesias/getGrupos)
                                   enriquece iglesias y GPs cliente-side con nombres completos
                                   auth real: supabase.auth.signInWith(Email) → gp_username@login.presencia.app
-                                  onGrupoSelected auto-rellena los 3 dropdowns superiores
+                                  onGrupoTap() guarda sesión y dispara navigateToQuienEres (sin selectedGrupo en state)
   QuienEresScreen.kt          ✅ pantalla para seleccionar rol (LIDER / SUPLENTE) post-login
   QuienEresViewModel.kt       ✅
+  ConfirmarIdentidadScreen.kt ✅ pantalla de confirmación de identidad post-código suplente
   SuplementeCodigoScreen.kt   ✅ 6 boxes neuInset, teclado numérico, shake error, auto-valida
   SuplementeBienvenidaScreen.kt ✅ hero Ink 35%, card grupo, nota Gold, campo nombre
   SuplementeViewModel.kt      ✅ compartido entre SuplementeCodigoScreen y SuplementeBienvenidaScreen
@@ -501,26 +507,57 @@ feature/home/
 
 feature/historial/
   HistorialScreen.kt          ✅ tabs trimestre, stats, lista reuniones
+                                  usa OnResumeEffect { viewModel.cargarReuniones() } para refrescar al volver
   HistorialViewModel.kt       ✅ carga reuniones reales desde Supabase via ReunionRepository
                                   filtrado real por trimestre: aplicarFiltro() filtra todasLasReuniones
                                   trimestresDelAnio usa año actual dinámicamente
+                                  cargarReuniones() es public — llamado desde OnResumeEffect
   DetalleReunionScreen.kt     ✅ stats P/A/J/%, asistencia list, actividades por nivel
-  DetalleReunionViewModel.kt  ⚠️ aún usa sample data r1-r4
+  DetalleReunionViewModel.kt  ✅ carga detalle real desde Supabase via getDetalleReunion
+                                  muestra error real en pantalla (no mensaje genérico)
+                                  ⚠️ tiene Log.e temporal — remover después de debug
 
 feature/registro/
   RegistroPaso1Screen.kt      ✅ acepta esSuplente: Boolean
   RegistroPaso2Screen.kt      ✅
   RegistroPaso3Screen.kt      ✅
-  AgregarActividadScreen.kt   ✅
+  AgregarActividadScreen.kt   ✅ REDISEÑADO (2026-05-11):
+                                  - chips tipo marcador en horizontalScroll (ya no se cortan)
+                                  - nombre: BasicTextField con neuInsetSm (no OutlinedTextField)
+                                  - monto: MontoGrande con ₡ en Gold centrado (titleLarge)
+                                  - todo el tipo+contenido en un solo NeuCard con HorizontalDivider
+                                  - sección PERÍODO con FechaRow + DatePickerDialog (Material3)
+                                  - startDate default = hoy, endDate default = null
   DetalleActividadScreen.kt   ✅
   ExitoEnviadoScreen.kt       ✅
   ExitoOfflineScreen.kt       ✅
   RegistroViewModel.kt        ✅ onEnviarClick guarda reunión real en Supabase via ReunionRepository
                                   isEnviando flag previene doble submit
-                                  mapea miembros + visitasDeHoy → List<AsistenciaParaGuardar>
-                                  visitas existentes pasan miembroId real; visitas nuevas pasan null
+                                  carga actividades reales desde activity_type via ActividadRepository
+                                  onAgregarActividadExtra acepta startDate/endDate (LocalDate?)
+                                  ActividadRegistro tiene campos startDate y endDate
                                   error 23505 (duplicado de fecha) → mensaje amigable en español
                                   onSiguienteClick solo bloquea actividades esObligatoria=true
+
+feature/actividades/
+  ActividadesListScreen.kt    ✅ lista de actividades con:
+                                  - filtros FiltroNivel (Todo/Unión/Pastor/Mi GP) en horizontalScroll
+                                  - filtros FiltroEstado (Todas/Activas/Inactivas) en horizontalScroll
+                                  - ambos filtros dentro de NeuCard con HorizontalDivider entre ellos
+                                  - NivelBadge (Gold=Unión, Ink=Pastor, Accent=Mi GP)
+                                  - EstadoBadge (Sage=Activa, Blush=Vencida)
+                                  - ACUMULADO en titleLarge con color de nivel
+  ActividadesListViewModel.kt ✅ FiltroNivel(valor: String?, label: String) + FiltroEstado
+                                  ActividadConResumen(tipo, totalCantidad, montoTotal, esActiva)
+                                  esActiva = (startDate==null || !today.isBefore(start)) && (endDate==null || !today.isAfter(end))
+                                  getTodasActividadesTipo (SIN filtro de periodo, para mostrar vencidas)
+                                  getActividadesConTotales acumula count+monto por actividadTipoId
+  ActividadHistorialScreen.kt ✅ REDISEÑADO: ResumenCard con headlineMedium serif + 3 stats
+                                  RegistroRow: bloque fecha (día titleLarge bold + "MMM yyyy" labelSmall)
+                                  chip valor con color: Accent=contador/participantes, Sage=checkbox ✓, BackgroundDeep=0
+                                  edición inline: date + BasicTextField + cancelar/guardar
+  ActividadHistorialViewModel.kt ✅ carga via ActividadRepository.getRegistrosSemanal(grupoId, tipoId)
+                                     modo edición por recordId, updateRegistro en Supabase
 
 feature/miembros/
   MiembrosListaScreen.kt      ✅ buscador, sección ACTIVOS/ARCHIVADOS, badge, bottom nav
@@ -530,30 +567,35 @@ feature/miembros/
   MiembrosViewModel.kt        ⚠️ aún usa sample data (10 miembros hardcoded)
 
 feature/perfil/
-  PerfilPrincipalScreen.kt    ✅
+  PerfilPrincipalScreen.kt    ✅ incluye ítem "Actividades" en sección MI GRUPO
+                                  navega a ACTIVIDADES_LISTA via onNavigateToActividadesLista
   PerfilDatosPersonalesScreen.kt ✅
   PerfilCambiarContrasenaScreen.kt ✅
   PerfilDatosGrupoScreen.kt   ✅ 6 campos identificación, ubicación readonly, dropdowns horario
+  PerfilViewModel.kt          ✅ navigateToActividadesLista flag + consumeActividadesListaNavigation()
 
 core/data/repository/
   GrupoRepository.kt          ✅ interfaz jerarquía campo→district→church→small_group
-                                  CampoItem, DistritoItem, IglesiaItem (con districtNombre/campoNombre)
-                                  GrupoItem (con iglesiaNombre/districtNombre/campoNombre)
-  GrupoRepositoryImpl.kt      ✅ getCampos/getDistritos/getIglesias/getGrupos via Supabase Postgrest
-                                  lee gp_username y gp_password_set de small_group
+  GrupoRepositoryImpl.kt      ✅
   MiembroRepository.kt        ✅ interfaz getMiembros/getMiembrosActivos/getVisitasAnteriores
-  MiembroRepositoryImpl.kt    ✅ lee is_visitor y is_active de member
-                                  getMiembros filtra is_visitor=false (solo miembros reales)
-                                  getMiembrosActivos filtra is_visitor=false AND is_active=true
-  ReunionRepository.kt        ✅ interfaz getReuniones + saveReunion(grupoId, fecha, noHuboReunion, asistencias)
-                                  AsistenciaParaGuardar(miembroId, nombreVisita, esVisita, estado)
-  ReunionRepositoryImpl.kt    ✅ saveReunion: INSERT meeting (status="submitted") → visitas nuevas en member → INSERT attendance
-                                  mapEstadoAsistencia: PRESENTE→"present", AUSENTE→"absent", JUSTIFICADO→"justified"
-                                  getReuniones: Supabase meeting JOIN attendance(*), filtrado por small_group_id
+  MiembroRepositoryImpl.kt    ✅
+  ReunionRepository.kt        ✅ interfaz getReuniones + saveReunion + getSabbathMeeting + submitSabbathMeeting
+  ReunionRepositoryImpl.kt    ✅ usa takeIf { it !is JsonNull } en todos los joins embebidos de getDetalleReunion
+                                  ⚠️ tiene Log.d temporales en parseReuniones y getDetalleReunion — remover después de debug
+  ActividadRepository.kt      ✅ interfaz:
+                                  getActividadesTipo(iglesiaId) — con filtro período (para Paso 2)
+                                  getTodasActividadesTipo(iglesiaId) — sin filtro período (para lista)
+                                  saveRegistros, getActividadesConTotales, getRegistrosSemanal, updateRegistro
+  ActividadRepositoryImpl.kt  ✅ lee id, name, level, marker_type, unit_label, sort_order,
+                                  scope, church_id, start_date, end_date de activity_type
 
-core/ui/navigation/NavGraph.kt  ✅ incluye QUIEN_ERES, ver rutas abajo
-core/ui/theme/                  ✅ Elevation.kt, Color.kt, Type.kt, Theme.kt
+core/ui/navigation/NavGraph.kt  ✅ incluye todas las rutas, ver lista abajo
+core/ui/theme/                  ✅ Elevation.kt (neuElevated/neuElevatedSm/neuInset/neuInsetSm/neuGlow)
+                                    bgColor: Color = NeuBg en drawNeuShadows/neuElevated/neuElevatedSm
+                                    para soportar fondos distintos al Background global
+                                    Color.kt, Type.kt (sin FontStyle.Italic), Theme.kt
 core/ui/components/
+  AppLogo.kt                  ✅ composable reutilizable con size/cornerRadius/iconSize configurables
   NeuButton.kt                ✅ NeuButtonPrimary (Accent+neuGlow) / NeuButtonSecondary (Background+neuElevated)
   NeuCard.kt                  ✅
   NeuTextField.kt             ✅ isError/isSuccess/readOnly/isPassword/leadingContent
@@ -565,7 +607,7 @@ core/ui/components/
 object NavRoutes {
     LOGIN                = "login"
     QUIEN_ERES           = "quien_eres"               // post-login: selección de rol
-    SUPLENTE_GRAPH       = "suplente_graph"          // nested graph
+    SUPLENTE_GRAPH       = "suplente_graph"           // nested graph
     SUPLENTE_CODIGO      = "suplente_codigo"          // start destination de SUPLENTE_GRAPH
     SUPLENTE_BIENVENIDA  = "suplente_bienvenida"
     HOME                 = "home"
@@ -588,8 +630,15 @@ object NavRoutes {
     AGREGAR_ACTIVIDAD    = "registro/agregar_actividad"
     EXITO_ENVIADO        = "registro/exito_enviado"
     EXITO_OFFLINE        = "registro/exito_offline"
+    ACTIVIDADES_LISTA    = "actividades_lista"
+    ACTIVIDAD_HISTORIAL  = "actividad_historial/{actividadTipoId}"
+    // helper: fun actividadHistorial(id: String) = "actividad_historial/$id"
 }
 ```
+
+Flujo de navegación a actividades:
+- `PERFIL` → "Actividades" ítem → `ACTIVIDADES_LISTA`
+- `ACTIVIDADES_LISTA` → tap tarjeta → `ACTIVIDAD_HISTORIAL`
 
 **Flujo AUTH:**
 - `LOGIN` → login exitoso con `passwordSet=true` → `QUIEN_ERES`
@@ -635,10 +684,9 @@ Modifier.drawWithContent {
 ### Datos de muestra (temporal — reemplazar con PowerSync)
 
 - Código suplente válido para pruebas: **`123456`**
-- Reuniones en DetalleReunionViewModel: **r1, r2, r3, r4** (fallback para IDs desconocidos) ⚠️ pendiente reemplazar
 - Miembros en MiembrosViewModel: 10 miembros hardcoded (8 ACTIVO, 2 ARCHIVADO) ⚠️ pendiente reemplazar
 - HomeViewModel: nombre del grupo viene de session.grupoNombre, reuniones recientes son reales; stats del grupo (iglesia, horario) ⚠️ pendiente
-- Actividades en RegistroViewModel: hardcoded en actividadesIniciales() ⚠️ pendiente conectar a activity_type
+- Actividades: ✅ CONECTADAS A SUPABASE — carga desde `activity_type` via ActividadRepository
 
 ### Patrón LoginViewModel — cascading dropdown filter
 
@@ -690,7 +738,7 @@ attendance_status = {present, absent, justified} -- mapear desde dominio españo
 attendance: id, meeting_id, member_id (NOT NULL), status (attendance_status), note
 ```
 Las visitas se guardan en `member` con `is_visitor=true`. Su `id` va en `attendance.member_id`.
-Unique constraint en `meeting`: `(small_group_id, meeting_date)` — una reunión por grupo por día.
+Unique constraint en `meeting`: `UNIQUE(small_group_id, meeting_date, registry_kind)` — permite una `gp_meeting` Y una `saturday_worship` en el mismo día para el mismo grupo.
 
 ### Patrón MiembroRepository — filtrado is_visitor
 
@@ -710,6 +758,130 @@ Un solo ViewModel cubre dos flujos:
 2. **Líder generando código** (SheetGenerarCodigoSuplente): genera/revoca código, muestra vigencia
 
 El ViewModel vive en el scope de SUPLENTE_GRAPH (para flujo suplente) y como instancia independiente en HomeScreen (para generación de código por el líder).
+
+### Tabla `activity_type` — columnas confirmadas
+
+```
+id, name, level, marker_type, unit_label, sort_order, scope, church_id,
+start_date (date, nullable), end_date (date, nullable), is_active (boolean)
+```
+
+- `level`: `"union"` | `"pastor"` | `"my_group"`
+- `marker_type`: `"counter"` | `"monetary"` | `"checkbox"` | `"participants"`
+- `scope`: `"global"` | `"church"` (church-scoped filtra por church_id == iglesiaId)
+- `start_date` / `end_date`: definen período de vigencia. NULL = sin restricción.
+- DDL aplicado: `ALTER TABLE activity_type ADD COLUMN IF NOT EXISTS start_date date, ADD COLUMN IF NOT EXISTS end_date date;`
+
+**Dos métodos en ActividadRepository:**
+- `getActividadesTipo(iglesiaId)` — aplica filtro scope + filtro período (solo activas hoy) → para Paso 2 del registro
+- `getTodasActividadesTipo(iglesiaId)` — aplica filtro scope, sin filtro período → para ActividadesListScreen (muestra vencidas con badge "Vencida")
+
+### Patrón ActividadConResumen + filtros
+
+```kotlin
+data class ActividadConResumen(
+    val tipo:          ActividadTipoData,
+    val totalCantidad: Int,      // suma de activity_record.count para este grupo
+    val montoTotal:    Double,   // suma de activity_record.monto
+    val esActiva:      Boolean,  // calculado client-side con start/endDate
+)
+
+enum class FiltroNivel(val valor: String?, val label: String) {
+    TODOS(null, "Todo"), UNION("union", "Unión"),
+    PASTOR("pastor", "Pastor"), MI_GP("my_group", "Mi GP"),
+}
+enum class FiltroEstado(val label: String) {
+    TODAS("Todas"), ACTIVAS("Activas"), INACTIVAS("Inactivas"),
+}
+```
+
+Fórmula `esActiva`:
+```kotlin
+(tipo.startDate == null || !today.isBefore(tipo.startDate)) &&
+(tipo.endDate   == null || !today.isAfter(tipo.endDate))
+```
+
+### Patrón formatTotalValor en ActividadesListScreen
+
+```kotlin
+private fun formatTotalValor(item: ActividadConResumen): String = when (item.tipo.markerType) {
+    "monetary"     -> "₡${item.montoTotal.toLong()}"
+    "checkbox"     -> "${item.totalCantidad} semanas"
+    "participants" -> "${item.totalCantidad} ${item.tipo.unitLabel}"
+    else           -> "${item.totalCantidad} ${item.tipo.unitLabel}"
+}
+```
+
+### Patrón levelColor
+
+```kotlin
+private fun levelColor(level: String): Color = when (level) {
+    "union"  -> Gold
+    "pastor" -> Ink
+    else     -> Accent  // my_group
+}
+```
+
+### AgregarActividadScreen — campos de fecha
+
+- `startDate: LocalDate?` default = `LocalDate.now()`
+- `endDate: LocalDate?` default = `null`
+- `FechaRow` composable usa Material3 `DatePickerDialog` + `rememberDatePickerState`
+- Conversión LocalDate ↔ millis: `date.atStartOfDay(ZoneId.of("UTC")).toInstant().toEpochMilli()`
+- La fecha de inicio NO tiene botón de limpiar (`puedeEliminar = false`); la de vencimiento sí
+- `@OptIn(ExperimentalMaterial3Api::class)` requerido en `FechaRow`
+
+### ActividadRegistro — campos de fecha (en RegistroViewModel)
+
+```kotlin
+data class ActividadRegistro(
+    ...
+    val startDate: java.time.LocalDate? = null,
+    val endDate:   java.time.LocalDate? = null,
+)
+```
+`onAgregarActividadExtra(nombre, tipoMarcador, cantidad, unidad, monto, tieneDesglose, startDate, endDate)`
+Las fechas se guardan en ActividadRegistro pero aún NO se persisten en Supabase (pendiente crear activity_type para extras).
+
+### Patrón JsonNull en respuestas PostgREST
+
+Cuando una FK es NULL (ej: `visited_church_id = NULL`), PostgREST devuelve `"church": null` en el JSON.
+`kotlinx.serialization` representa esto como `JsonNull` — un `JsonElement` no-nulo de Kotlin.
+`?.jsonObject` solo guarda contra Kotlin `null`, NO contra `JsonNull` → lanza `"Element class JsonNull is not a JsonObject"`.
+
+**Siempre usar `takeIf { it !is JsonNull }` para joins embebidos que pueden ser null:**
+
+```kotlin
+// ❌ Falla si el campo es SQL NULL:
+val church = a["church"]?.jsonObject
+
+// ✅ Correcto:
+val church = a["church"]?.takeIf { it !is JsonNull }?.jsonObject
+```
+
+Aplica a cualquier join embebido PostgREST: `member`, `church`, `activity_type`, etc.
+Requiere `import kotlinx.serialization.json.JsonNull`.
+
+### Patrón MainActivity — startDestination
+
+```kotlin
+val startDestination = when {
+    session.isMiembroGuardado -> NavRoutes.MIEMBRO_HOME  // miembro regular con sesión guardada
+    session.isLoggedIn        -> NavRoutes.HOME           // líder con grupoId + miembroId en SharedPrefs
+    else                      -> NavRoutes.LOGIN
+}
+// NO llamar session.clear() en ningún caso al iniciar — borraba la sesión del líder en cada reinicio
+// isMiembroGuardado solo lo setea guardarPerfilMiembro(), nunca para líderes
+// isLoggedIn = grupoId.isNotEmpty() && miembroId.isNotEmpty()
+```
+
+### PaddingValues — error frecuente
+
+`PaddingValues(horizontal = 16.dp, bottom = 24.dp)` NO compila.
+Siempre usar todas las direcciones individuales:
+```kotlin
+PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp)
+```
 
 ---
 
