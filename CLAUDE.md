@@ -65,7 +65,9 @@ app/src/main/java/com/gpleader/
     ├── home/                # Home líder (con y sin reuniones)
     ├── registro/            # Paso 1 asistencia, Paso 2 actividades, Paso 3 resumen
     ├── historial/           # Lista por trimestre + ver todo + detalle reunión
-    ├── miembros/            # Lista, detalle, editar, agregar
+    ├── miembros/            # Lista, detalle, editar, agregar (rol LIDER)
+    ├── miembro/             # Home y actividades del rol MIEMBRO
+    ├── actividades/         # Lista y historial de actividades del grupo
     └── perfil/              # Principal, datos personales, contraseña, datos grupo
 ```
 
@@ -276,9 +278,11 @@ enum class EstadoReunion { BORRADOR, PENDIENTE_SYNC, ENVIADA, APROBADA }
    - Actividades agrupadas por nivel: Unión → Pastor → Mi GP
    - Unión: bloqueadas para el líder (solo lectura, 🔒)
    - Pastor y GP: editables por el líder
-   - Contador empieza en `—` (sin valor), NO en 0
+   - Cada actividad es una **NeuCard individual** con chip de valor (`—` vacío o total calculado)
+   - CHECKBOX: toggle inline dentro de su NeuCard
+   - Tap en actividad editable → navega a `DetalleActividadScreen` (pantalla completa)
+   - El total del chip se auto-calcula desde el desglose por miembro
    - Si se intenta avanzar con algún `—` en actividad obligatoria → error en rojo
-   - Actividades con formulario extendido → pantalla completa al tocar (no sheet)
    - "Agregar actividad extra" → pantalla completa, solo para nivel GP
 
 3. **Paso 3 — Resumen**
@@ -409,6 +413,7 @@ fun onVerTodasClick() { ... }
 | `attendance`   | Asistencia por reunión |
 | `activity_type`| Tipo de actividad (level, marker_type, scope, start_date, end_date) |
 | `activity_record` | Registro de actividad por reunión (count nullable, monto) |
+| `member_activity_record` | Registro individual de actividad por miembro (count, monto, is_done, status) |
 | `deputy_code`  | Código de suplente |
 
 ### Columnas importantes
@@ -476,7 +481,7 @@ Todos los dropdowns están **siempre habilitados** — no dependen del superior 
 
 ---
 
-## Implementación actual (2026-05-29)
+## Implementación actual (2026-06-01)
 
 ### Archivos creados — estado COMPLETO
 
@@ -519,16 +524,23 @@ feature/historial/
 
 feature/registro/
   RegistroPaso1Screen.kt      ✅ acepta esSuplente: Boolean
-  RegistroPaso2Screen.kt      ✅
+                                  botón "No hubo reunión" con NeuCard neumórfica (neuElevatedSm)
+  RegistroPaso2Screen.kt      ✅ REDISEÑADO (2026-06-01):
+                                  - SeccionActividades: etiqueta de nivel como pill + NeuCard por actividad
+                                  - ActividadCard: ícono de tipo + nombre + chip valor (— o total) + chevron/🔒
+                                  - CHECKBOX: toggle inline en su NeuCard
+                                  - Sin controles inline (ContadorInline/MontoInline eliminados de Paso 2)
+                                  - Toda edición numérica ocurre en DetalleActividadScreen
   RegistroPaso3Screen.kt      ✅
-  AgregarActividadScreen.kt   ✅ REDISEÑADO (2026-05-11):
-                                  - chips tipo marcador en horizontalScroll (ya no se cortan)
-                                  - nombre: BasicTextField con neuInsetSm (no OutlinedTextField)
-                                  - monto: MontoGrande con ₡ en Gold centrado (titleLarge)
-                                  - todo el tipo+contenido en un solo NeuCard con HorizontalDivider
-                                  - sección PERÍODO con FechaRow + DatePickerDialog (Material3)
-                                  - startDate default = hoy, endDate default = null
-  DetalleActividadScreen.kt   ✅
+  AgregarActividadScreen.kt   ✅ chips tipo marcador en horizontalScroll, nombre neuInsetSm,
+                                  monto MontoGrande ₡, sección PERÍODO con DatePickerDialog
+                                  startDate default = hoy, endDate default = null
+  DetalleActividadScreen.kt   ✅ REDISEÑADO (2026-06-01):
+                                  - Total: TotalReadOnly (solo lectura, calculado del desglose)
+                                  - Desglose: siempre expandido, soporta CONTADOR/MONETARIO/PARTICIPANTES
+                                  - sinLimite=true → cada miembro ingresa su valor libremente
+                                  - onGuardar solo persiste notas (total vive en el VM)
+                                  - ContadorGrande mantenido como internal (usado por otras pantallas)
   ExitoEnviadoScreen.kt       ✅
   ExitoOfflineScreen.kt       ✅
   RegistroViewModel.kt        ✅ onEnviarClick guarda reunión real en Supabase via ReunionRepository
@@ -538,26 +550,32 @@ feature/registro/
                                   ActividadRegistro tiene campos startDate y endDate
                                   error 23505 (duplicado de fecha) → mensaje amigable en español
                                   onSiguienteClick solo bloquea actividades esObligatoria=true
+                                  tieneDesglose = !bloqueada && tipo != CHECKBOX (todos los editables)
+                                  desgloseExpandido = true por defecto
+                                  onDesgloseChange/MontoChange/ParticipacionChange: auto-calcula total
+                                    (dirección invertida: desglose → total, no total → desglose)
 
 feature/actividades/
-  ActividadesListScreen.kt    ✅ lista de actividades con:
-                                  - filtros FiltroNivel (Todo/Unión/Pastor/Mi GP) en horizontalScroll
-                                  - filtros FiltroEstado (Todas/Activas/Inactivas) en horizontalScroll
-                                  - ambos filtros dentro de NeuCard con HorizontalDivider entre ellos
-                                  - NivelBadge (Gold=Unión, Ink=Pastor, Accent=Mi GP)
-                                  - EstadoBadge (Sage=Activa, Blush=Vencida)
-                                  - ACUMULADO en titleLarge con color de nivel
-  ActividadesListViewModel.kt ✅ FiltroNivel(valor: String?, label: String) + FiltroEstado
-                                  ActividadConResumen(tipo, totalCantidad, montoTotal, esActiva)
-                                  esActiva = (startDate==null || !today.isBefore(start)) && (endDate==null || !today.isAfter(end))
-                                  getTodasActividadesTipo (SIN filtro de periodo, para mostrar vencidas)
-                                  getActividadesConTotales acumula count+monto por actividadTipoId
-  ActividadHistorialScreen.kt ✅ REDISEÑADO: ResumenCard con headlineMedium serif + 3 stats
-                                  RegistroRow: bloque fecha (día titleLarge bold + "MMM yyyy" labelSmall)
-                                  chip valor con color: Accent=contador/participantes, Sage=checkbox ✓, BackgroundDeep=0
-                                  edición inline: date + BasicTextField + cancelar/guardar
-  ActividadHistorialViewModel.kt ✅ carga via ActividadRepository.getRegistrosSemanal(grupoId, tipoId)
-                                     modo edición por recordId, updateRegistro en Supabase
+  ActividadesListScreen.kt    ✅ filtros FiltroNivel + FiltroEstado en horizontalScroll
+                                  NivelBadge (Gold=Unión, Ink=Pastor, Accent=Mi GP)
+                                  EstadoBadge (Sage=Activa, Blush=Vencida)
+                                  ACUMULADO en titleLarge con color de nivel
+                                  ⚠️ badge de pendientes (drafts) pendiente de implementar
+  ActividadesListViewModel.kt ✅ FiltroNivel + FiltroEstado + ActividadConResumen
+                                  getTodasActividadesTipo sin filtro período + getActividadesConTotales
+                                  ⚠️ getPendingCountPerTipo pendiente de conectar a la UI
+  ActividadHistorialScreen.kt ✅ ResumenCard serif + RegistroRow con bloque fecha
+                                  edición inline: BasicTextField + cancelar/guardar
+                                  ⚠️ sección "Enviados por miembros" pendiente de implementar
+  ActividadHistorialViewModel.kt ✅ getRegistrosSemanal + updateRegistro en Supabase
+  CrearActividadTipoScreen.kt ✅ stub
+  CrearActividadTipoViewModel.kt ✅ stub
+
+feature/miembro/               ← ROL MIEMBRO (perfil futuro)
+  MiembroHomeScreen.kt        ✅ stub
+  MiembroHomeViewModel.kt     ✅ stub
+  MiembroActividadesScreen.kt ✅ stub
+  MiembroActividadesViewModel.kt ✅ stub
 
 feature/miembros/
   MiembrosListaScreen.kt      ✅ buscador, sección ACTIVOS/ARCHIVADOS, badge, bottom nav
@@ -583,11 +601,24 @@ core/data/repository/
   ReunionRepositoryImpl.kt    ✅ usa takeIf { it !is JsonNull } en todos los joins embebidos de getDetalleReunion
                                   ⚠️ tiene Log.d temporales en parseReuniones y getDetalleReunion — remover después de debug
   ActividadRepository.kt      ✅ interfaz:
-                                  getActividadesTipo(iglesiaId) — con filtro período (para Paso 2)
-                                  getTodasActividadesTipo(iglesiaId) — sin filtro período (para lista)
+                                  getActividadesTipo — con filtro período (para Paso 2)
+                                  getTodasActividadesTipo — sin filtro período (para lista)
                                   saveRegistros, getActividadesConTotales, getRegistrosSemanal, updateRegistro
-  ActividadRepositoryImpl.kt  ✅ lee id, name, level, marker_type, unit_label, sort_order,
-                                  scope, church_id, start_date, end_date de activity_type
+                                  getActividadesMiembro, getRegistrosMiembro, toggleMiembroActividad
+                                  getContadorSemanalMiembro, upsertContadorSemanalMiembro
+                                  getPendingMemberActivities(grupoId, actividadTipoId) → List<MemberActivitySubmission>
+                                  getPendingCountPerTipo(grupoId) → Map<tipoId, count>
+                                  approveMemberActivity(recordId, correctedCount, correctedMonto, isMonetary)
+                                  rejectMemberActivity(recordId)
+  ActividadRepositoryImpl.kt  ✅ toggleMiembroActividad y upsertContadorSemanalMiembro incluyen status="draft"
+                                  getActividadesConTotales filtra member_activity_record por status IN (approved, pending_board)
+                                  approveMemberActivity → status "approved" o "pending_board" según isMonetary
+  GroupLogRepository.kt       ✅ stub (referenciado en RepositoryModule)
+  GroupLogRepositoryImpl.kt   ✅ stub
+  IglesiaRepository.kt        ✅ stub
+  IglesiaRepositoryImpl.kt    ✅ stub
+  SolicitudRepository.kt      ✅ stub
+  SolicitudRepositoryImpl.kt  ✅ stub
 
 core/ui/navigation/NavGraph.kt  ✅ incluye todas las rutas, ver lista abajo
 core/ui/theme/                  ✅ Elevation.kt (neuElevated/neuElevatedSm/neuInset/neuInsetSm/neuGlow)
@@ -759,6 +790,22 @@ Un solo ViewModel cubre dos flujos:
 
 El ViewModel vive en el scope de SUPLENTE_GRAPH (para flujo suplente) y como instancia independiente en HomeScreen (para generación de código por el líder).
 
+### Tabla `member_activity_record` — columnas confirmadas
+
+```
+id, member_id, activity_type_id, record_date (date), count (int, nullable),
+monto (numeric, nullable), is_done (boolean), status (text)
+```
+
+- `status`: `"draft"` | `"approved"` | `"pending_board"` | `"rejected"`
+  - `draft` → recién enviado por miembro, pendiente de aprobación del líder
+  - `approved` → aprobado por líder (actividades no monetarias)
+  - `pending_board` → aprobado por líder, pendiente de Junta de Iglesia (monetarias)
+  - `rejected` → rechazado por líder
+- Unique constraint en `member_id, activity_type_id, record_date`
+- Los totales en `getActividadesConTotales` solo suman `status IN ('approved', 'pending_board')`
+- DDL aplicado: `ALTER TABLE member_activity_record ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','approved','pending_board','rejected'));`
+
 ### Tabla `activity_type` — columnas confirmadas
 
 ```
@@ -883,6 +930,58 @@ Siempre usar todas las direcciones individuales:
 PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp)
 ```
 
+### Patrón desglose granular por miembro — dirección INVERTIDA (2026-06-01)
+
+El desglose de actividades funciona en dirección **miembro → total** (no al revés):
+
+```kotlin
+// En RegistroViewModel:
+fun onDesgloseChange(actividadId, miembroId, nuevaCantidad) {
+    // Actualiza el valor del miembro
+    val newDesglose = a.desgloseMiembros.map { m ->
+        if (m.miembroId == miembroId) m.copy(cantidad = nuevaCant.coerceAtLeast(0)) else m
+    }
+    // Total = suma del desglose (no al revés)
+    val nuevoTotal = newDesglose.sumOf { it.cantidad }
+    a.copy(desgloseMiembros = newDesglose, cantidad = nuevoTotal.takeIf { it > 0 })
+}
+// Mismo patrón para onDesgloseMontoChange (monto) y onDesgloseParticipacionChange (count{it.participo})
+```
+
+- `tieneDesglose = !bloqueada && tipo != TipoMarcador.CHECKBOX` — todos los editables tienen desglose
+- `desgloseExpandido = true` por defecto en ActividadRegistro
+- En `DetalleActividadScreen`: `sinLimite = true` → cada miembro puede ingresar cualquier valor sin tope
+- En `RegistroPaso2Screen`: chip muestra `—` o el total calculado; no hay edición inline
+
+### Patrón MemberActivitySubmission — flujo de aprobación
+
+```kotlin
+// ActividadRepository.kt
+data class MemberActivitySubmission(
+    val recordId:      String,
+    val miembroId:     String,
+    val miembroNombre: String,
+    val recordDate:    LocalDate,
+    val count:         Int?,
+    val monto:         Double?,
+    val isDone:        Boolean,
+    val status:        String,  // "draft" | "approved" | "pending_board" | "rejected"
+)
+
+// Flujo:
+// Miembro registra → status = "draft"
+// Líder aprueba:
+//   isMonetary = false → status = "approved"   (suma en totales del GP)
+//   isMonetary = true  → status = "pending_board" (espera Junta de Iglesia)
+// Líder rechaza → status = "rejected"
+```
+
+### Patrón sinLimite en filas de desglose
+
+`MiembroDesgloseRow` y `MiembroDesgloseMonetarioRow` aceptan `sinLimite: Boolean = false`:
+- `sinLimite = false` (default): limita el valor al `totalGeneral - sumOtros` (modo Paso 2 anterior)
+- `sinLimite = true`: sin límite superior, `allowDirectInput = true` (modo DetalleActividadScreen)
+
 ---
 
 ## Lo que NO hacer
@@ -895,3 +994,18 @@ PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp)
 - ❌ No ignorar el estado offline — toda operación debe funcionar sin red
 - ❌ No usar `0` como valor inicial de contador de actividades — usar `null` que se muestra como `—`
 - ❌ No mostrar toggle Activo/Archivado al AGREGAR miembro — solo al EDITAR
+- ❌ No poner ContadorInline/MontoInline en RegistroPaso2Screen — toda edición numérica va en DetalleActividadScreen
+- ❌ No limitar el desglose de miembros por el total global — el total se calcula DEL desglose, no al revés
+- ❌ No sumar member_activity_record con status="draft" en totales — solo approved y pending_board
+
+---
+
+## Pendientes próximas sesiones (2026-06-01)
+
+- ⚠️ **Sección "Enviados por miembros"** en DetalleActividadScreen / ActividadHistorialScreen: borradores con [✓ Aprobar][✎ Editar][✗ Rechazar]
+- ⚠️ **Badge de pendientes** en ActividadesListScreen: pill en Blush con count de drafts por tipo
+- ⚠️ **Perfil MIEMBRO** (feature/miembro): pantalla para que el miembro registre sus actividades propias
+- ⚠️ **Perfil Junta de Iglesia**: revisar actividades `pending_board` — diseño no definido aún
+- ⚠️ **HomeViewModel**: datos reales de estadísticas del grupo (iglesia, horario)
+- ⚠️ **MiembrosViewModel**: reemplazar 10 miembros hardcoded con datos reales de Supabase
+- ⚠️ **Logs temporales**: remover Log.d en ReunionRepositoryImpl y Log.e en DetalleReunionViewModel
