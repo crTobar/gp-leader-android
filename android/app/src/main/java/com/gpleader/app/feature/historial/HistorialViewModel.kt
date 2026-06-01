@@ -61,6 +61,8 @@ data class HistorialUiState(
     val grupos:               List<GrupoMes>    = emptyList(),
     val stats:                HistorialStats    = HistorialStats(0, 0, 0, 0),
     val isLoading:            Boolean           = false,
+    val error:                String?           = null,
+    val debugInfo:            String            = "",
     val busquedaActiva:       Boolean           = false,
     // Navegación
     val navigateToDetalle: String?              = null,
@@ -106,15 +108,20 @@ class HistorialViewModel @Inject constructor(
 
     init {
         val idActual = trimestreActualId
-        _uiState.update { it.copy(trimestres = trimestresOrdenados, trimestreSeleccionado = idActual, isLoading = true) }
+        _uiState.update { it.copy(trimestres = trimestresOrdenados, trimestreSeleccionado = idActual, isLoading = true, error = null) }
         cargarReuniones()
     }
 
-    private fun cargarReuniones() {
+    fun cargarReuniones() {
+        val gId = session.grupoId
+        _uiState.update { it.copy(isLoading = true, error = null, debugInfo = "grupoId=$gId") }
         viewModelScope.launch {
-            reunionRepo.getReuniones(session.grupoId)
-                .catch { _uiState.update { it.copy(isLoading = false) } }
+            reunionRepo.getReuniones(gId)
+                .catch { e ->
+                    _uiState.update { it.copy(isLoading = false, error = "Error al cargar reuniones: ${e.message}\ngrupoId=$gId") }
+                }
                 .collect { reuniones ->
+                    _uiState.update { it.copy(debugInfo = "grupoId=$gId total=${reuniones.size}") }
                     todasLasReuniones = reuniones.map { r ->
                         val total = r.presentes + r.ausentes + r.justificados
                         val pct   = if (total > 0) (r.presentes * 100 / total) else 0
@@ -134,7 +141,7 @@ class HistorialViewModel @Inject constructor(
                         )
                     }
                     aplicarFiltro(_uiState.value.trimestreSeleccionado)
-                    _uiState.update { it.copy(isLoading = false) }
+                    _uiState.update { it.copy(isLoading = false, error = null) }
                 }
         }
     }

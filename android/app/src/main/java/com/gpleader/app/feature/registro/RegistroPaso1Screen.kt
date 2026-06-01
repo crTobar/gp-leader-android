@@ -26,8 +26,22 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.input.KeyboardType
+import com.gpleader.app.core.data.repository.ChurchHit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -77,6 +91,7 @@ import com.gpleader.app.core.ui.theme.Ink
 import com.gpleader.app.core.ui.theme.Mid
 import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.Sage
+import com.gpleader.app.core.ui.theme.neuElevated
 import com.gpleader.app.core.ui.theme.neuElevatedSm
 import com.gpleader.app.core.ui.theme.neuInsetSm
 import androidx.compose.animation.core.Animatable
@@ -146,6 +161,10 @@ fun RegistroPaso1Screen(
         onDismissConfirmAusentes         = viewModel::onDismissConfirmTodosAusentes,
         onDismissConfirmNoHubo           = viewModel::onDismissConfirmNoHuboReunion,
         onConfirmNoHubo                  = viewModel::onConfirmNoHuboReunion,
+        onRegistryKindChange             = viewModel::onRegistryKindChange,
+        onMemberChurchQueryChange        = viewModel::updateMemberChurchQuery,
+        onMemberChurchSelect             = viewModel::selectMemberChurch,
+        onMemberChurchClear              = viewModel::clearMemberChurch,
     )
 }
 
@@ -170,6 +189,10 @@ private fun RegistroPaso1Content(
     onDismissConfirmAusentes:         () -> Unit,
     onDismissConfirmNoHubo:           () -> Unit,
     onConfirmNoHubo:                  () -> Unit,
+    onRegistryKindChange:             (RegistryKind) -> Unit = {},
+    onMemberChurchQueryChange:        (memberId: String, query: String) -> Unit = { _, _ -> },
+    onMemberChurchSelect:             (memberId: String, hit: com.gpleader.app.core.data.repository.ChurchHit) -> Unit = { _, _ -> },
+    onMemberChurchClear:              (memberId: String) -> Unit = {},
 ) {
     var showDatePicker         by remember { mutableStateOf(false) }
     var showAgregarVisitaSheet by remember { mutableStateOf(false) }
@@ -279,13 +302,24 @@ private fun RegistroPaso1Content(
         LazyColumn(
             state          = listState,
             modifier       = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 96.dp),
+            contentPadding = PaddingValues(bottom = 140.dp),
         ) {
-            item { RegistroTopBar(pasoActivo = 1, onNavigateBack = onNavigateBack) }
+            item {
+                RegistroTopBar(
+                    pasoActivo    = 1,
+                    esSabado      = uiState.registryKind == RegistryKind.SATURDAY_WORSHIP,
+                    onNavigateBack = onNavigateBack,
+                )
+            }
 
             item {
                 val presentes = uiState.miembros.count { it.estado == EstadoAsistencia.PRESENTE }
-                StepperRow(pasoActivo = 1, presentes = presentes, total = uiState.miembros.size)
+                StepperRow(
+                    pasoActivo = 1,
+                    presentes  = presentes,
+                    total      = uiState.miembros.size,
+                    esSabado   = uiState.registryKind == RegistryKind.SATURDAY_WORSHIP,
+                )
             }
 
             item { Spacer(Modifier.height(16.dp)) }
@@ -314,16 +348,32 @@ private fun RegistroPaso1Content(
             item { Spacer(Modifier.height(8.dp)) }
 
             items(uiState.miembros, key = { it.id }) { miembro ->
-                MiembroRow(
-                    miembro          = miembro,
-                    onChange         = { estado -> onAsistenciaChange(miembro.id, estado) },
-                    showHint         = uiState.showJustificadoHint && miembro == uiState.miembros.firstOrNull(),
-                    isOpenExternal   = openMiembroId == miembro.id,
-                    onSwipeOpen      = { openMiembroId = miembro.id },
-                    onSwipeClosed    = { if (openMiembroId == miembro.id) openMiembroId = null },
-                    onAnyTap         = { openMiembroId = null },
-                    modifier         = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                )
+                if (uiState.registryKind == RegistryKind.SATURDAY_WORSHIP) {
+                    SabadoAsistenciaCard(
+                        miembro             = miembro,
+                        churchQuery         = uiState.memberChurchQueries[miembro.id] ?: "",
+                        churchSelected      = uiState.memberChurches[miembro.id],
+                        churchResults       = uiState.memberChurchResults[miembro.id] ?: emptyList(),
+                        isSearchingChurch   = uiState.memberChurchSearching.contains(miembro.id),
+                        groupChurch         = uiState.groupChurch,
+                        onAsistenciaChange  = { estado -> onAsistenciaChange(miembro.id, estado) },
+                        onChurchQueryChange = { q -> onMemberChurchQueryChange(miembro.id, q) },
+                        onChurchSelect      = { hit -> onMemberChurchSelect(miembro.id, hit) },
+                        onChurchClear       = { onMemberChurchClear(miembro.id) },
+                        modifier            = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                } else {
+                    MiembroRow(
+                        miembro        = miembro,
+                        onChange       = { estado -> onAsistenciaChange(miembro.id, estado) },
+                        showHint       = uiState.showJustificadoHint && miembro == uiState.miembros.firstOrNull(),
+                        isOpenExternal = openMiembroId == miembro.id,
+                        onSwipeOpen    = { openMiembroId = miembro.id },
+                        onSwipeClosed  = { if (openMiembroId == miembro.id) openMiembroId = null },
+                        onAnyTap       = { openMiembroId = null },
+                        modifier       = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
             }
 
             if (uiState.errorSinAsistencia) {
@@ -400,11 +450,17 @@ private fun RegistroPaso1Content(
 // ── Top bar ───────────────────────────────────────────────────────────────────
 
 @Composable
-private fun RegistroTopBar(pasoActivo: Int, onNavigateBack: () -> Unit) {
-    val stepLabel = when (pasoActivo) {
-        1    -> stringResource(R.string.registro_step_asistencia)
-        2    -> stringResource(R.string.registro_step_actividades)
-        else -> stringResource(R.string.registro_step_resumen)
+private fun RegistroTopBar(
+    pasoActivo:    Int,
+    esSabado:      Boolean = false,
+    onNavigateBack: () -> Unit,
+) {
+    val totalPasos = if (esSabado) 2 else 3
+    val stepLabel = when {
+        pasoActivo == 1               -> stringResource(R.string.registro_step_asistencia)
+        esSabado && pasoActivo == 2   -> stringResource(R.string.registro_step_resumen)
+        pasoActivo == 2               -> stringResource(R.string.registro_step_actividades)
+        else                          -> stringResource(R.string.registro_step_resumen)
     }
     Row(
         modifier          = Modifier
@@ -441,7 +497,7 @@ private fun RegistroTopBar(pasoActivo: Int, onNavigateBack: () -> Unit) {
                 textAlign = TextAlign.Center,
             )
             Text(
-                text      = stringResource(R.string.registro_subtitulo_paso, pasoActivo, stepLabel),
+                text      = "Paso $pasoActivo de $totalPasos · $stepLabel",
                 style     = MaterialTheme.typography.bodySmall,
                 color     = Muted,
                 textAlign = TextAlign.Center,
@@ -455,12 +511,16 @@ private fun RegistroTopBar(pasoActivo: Int, onNavigateBack: () -> Unit) {
 // ── Stepper ───────────────────────────────────────────────────────────────────
 
 @Composable
-private fun StepperRow(pasoActivo: Int, presentes: Int = 0, total: Int = 0) {
-    val labels = listOf(
+private fun StepperRow(pasoActivo: Int, presentes: Int = 0, total: Int = 0, esSabado: Boolean = false) {
+    val labels = if (esSabado) listOf(
+        stringResource(R.string.registro_step_asistencia),
+        stringResource(R.string.registro_step_resumen),
+    ) else listOf(
         stringResource(R.string.registro_step_asistencia),
         stringResource(R.string.registro_step_actividades),
         stringResource(R.string.registro_step_resumen),
     )
+    val efectivoPaso = if (esSabado && pasoActivo >= 3) 2 else pasoActivo
 
     Column(
         modifier = Modifier
@@ -471,10 +531,10 @@ private fun StepperRow(pasoActivo: Int, presentes: Int = 0, total: Int = 0) {
         Row(modifier = Modifier.fillMaxWidth()) {
             labels.forEachIndexed { idx, label ->
                 val numero         = idx + 1
-                val activo         = numero == pasoActivo
-                val completado     = numero < pasoActivo
-                val lineColorLeft  = if (pasoActivo > idx)       Accent else Muted.copy(alpha = 0.4f)
-                val lineColorRight = if (pasoActivo > idx + 1)   Accent else Muted.copy(alpha = 0.4f)
+                val activo         = numero == efectivoPaso
+                val completado     = numero < efectivoPaso
+                val lineColorLeft  = if (efectivoPaso > idx)     Accent else Muted.copy(alpha = 0.4f)
+                val lineColorRight = if (efectivoPaso > idx + 1) Accent else Muted.copy(alpha = 0.4f)
 
                 Column(
                     modifier = Modifier
@@ -559,6 +619,286 @@ private fun StepperRow(pasoActivo: Int, presentes: Int = 0, total: Int = 0) {
     }
 }
 
+// ── Tarjeta de asistencia sábado ──────────────────────────────────────────────
+
+@Composable
+private fun SabadoAsistenciaCard(
+    miembro:             MiembroAsistencia,
+    churchQuery:         String,
+    churchSelected:      ChurchHit?,
+    churchResults:       List<ChurchHit>,
+    isSearchingChurch:   Boolean,
+    groupChurch:         ChurchHit?,
+    onAsistenciaChange:  (EstadoAsistencia) -> Unit,
+    onChurchQueryChange: (String) -> Unit,
+    onChurchSelect:      (ChurchHit) -> Unit,
+    onChurchClear:       () -> Unit,
+    modifier:            Modifier = Modifier,
+) {
+    var showPicker by remember { mutableStateOf(false) }
+
+    if (showPicker) {
+        ChurchPickerSheet(
+            query         = churchQuery,
+            results       = churchResults,
+            isSearching   = isSearchingChurch,
+            selected      = churchSelected,
+            onQueryChange = onChurchQueryChange,
+            onSelect      = { hit -> onChurchSelect(hit); showPicker = false },
+            onDismiss     = { showPicker = false },
+        )
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .neuElevated(cornerRadius = 16.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Background),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            // ── Fila principal ─────────────────────────────────────────────────
+            Row(
+                modifier          = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Avatar circular neuElevatedSm
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .neuElevatedSm(cornerRadius = 20.dp)
+                        .clip(CircleShape)
+                        .background(BackgroundDeep),
+                ) {
+                    Text(
+                        text  = miembro.iniciales,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Mid,
+                    )
+                }
+
+                Spacer(Modifier.width(12.dp))
+
+                // Nombre + iglesia seleccionada / hint
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text       = miembro.nombre,
+                        style      = MaterialTheme.typography.bodyLarge,
+                        color      = Ink,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    if (churchSelected != null) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier          = Modifier
+                                .clickable { showPicker = true }
+                                .padding(top = 3.dp),
+                        ) {
+                            Icon(
+                                imageVector        = Icons.Default.AccountBalance,
+                                contentDescription = null,
+                                tint               = Accent,
+                                modifier           = Modifier.size(12.dp),
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                text  = churchSelected.churchName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Accent,
+                            )
+                        }
+                    } else if (miembro.estado == EstadoAsistencia.PRESENTE) {
+                        Text(
+                            text     = "Toca para indicar iglesia",
+                            style    = MaterialTheme.typography.bodyMedium,
+                            color    = Muted,
+                            modifier = Modifier
+                                .clickable { onChurchQueryChange(""); showPicker = true }
+                                .padding(top = 2.dp),
+                        )
+                    }
+                }
+
+                Spacer(Modifier.width(8.dp))
+
+                // Checkbox P/A — estilo cuadrado con neuInsetSm/neuElevatedSm
+                val presente = miembro.estado == EstadoAsistencia.PRESENTE
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .then(
+                            if (presente) Modifier.neuInsetSm(cornerRadius = 10.dp)
+                            else Modifier.neuElevatedSm(cornerRadius = 10.dp)
+                        )
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (presente) Sage.copy(alpha = 0.15f) else Background)
+                        .border(
+                            width = 1.5.dp,
+                            color = if (presente) Sage else Muted.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(10.dp),
+                        )
+                        .clickable {
+                            onAsistenciaChange(
+                                if (presente) EstadoAsistencia.AUSENTE else EstadoAsistencia.PRESENTE,
+                            )
+                        },
+                ) {
+                    if (presente) {
+                        Icon(
+                            imageVector        = Icons.Default.Check,
+                            contentDescription = null,
+                            tint               = Sage,
+                            modifier           = Modifier.size(20.dp),
+                        )
+                    } else {
+                        Text(
+                            text       = "A",
+                            style      = MaterialTheme.typography.labelSmall,
+                            color      = Muted,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
+                }
+            }
+
+        }
+    }
+}
+
+// ── Selector de iglesia (modal) ───────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChurchPickerSheet(
+    query:         String,
+    results:       List<ChurchHit>,
+    isSearching:   Boolean,
+    selected:      ChurchHit?,
+    onQueryChange: (String) -> Unit,
+    onSelect:      (ChurchHit) -> Unit,
+    onDismiss:     () -> Unit,
+) {
+    LaunchedEffect(Unit) {
+        if (results.isEmpty() && !isSearching) onQueryChange("")
+    }
+
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState       = sheetState,
+        containerColor   = Background,
+        modifier         = Modifier.fillMaxSize(),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp),
+        ) {
+            Text(
+                text  = "¿A qué iglesia fue?",
+                style = MaterialTheme.typography.headlineMedium,
+                color = Ink,
+            )
+            Spacer(Modifier.height(16.dp))
+
+            // ── Buscador ──────────────────────────────────────────────────────
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .neuInsetSm(cornerRadius = 12.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(BackgroundDeep)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector        = Icons.Default.Search,
+                    contentDescription = null,
+                    tint               = Muted,
+                    modifier           = Modifier.size(16.dp),
+                )
+                Spacer(Modifier.width(10.dp))
+                BasicTextField(
+                    value           = query,
+                    onValueChange   = onQueryChange,
+                    textStyle       = MaterialTheme.typography.bodyMedium.copy(color = Ink),
+                    singleLine      = true,
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Words,
+                        keyboardType   = KeyboardType.Text,
+                        imeAction      = ImeAction.Done,
+                    ),
+                    modifier = Modifier.weight(1f),
+                    decorationBox = { inner ->
+                        if (query.isBlank()) {
+                            Text(
+                                text  = "Buscar iglesia…",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Muted,
+                            )
+                        }
+                        inner()
+                    },
+                )
+                if (isSearching) {
+                    Spacer(Modifier.width(8.dp))
+                    CircularProgressIndicator(
+                        color       = Accent,
+                        modifier    = Modifier.size(14.dp),
+                        strokeWidth = 1.5.dp,
+                    )
+                } else if (query.isNotBlank()) {
+                    Spacer(Modifier.width(8.dp))
+                    Icon(
+                        imageVector        = Icons.Default.Close,
+                        contentDescription = null,
+                        tint               = Muted,
+                        modifier           = Modifier
+                            .size(16.dp)
+                            .clickable { onQueryChange("") },
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // ── Lista de iglesias ─────────────────────────────────────────────
+            LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                itemsIndexed(results) { idx, hit ->
+                    if (idx > 0) HorizontalDivider(color = Muted.copy(alpha = 0.15f))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(hit) }
+                            .padding(horizontal = 4.dp, vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text       = hit.churchName,
+                            style      = MaterialTheme.typography.bodyMedium,
+                            color      = Ink,
+                            fontWeight = if (selected?.id == hit.id) FontWeight.SemiBold else FontWeight.Normal,
+                            modifier   = Modifier.weight(1f),
+                        )
+                        if (selected?.id == hit.id) {
+                            Icon(
+                                imageVector        = Icons.Default.Check,
+                                contentDescription = null,
+                                tint               = Accent,
+                                modifier           = Modifier.size(18.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 // ── Card fecha ────────────────────────────────────────────────────────────────
 
 @Composable
@@ -568,8 +908,13 @@ private fun FechaCard(
     onNoHuboReunion: () -> Unit,
     modifier:        Modifier = Modifier,
 ) {
+    val firstDayOfMonth  = fecha.withDayOfMonth(1)
+    val offsetFromSunday = firstDayOfMonth.dayOfWeek.value % 7
+    val weekOfMonth      = (fecha.dayOfMonth + offsetFromSunday - 1) / 7 + 1
+
     NeuCard(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
+            // ── Fecha ─────────────────────────────────────────────────────────
             Text(
                 text  = stringResource(R.string.registro_label_fecha),
                 style = MaterialTheme.typography.labelSmall,
@@ -581,11 +926,18 @@ private fun FechaCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier              = Modifier.fillMaxWidth(),
             ) {
-                Text(
-                    text  = formatFechaReunion(fecha),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Ink,
-                )
+                Column {
+                    Text(
+                        text  = formatFechaReunion(fecha),
+                        style = MaterialTheme.typography.titleLarge,
+                        color = Ink,
+                    )
+                    Text(
+                        text  = "Mes ${fecha.monthValue}, Semana $weekOfMonth",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Muted,
+                    )
+                }
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
@@ -603,16 +955,28 @@ private fun FechaCard(
                     )
                 }
             }
+
             Spacer(Modifier.height(12.dp))
-            Box(
-                contentAlignment = Alignment.Center,
+
+            // ── No hubo reunión ────────────────────────────────────────────────
+            Row(
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
                 modifier = Modifier
+                    .fillMaxWidth()
                     .neuElevatedSm(cornerRadius = 10.dp)
                     .clip(RoundedCornerShape(10.dp))
                     .background(Background)
                     .clickable(onClick = onNoHuboReunion)
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
             ) {
+                Icon(
+                    imageVector        = Icons.Default.Close,
+                    contentDescription = null,
+                    tint               = Blush,
+                    modifier           = Modifier.size(15.dp),
+                )
+                Spacer(Modifier.width(8.dp))
                 Text(
                     text       = stringResource(R.string.registro_btn_no_hubo),
                     style      = MaterialTheme.typography.bodyMedium,
@@ -621,6 +985,36 @@ private fun FechaCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun TipoRegistroBoton(
+    label:    String,
+    selected: Boolean,
+    onClick:  () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .neuElevatedSm(cornerRadius = 10.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(Background)
+            .then(
+                if (selected) Modifier.border(1.5.dp, Accent, RoundedCornerShape(10.dp))
+                else Modifier
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Text(
+            text      = label,
+            style     = MaterialTheme.typography.bodyMedium,
+            color     = if (selected) Accent else Mid,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
@@ -1085,7 +1479,7 @@ private fun VisitasAnterioresHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Ink)
+            .background(Accent)
             .clickable(onClick = onToggle)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment     = Alignment.CenterVertically,
@@ -1716,6 +2110,49 @@ private fun AgregarVisitaSheet(
                 onClick  = onCancelar,
                 modifier = Modifier.fillMaxWidth(),
             )
+        }
+    }
+}
+
+// ── Banner Culto de sábado ────────────────────────────────────────────────────
+
+@Composable
+internal fun SabadoBanner(
+    titulo:   String,
+    mensaje:  String,
+    modifier: Modifier = Modifier,
+) {
+    androidx.compose.foundation.layout.Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .neuElevatedSm(cornerRadius = 14.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Background),
+    ) {
+        Row(
+            modifier          = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Icon(
+                imageVector        = Icons.Default.DateRange,
+                contentDescription = null,
+                tint               = Accent,
+                modifier           = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(10.dp))
+            Column {
+                Text(
+                    text  = titulo,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Accent,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text  = mensaje,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Mid,
+                )
+            }
         }
     }
 }

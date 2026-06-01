@@ -241,7 +241,7 @@ private fun HeroCard(miembro: MiembroUi) {
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(if (archivado) Muted else Sage)
+                    .background(if (archivado) Blush else Sage)
                     .padding(horizontal = 14.dp, vertical = 5.dp),
             ) {
                 Text(

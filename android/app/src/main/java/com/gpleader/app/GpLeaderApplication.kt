@@ -25,7 +25,7 @@ class GpLeaderApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         SentryAndroid.init(this) { options ->
-            options.dsn = "http://e526dea95274df347b61f6e0d77a668f@10.0.2.2:9000/2"
+            options.dsn = "http://68f7e3509e87af06b17772600839dd6b@178.105.147.223:9000/2"
             options.isAttachScreenshot = true
             options.isAttachViewHierarchy = true
             options.tracesSampleRate = 1.0

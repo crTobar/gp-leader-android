@@ -89,10 +89,23 @@ class DetalleReunionViewModel @Inject constructor(
                         tipoReunion          = data.tipoReunion,
                         asistencias          = data.asistencias.map { a ->
                             AsistenciaDetalle(
-                                nombre              = a.nombre,
-                                estado              = a.estado,
-                                esVisita            = a.esVisita,
-                                iglesiaVisitada     = a.iglesiaVisitadaNombre,
+                                nombre          = a.nombre,
+                                estado          = a.estado,
+                                esVisita        = a.esVisita,
+                                iglesiaVisitada = a.iglesiaVisitadaNombre,
+                            )
+                        },
+                        actividades = data.actividades.map { act ->
+                            ActividadDetalle(
+                                nombre   = act.nombre,
+                                nivel    = when (act.nivel) {
+                                    "union"    -> "UNION"
+                                    "pastor"   -> "PASTOR"
+                                    "my_group" -> "GP"
+                                    else       -> "GP"
+                                },
+                                cantidad = act.cantidad,
+                                unidad   = act.unidad,
                             )
                         },
                         isLoading = false,
@@ -102,7 +115,7 @@ class DetalleReunionViewModel @Inject constructor(
                     _uiState.value = DetalleReunionUiState(
                         reunionId = reunionId,
                         isLoading = false,
-                        error     = "No se pudo cargar la reunión",
+                        error     = "Error: ${e.message}",
                     )
                 }
         }

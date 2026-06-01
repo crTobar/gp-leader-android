@@ -69,6 +69,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gpleader.app.R
 import com.gpleader.app.core.ui.components.NeuCard
+import com.gpleader.app.core.ui.components.OnResumeEffect
 import com.gpleader.app.core.ui.components.SkeletonBox
 import com.gpleader.app.core.ui.components.SkeletonText
 import com.gpleader.app.core.ui.components.SwipeAction
@@ -86,6 +87,8 @@ import com.gpleader.app.core.ui.theme.Sage
 import com.gpleader.app.core.ui.theme.Shadow
 import com.gpleader.app.core.ui.theme.neuElevated
 import com.gpleader.app.core.ui.theme.neuElevatedSm
+import com.gpleader.app.core.ui.components.AppBottomNavBar
+import com.gpleader.app.core.ui.components.NAV_TAB_HISTORIAL
 import com.gpleader.app.core.ui.theme.neuGlow
 import com.gpleader.app.core.ui.theme.neuInsetSm
 import java.time.DayOfWeek
@@ -103,6 +106,7 @@ fun HistorialScreen(
     viewModel: HistorialViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    OnResumeEffect { viewModel.cargarReuniones() }
 
     LaunchedEffect(uiState.navigateToDetalle) {
         val id = uiState.navigateToDetalle
@@ -140,7 +144,8 @@ private fun HistorialContent(
     Scaffold(
         containerColor = Background,
         bottomBar = {
-            BottomNavBar(
+            AppBottomNavBar(
+                selectedTab      = NAV_TAB_HISTORIAL,
                 onInicioClick    = onNavigateToHome,
                 onHistorialClick = { },
                 onPerfilClick    = onNavigateToPerfil,
@@ -149,6 +154,13 @@ private fun HistorialContent(
     ) { innerPadding ->
         if (uiState.isLoading) {
             HistorialSkeletonContent(modifier = Modifier.padding(innerPadding))
+        } else if (uiState.error != null) {
+            Box(
+                modifier         = Modifier.fillMaxSize().padding(innerPadding).padding(24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(uiState.error, style = MaterialTheme.typography.bodyMedium, color = Blush)
+            }
         } else {
         LazyColumn(
             modifier              = Modifier
@@ -160,8 +172,7 @@ private fun HistorialContent(
             // ── Top bar ───────────────────────────────────────────────────────
             item {
                 HistorialTopBar(
-                    onRegistrarClick = onRegistrarClick,
-                    modifier         = Modifier
+                    modifier = Modifier
                         .statusBarsPadding()
                         .padding(horizontal = 20.dp, vertical = 16.dp),
                 )
@@ -190,6 +201,18 @@ private fun HistorialContent(
                     stats    = uiState.stats,
                     modifier = Modifier.padding(horizontal = 20.dp),
                 )
+            }
+
+            // ── Debug info (temporal) ─────────────────────────────────────────
+            if (uiState.grupos.isEmpty() && uiState.debugInfo.isNotBlank()) {
+                item {
+                    Text(
+                        text     = uiState.debugInfo,
+                        style    = MaterialTheme.typography.labelSmall,
+                        color    = Muted,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                    )
+                }
             }
 
             // ── Grupos de mes ─────────────────────────────────────────────────
@@ -326,31 +349,16 @@ private fun HistorialSkeletonContent(modifier: Modifier = Modifier) {
 
 @Composable
 private fun HistorialTopBar(
-    onRegistrarClick: () -> Unit,
-    modifier:         Modifier = Modifier,
+    modifier: Modifier = Modifier,
 ) {
     Row(
         modifier          = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            text     = stringResource(R.string.historial_titulo),
-            style    = MaterialTheme.typography.displayLarge,
-            color    = Ink,
-            modifier = Modifier.weight(1f),
-        )
-        // Ícono + para registrar nueva reunión
-        TopBarIconButton(
-            icon               = Icons.Filled.Add,
-            contentDescription = stringResource(R.string.historial_btn_registrar),
-            onClick            = onRegistrarClick,
-        )
-        // Ícono calendario (decorativo)
-        TopBarIconButton(
-            icon               = Icons.Filled.DateRange,
-            contentDescription = null,
-            onClick            = {},
+            text  = stringResource(R.string.historial_titulo),
+            style = MaterialTheme.typography.displayLarge,
+            color = Ink,
         )
     }
 }
@@ -422,7 +430,7 @@ private fun TrimestralChip(
 ) {
     val animSpec  = spring<Color>(stiffness = Spring.StiffnessMedium)
     val bg        by animateColorAsState(
-        targetValue   = if (activo) Ink else Background,
+        targetValue   = if (activo) Accent else Background,
         animationSpec = animSpec,
         label         = "chipBg",
     )
@@ -432,7 +440,7 @@ private fun TrimestralChip(
         label         = "chipLine1",
     )
     val line2Color by animateColorAsState(
-        targetValue   = if (activo) Color.White.copy(alpha = 0.65f) else Muted,
+        targetValue   = if (activo) Color.White.copy(alpha = 0.75f) else Muted,
         animationSpec = animSpec,
         label         = "chipLine2",
     )
@@ -490,7 +498,7 @@ private fun VerTodoChip(
 ) {
     val animSpec  = spring<Color>(stiffness = Spring.StiffnessMedium)
     val bg        by animateColorAsState(
-        targetValue   = if (activo) Ink else Background,
+        targetValue   = if (activo) Accent else Background,
         animationSpec = animSpec,
         label         = "verTodoBg",
     )
@@ -951,59 +959,6 @@ private fun DotLabel(count: Int, color: Color, res: Int) {
 
 // ── Bottom nav bar ────────────────────────────────────────────────────────────
 
-@Composable
-private fun BottomNavBar(
-    onInicioClick:    () -> Unit,
-    onHistorialClick: () -> Unit,
-    onPerfilClick:    () -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding(),
-    ) {
-        HorizontalDivider(color = Muted.copy(alpha = 0.2f))
-        Row(
-            modifier              = Modifier
-                .fillMaxWidth()
-                .background(Background)
-                .padding(vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-        ) {
-            NavTabItem(Icons.Default.Home,      stringResource(R.string.home_nav_inicio),    false, onInicioClick)
-            NavTabItem(Icons.Default.DateRange, stringResource(R.string.home_nav_historial), true,  onHistorialClick)
-            NavTabItem(Icons.Default.Person,    stringResource(R.string.home_nav_perfil),    false, onPerfilClick)
-        }
-    }
-}
-
-@Composable
-private fun NavTabItem(
-    icon:     ImageVector,
-    label:    String,
-    isActive: Boolean,
-    onClick:  () -> Unit,
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier            = Modifier
-            .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 8.dp),
-    ) {
-        Icon(
-            imageVector        = icon,
-            contentDescription = label,
-            tint               = if (isActive) Accent else Muted,
-            modifier           = Modifier.size(22.dp),
-        )
-        Spacer(Modifier.height(3.dp))
-        Text(
-            text  = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = if (isActive) Accent else Muted,
-        )
-    }
-}
 
 // ── Preview ───────────────────────────────────────────────────────────────────
 

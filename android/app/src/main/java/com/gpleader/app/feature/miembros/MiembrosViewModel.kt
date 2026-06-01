@@ -2,6 +2,7 @@ package com.gpleader.app.feature.miembros
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gpleader.app.core.data.repository.GroupLogRepository
 import com.gpleader.app.core.data.repository.MiembroData
 import com.gpleader.app.core.data.repository.MiembroRepository
 import com.gpleader.app.core.data.session.SessionManager
@@ -36,6 +37,7 @@ data class MiembroUi(
     val estado:          EstadoMiembro           = EstadoMiembro.ACTIVO,
     val mesIngreso:      String                  = "",
     val historial:       List<AsistenciaResumen> = emptyList(),
+    val isLider:         Boolean                 = false,
 ) {
     val nombreCompleto: String
         get() = "$primerNombre $primerApellido"
@@ -125,8 +127,9 @@ private fun matchesQuery(m: MiembroUi, q: String): Boolean =
 
 @HiltViewModel
 class MiembrosViewModel @Inject constructor(
-    private val miembroRepo: MiembroRepository,
-    private val session:     SessionManager,
+    private val miembroRepo:   MiembroRepository,
+    private val groupLogRepo:  GroupLogRepository,
+    private val session:       SessionManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MiembrosUiState())
@@ -153,6 +156,7 @@ class MiembrosViewModel @Inject constructor(
 
     fun onToggleEstadoDesdeListado(miembroId: String) {
         val miembro = _uiState.value.miembros.find { it.id == miembroId } ?: return
+        if (miembro.isLider) return
         val nuevoActivo = miembro.estado != EstadoMiembro.ACTIVO
         _uiState.update { s ->
             s.copy(miembros = s.miembros.map { m ->
@@ -163,6 +167,12 @@ class MiembrosViewModel @Inject constructor(
         }
         viewModelScope.launch {
             runCatching { miembroRepo.toggleActivoMiembro(miembroId, nuevoActivo) }
+                .onSuccess {
+                    val accion = if (nuevoActivo) "member_unarchived" else "member_archived"
+                    val verbo  = if (nuevoActivo) "restaurado" else "archivado"
+                    val nombre = miembro.nombreCompleto
+                    groupLogRepo.logAccion(session.grupoId, accion, "$nombre fue $verbo")
+                }
         }
     }
 
@@ -216,6 +226,8 @@ class MiembrosViewModel @Inject constructor(
     fun onToggleEditSegundoApellido() { _uiState.update { it.copy(editSegundoApellidoExpandido = !it.editSegundoApellidoExpandido) } }
 
     fun onToggleEstado() {
+        val miembro = _uiState.value.miembros.find { it.id == _uiState.value.miembroId }
+        if (miembro?.isLider == true) return
         _uiState.update {
             it.copy(editEstado = if (it.editEstado == EstadoMiembro.ACTIVO) EstadoMiembro.ARCHIVADO else EstadoMiembro.ACTIVO)
         }
@@ -244,14 +256,25 @@ class MiembrosViewModel @Inject constructor(
                     isActive        = state.editEstado == EstadoMiembro.ACTIVO,
                 )
             }.onSuccess { updated ->
+                // Log cambio de estado si fue modificado
+                val anterior = _uiState.value.miembros.find { it.id == id }
+                if (anterior != null && anterior.estado != state.editEstado) {
+                    val accion = if (state.editEstado == EstadoMiembro.ACTIVO) "member_unarchived" else "member_archived"
+                    val verbo  = if (state.editEstado == EstadoMiembro.ACTIVO) "restaurado" else "archivado"
+                    groupLogRepo.logAccion(session.grupoId, accion, "${updated.toUi().nombreCompleto} fue $verbo")
+                }
                 _uiState.update { s ->
+                    val historialExistente = s.miembros.find { it.id == id }?.historial ?: emptyList()
                     s.copy(
                         isSaving           = false,
                         saveSuccess        = true,
                         navigateEditarBack = true,
-                        miembros           = s.miembros.map { if (it.id == id) updated.toUi() else it },
+                        miembros           = s.miembros.map {
+                            if (it.id == id) updated.toUi().copy(historial = historialExistente) else it
+                        },
                     )
                 }
+                cargarMiembros()
             }.onFailure {
                 _uiState.update { it.copy(isSaving = false, error = "Error al guardar los cambios") }
             }
@@ -322,6 +345,8 @@ class MiembrosViewModel @Inject constructor(
                     correo          = state.agregarCorreo.trim().takeIf { it.isNotBlank() },
                 )
             }.onSuccess { nuevo ->
+                val nombre = nuevo.toUi().nombreCompleto
+                groupLogRepo.logAccion(session.grupoId, "member_added", "$nombre fue agregado al grupo")
                 _uiState.update { s ->
                     s.copy(
                         isSaving            = false,
@@ -356,6 +381,7 @@ private fun MiembroData.toUi(): MiembroUi = MiembroUi(
     correo          = correo          ?: "",
     estado          = if (estado == "ARCHIVADO") EstadoMiembro.ARCHIVADO else EstadoMiembro.ACTIVO,
     mesIngreso      = createdAt?.let { formatMes(it) } ?: "",
+    isLider         = isLider,
 )
 
 private fun formatMes(iso: String): String = runCatching {

@@ -17,9 +17,15 @@ data class GrupoItem(
     val nombre:        String,
     val username:      String? = null,
     val passwordSet:   Boolean = false,
+    val gpCode:        String? = null,
     val iglesiaNombre:  String = "",
     val districtNombre: String = "",
     val campoNombre:    String = "",
+)
+
+data class GrupoDetalle(
+    val meetingDay:  String,  // "Sábado"
+    val meetingTime: String,  // "7:30 PM"
 )
 
 // ── Interfaz ─────────────────────────────────────────────────────────────────
@@ -30,4 +36,5 @@ interface GrupoRepository {
     suspend fun getDistritos(campoId: String? = null): List<DistritoItem>  // null = todos
     suspend fun getIglesias(distritoId: String? = null): List<IglesiaItem> // null = todas
     suspend fun getGrupos(iglesiaId: String? = null): List<GrupoItem>  // null = todos
+    suspend fun getGrupoDetalle(grupoId: String): GrupoDetalle?
 }

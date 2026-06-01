@@ -2,7 +2,10 @@ package com.gpleader.app.feature.perfil
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gpleader.app.core.data.repository.AsignadoPotencial
+import com.gpleader.app.core.data.repository.GroupLogRepository
 import com.gpleader.app.core.data.repository.MiembroRepository
+import com.gpleader.app.core.data.repository.SolicitudRepository
 import com.gpleader.app.core.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.catch
@@ -143,22 +146,30 @@ data class PerfilUiState(
     val navigateToLogin:             Boolean = false,
     val navigateToQuienEres:         Boolean = false,
     val navigateToRegistroActividad: Boolean = false,
-    val navigateToReportes:          Boolean = false,
 
     // Navegación — pantallas de retorno
     val navigateDatosPersonalesBack: Boolean = false,
     val navigateDatosGrupoBack:      Boolean = false,
 
     val navigateToActividadesLista:  Boolean = false,
+
+    // Asignar suplente (sheet)
+    val showDelegarSheet:     Boolean                 = false,
+    val asignadosPotenciales: List<AsignadoPotencial> = emptyList(),
+    val isLoadingAsignados:   Boolean                 = false,
+    val isCreandoSolicitud:   Boolean                 = false,
+    val solicitudError:       String?                 = null,
 )
 
 // ── ViewModel ─────────────────────────────────────────────────────────────────
 
 @HiltViewModel
 class PerfilViewModel @Inject constructor(
-    private val supabase:     SupabaseClient,
-    private val session:      SessionManager,
-    private val miembroRepo:  MiembroRepository,
+    private val supabase:       SupabaseClient,
+    private val session:        SessionManager,
+    private val miembroRepo:    MiembroRepository,
+    private val solicitudRepo:  SolicitudRepository,
+    private val groupLogRepo:   GroupLogRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PerfilUiState())
@@ -199,8 +210,6 @@ class PerfilViewModel @Inject constructor(
     fun consumeQuienEresNavigation()      { _uiState.update { it.copy(navigateToQuienEres = false) } }
     fun onRegistroActividadClick()           { _uiState.update { it.copy(navigateToRegistroActividad = true) } }
     fun consumeRegistroActividadNavigation() { _uiState.update { it.copy(navigateToRegistroActividad = false) } }
-    fun onReportesClick()                    { _uiState.update { it.copy(navigateToReportes = true) } }
-    fun consumeReportesNavigation()          { _uiState.update { it.copy(navigateToReportes = false) } }
     fun onActividadesListaClick()            { _uiState.update { it.copy(navigateToActividadesLista = true) } }
     fun consumeActividadesListaNavigation()  { _uiState.update { it.copy(navigateToActividadesLista = false) } }
 
@@ -348,4 +357,45 @@ class PerfilViewModel @Inject constructor(
     fun consumeLoginNavigation()             { _uiState.update { it.copy(navigateToLogin = false) } }
     fun consumeDatosPersonalesBackNavigation() { _uiState.update { it.copy(navigateDatosPersonalesBack = false) } }
     fun consumeDatosGrupoBackNavigation()    { _uiState.update { it.copy(navigateDatosGrupoBack = false) } }
+
+    // ── Asignar suplente ──────────────────────────────────────────────────────
+
+    fun onAsignarSuplenteClick() {
+        _uiState.update { it.copy(showDelegarSheet = true, isLoadingAsignados = true, solicitudError = null) }
+        viewModelScope.launch {
+            runCatching { solicitudRepo.getAsignadosPotenciales(session.grupoId) }
+                .onSuccess { lista ->
+                    val sinLider = lista.filter { it.profileId != session.miembroId }
+                    _uiState.update { it.copy(asignadosPotenciales = sinLider, isLoadingAsignados = false) }
+                }
+                .onFailure {
+                    _uiState.update { it.copy(isLoadingAsignados = false) }
+                }
+        }
+    }
+
+    fun onDismissDelegarSheet() {
+        _uiState.update { it.copy(showDelegarSheet = false, solicitudError = null) }
+    }
+
+    fun onCrearSolicitud(assignedToId: String, nota: String?) {
+        _uiState.update { it.copy(isCreandoSolicitud = true, solicitudError = null) }
+        viewModelScope.launch {
+            runCatching {
+                solicitudRepo.createSolicitud(assignedToId, session.grupoId, nota)
+            }.onSuccess {
+                val nombreDelegado = _uiState.value.asignadosPotenciales
+                    .find { it.profileId == assignedToId }?.nombre ?: "miembro"
+                groupLogRepo.logAccion(session.grupoId, "deputy_submission_created", "Delegación creada para $nombreDelegado")
+                _uiState.update { it.copy(isCreandoSolicitud = false, showDelegarSheet = false) }
+            }.onFailure { e ->
+                val msg = when {
+                    e.message?.contains("duplicate_solicitude") == true ->
+                        "Esta persona ya tiene una solicitud pendiente para este grupo"
+                    else -> "No se pudo crear la delegación"
+                }
+                _uiState.update { it.copy(isCreandoSolicitud = false, solicitudError = msg) }
+            }
+        }
+    }
 }

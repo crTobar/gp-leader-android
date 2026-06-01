@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -29,15 +30,22 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,7 +69,11 @@ import com.gpleader.app.core.ui.theme.GpLeaderTheme
 import com.gpleader.app.core.ui.theme.Ink
 import com.gpleader.app.core.ui.theme.Mid
 import com.gpleader.app.core.ui.theme.Muted
+import com.gpleader.app.core.data.repository.AsignadoPotencial
+import com.gpleader.app.core.ui.theme.Gold
 import com.gpleader.app.core.ui.theme.Shadow
+import com.gpleader.app.core.ui.components.AppBottomNavBar
+import com.gpleader.app.core.ui.components.NAV_TAB_PERFIL
 import com.gpleader.app.core.ui.theme.neuElevated
 import com.gpleader.app.core.ui.theme.neuElevatedSm
 
@@ -78,7 +90,6 @@ fun PerfilPrincipalScreen(
     onNavigateToLogin:             () -> Unit,
     onNavigateToQuienEres:         () -> Unit = {},
     onNavigateToRegistroActividad: () -> Unit = {},
-    onNavigateToReportes:          () -> Unit = {},
     onNavigateToActividadesLista:  () -> Unit = {},
     viewModel: PerfilViewModel = hiltViewModel(),
 ) {
@@ -126,12 +137,6 @@ fun PerfilPrincipalScreen(
             onNavigateToRegistroActividad()
         }
     }
-    LaunchedEffect(uiState.navigateToReportes) {
-        if (uiState.navigateToReportes) {
-            viewModel.consumeReportesNavigation()
-            onNavigateToReportes()
-        }
-    }
     LaunchedEffect(uiState.navigateToActividadesLista) {
         if (uiState.navigateToActividadesLista) {
             viewModel.consumeActividadesListaNavigation()
@@ -146,17 +151,20 @@ fun PerfilPrincipalScreen(
         onDatosGrupoClick            = viewModel::onDatosGrupoClick,
         onMiembrosClick              = viewModel::onMiembrosClick,
         onRegistroActividadClick     = viewModel::onRegistroActividadClick,
-        onReportesClick              = viewModel::onReportesClick,
         onActividadesListaClick      = viewModel::onActividadesListaClick,
         onCerrarSesionClick          = viewModel::onCerrarSesionClick,
         onDismissCerrarSesion        = viewModel::onDismissCerrarSesionDialog,
         onConfirmarCerrarSesion      = viewModel::onConfirmarCerrarSesion,
         onEditarAvatarClick          = viewModel::onEditarAvatarClick,
+        onAsignarSuplenteClick       = viewModel::onAsignarSuplenteClick,
+        onDismissDelegarSheet        = viewModel::onDismissDelegarSheet,
+        onCrearSolicitud             = viewModel::onCrearSolicitud,
     )
 }
 
 // ── Content (previewable) ─────────────────────────────────────────────────────
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PerfilContent(
     uiState:                  PerfilUiState,
@@ -165,18 +173,21 @@ private fun PerfilContent(
     onDatosGrupoClick:        () -> Unit,
     onMiembrosClick:          () -> Unit,
     onRegistroActividadClick: () -> Unit,
-    onReportesClick:          () -> Unit,
     onActividadesListaClick:  () -> Unit,
     onCerrarSesionClick:      () -> Unit,
     onDismissCerrarSesion:    () -> Unit,
     onConfirmarCerrarSesion:  () -> Unit,
     onEditarAvatarClick:      () -> Unit,
+    onAsignarSuplenteClick:   () -> Unit = {},
+    onDismissDelegarSheet:    () -> Unit = {},
+    onCrearSolicitud:         (String, String?) -> Unit = { _, _ -> },
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             containerColor = Background,
             bottomBar = {
-                PerfilBottomNavBar(
+                AppBottomNavBar(
+                    selectedTab      = NAV_TAB_PERFIL,
                     onInicioClick    = onNavigateToHome,
                     onHistorialClick = onNavigateToHistorial,
                     onPerfilClick    = { },
@@ -207,6 +218,17 @@ private fun PerfilContent(
                     )
                 }
 
+                // ── Asignar suplente ──────────────────────────────────────────
+                item {
+                    NeuButtonSecondary(
+                        text     = "Asignar suplente",
+                        onClick  = onAsignarSuplenteClick,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp, bottom = 8.dp),
+                    )
+                }
+
                 // ── Sección MI GRUPO ──────────────────────────────────────────
                 item {
                     SeccionLabel(stringResource(R.string.perfil_seccion_grupo))
@@ -229,12 +251,6 @@ private fun PerfilContent(
                         FilaMenu(
                             label   = stringResource(R.string.perfil_registro_actividad),
                             onClick = onRegistroActividadClick,
-                            shape   = FilaShape.MIDDLE,
-                        )
-                        HorizontalDivider(color = Shadow, thickness = 1.dp)
-                        FilaMenu(
-                            label   = stringResource(R.string.perfil_reportes),
-                            onClick = onReportesClick,
                             shape   = FilaShape.MIDDLE,
                         )
                         HorizontalDivider(color = Shadow, thickness = 1.dp)
@@ -269,6 +285,18 @@ private fun PerfilContent(
                     )
                 }
             }
+        }
+
+        // ── Sheet: asignar suplente ───────────────────────────────────────────
+        if (uiState.showDelegarSheet) {
+            AsignarSuplenteSheet(
+                asignados  = uiState.asignadosPotenciales,
+                isLoading  = uiState.isLoadingAsignados,
+                isCreando  = uiState.isCreandoSolicitud,
+                error      = uiState.solicitudError,
+                onCrear    = onCrearSolicitud,
+                onDismiss  = onDismissDelegarSheet,
+            )
         }
 
         // ── Dialog cerrar sesión ──────────────────────────────────────────────
@@ -567,59 +595,125 @@ private fun CerrarSesionDialog(
 
 // ── Bottom nav bar ────────────────────────────────────────────────────────────
 
-@Composable
-private fun PerfilBottomNavBar(
-    onInicioClick:    () -> Unit,
-    onHistorialClick: () -> Unit,
-    onPerfilClick:    () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Background)
-            .navigationBarsPadding()
-            .padding(horizontal = 20.dp, vertical = 8.dp),
-    ) {
-        NeuCard(modifier = Modifier.fillMaxWidth().padding(4.dp)) {
-            Row(
-                modifier              = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-            ) {
-                NavTabItem(Icons.Default.Home,      stringResource(R.string.home_nav_inicio),    false, onInicioClick)
-                NavTabItem(Icons.Default.DateRange, stringResource(R.string.home_nav_historial), false, onHistorialClick)
-                NavTabItem(Icons.Default.Person,    stringResource(R.string.home_nav_perfil),    true,  onPerfilClick)
-            }
-        }
-    }
-}
+// ── Sheet: asignar suplente ───────────────────────────────────────────────────
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NavTabItem(
-    icon:     ImageVector,
-    label:    String,
-    isActive: Boolean,
-    onClick:  () -> Unit,
+private fun AsignarSuplenteSheet(
+    asignados: List<AsignadoPotencial>,
+    isLoading: Boolean,
+    isCreando: Boolean,
+    error:     String?,
+    onCrear:   (assignedToId: String, nota: String?) -> Unit,
+    onDismiss: () -> Unit,
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier            = Modifier
-            .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 8.dp),
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var selectedId by remember { mutableStateOf<String?>(null) }
+    var nota       by remember { mutableStateOf("") }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState       = sheetState,
+        containerColor   = Background,
     ) {
-        Icon(
-            imageVector        = icon,
-            contentDescription = label,
-            tint               = if (isActive) Accent else Muted,
-            modifier           = Modifier.size(22.dp),
-        )
-        Spacer(Modifier.height(3.dp))
-        Text(
-            text  = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = if (isActive) Accent else Muted,
-        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp),
+        ) {
+            Text(
+                text       = "Asignar suplente",
+                style      = MaterialTheme.typography.titleLarge,
+                color      = Ink,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text  = "Seleccioná a quién se delega el registro.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Mid,
+            )
+            Spacer(Modifier.height(16.dp))
+
+            when {
+                isLoading -> {
+                    Box(
+                        modifier         = Modifier.fillMaxWidth().height(80.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { CircularProgressIndicator(color = Accent) }
+                }
+                asignados.isEmpty() -> {
+                    Text(
+                        text  = "No hay delegados registrados en este grupo.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Muted,
+                    )
+                }
+                else -> {
+                    LazyColumn(
+                        modifier            = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        items(asignados) { asignado ->
+                            val isSelected = asignado.profileId == selectedId
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .then(
+                                        if (isSelected) Modifier.neuElevatedSm(14.dp)
+                                        else Modifier.neuElevated(14.dp)
+                                    )
+                                    .background(
+                                        if (isSelected) Accent.copy(alpha = 0.08f) else Background,
+                                        RoundedCornerShape(14.dp),
+                                    )
+                                    .clickable { selectedId = asignado.profileId }
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text       = asignado.nombre,
+                                        style      = MaterialTheme.typography.bodyLarge,
+                                        color      = if (isSelected) Accent else Ink,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                    val rolDisplay = when (asignado.rol) {
+                                        "leader"             -> "Líder"
+                                        "co_leader"          -> "Co-líder"
+                                        "anciano"            -> "Anciano"
+                                        "pastor_practicante" -> "Pastor practicante"
+                                        "member"             -> "Miembro"
+                                        else                 -> asignado.rol
+                                    }
+                                    Text(
+                                        text  = rolDisplay,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = Mid,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (error != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(text = error, style = MaterialTheme.typography.bodyMedium, color = androidx.compose.ui.graphics.Color(0xFFD4836A))
+            }
+
+            Spacer(Modifier.height(20.dp))
+            NeuButtonPrimary(
+                text     = if (isCreando) "Creando…" else "Asignar",
+                onClick  = {
+                    val id = selectedId
+                    if (id != null && !isCreando) onCrear(id, nota.ifBlank { null })
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 
@@ -642,7 +736,6 @@ private fun PerfilPreview() {
             onDatosGrupoClick         = {},
             onMiembrosClick           = {},
             onRegistroActividadClick  = {},
-            onReportesClick           = {},
             onActividadesListaClick   = {},
             onCerrarSesionClick       = {},
             onDismissCerrarSesion     = {},
@@ -670,7 +763,6 @@ private fun PerfilDialogPreview() {
             onDatosGrupoClick         = {},
             onMiembrosClick           = {},
             onRegistroActividadClick  = {},
-            onReportesClick           = {},
             onActividadesListaClick   = {},
             onCerrarSesionClick       = {},
             onDismissCerrarSesion     = {},

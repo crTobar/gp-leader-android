@@ -58,6 +58,28 @@ class GrupoRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getGrupoDetalle(grupoId: String): GrupoDetalle? {
+        val data = supabase.from("small_group").select {
+            filter { eq("id", grupoId) }
+            limit(1)
+        }.data
+        val arr = Json.parseToJsonElement(data).jsonArray
+        if (arr.isEmpty()) return null
+        val obj = arr[0].jsonObject
+        val day      = obj["meeting_day"]?.jsonPrimitive?.contentOrNull ?: ""
+        val timeStr  = obj["meeting_time"]?.jsonPrimitive?.contentOrNull ?: ""
+        return GrupoDetalle(
+            meetingDay  = day,
+            meetingTime = formatMeetingTime(timeStr),
+        )
+    }
+
+    private fun formatMeetingTime(timeStr: String): String = try {
+        val time      = java.time.LocalTime.parse(timeStr)
+        val formatter = java.time.format.DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.ENGLISH)
+        time.format(formatter)
+    } catch (_: Exception) { timeStr }
+
     override suspend fun getGrupos(iglesiaId: String?): List<GrupoItem> {
         val data = if (iglesiaId != null) {
             supabase.from("small_group").select { filter { eq("church_id", iglesiaId) } }.data
@@ -72,6 +94,7 @@ class GrupoRepositoryImpl @Inject constructor(
                 nombre      = obj["name"]?.jsonPrimitive?.contentOrNull ?: "",
                 username    = obj["gp_username"]?.jsonPrimitive?.contentOrNull,
                 passwordSet = obj["gp_password_set"]?.jsonPrimitive?.booleanOrNull ?: false,
+                gpCode      = obj["gp_code"]?.jsonPrimitive?.contentOrNull,
             )
         }
     }

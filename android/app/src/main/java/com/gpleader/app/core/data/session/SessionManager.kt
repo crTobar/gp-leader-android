@@ -44,8 +44,67 @@ class SessionManager @Inject constructor(
         get() = prefs.getString("iglesiaNombre", "") ?: ""
         set(value) { prefs.edit { putString("iglesiaNombre", value) } }
 
+    var districtId: String
+        get() = prefs.getString("districtId", "") ?: ""
+        set(value) { prefs.edit { putString("districtId", value) } }
+
+    var districtNombre: String
+        get() = prefs.getString("districtNombre", "") ?: ""
+        set(value) { prefs.edit { putString("districtNombre", value) } }
+
+    var campoId: String
+        get() = prefs.getString("campoId", "") ?: ""
+        set(value) { prefs.edit { putString("campoId", value) } }
+
+    var campoNombre: String
+        get() = prefs.getString("campoNombre", "") ?: ""
+        set(value) { prefs.edit { putString("campoNombre", value) } }
+
+    var gpCode: String
+        get() = prefs.getString("gpCode", "") ?: ""
+        set(value) { prefs.edit { putString("gpCode", value) } }
+
+    var sessionToken: String
+        get() = prefs.getString("sessionToken", "") ?: ""
+        set(value) { prefs.edit { putString("sessionToken", value) } }
+
+    var isMiembroGuardado: Boolean
+        get() = prefs.getBoolean("isMiembroGuardado", false)
+        set(value) { prefs.edit { putBoolean("isMiembroGuardado", value) } }
+
     val isLoggedIn: Boolean
         get() = grupoId.isNotEmpty() && miembroId.isNotEmpty()
+
+    fun guardarPerfilMiembro(
+        miembroId: String,
+        nombre: String,
+        grupoId: String,
+        grupoNombre: String,
+        iglesiaId: String,
+        iglesiaNombre: String,
+    ) {
+        prefs.edit {
+            putString("miembroId", miembroId)
+            putString("miembroNombre", nombre)
+            putString("grupoId", grupoId)
+            putString("grupoNombre", grupoNombre)
+            putString("iglesiaId", iglesiaId)
+            putString("iglesiaNombre", iglesiaNombre)
+            putBoolean("isMiembroGuardado", true)
+        }
+    }
+
+    fun cerrarSesionMiembro() {
+        prefs.edit {
+            remove("miembroId")
+            remove("miembroNombre")
+            remove("grupoId")
+            remove("grupoNombre")
+            remove("iglesiaId")
+            remove("iglesiaNombre")
+            putBoolean("isMiembroGuardado", false)
+        }
+    }
 
     fun clear() {
         prefs.edit { clear() }

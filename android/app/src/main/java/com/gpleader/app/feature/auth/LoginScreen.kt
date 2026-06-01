@@ -12,9 +12,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -23,7 +28,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -115,15 +122,51 @@ private fun LoginScreenContent(
     var active by remember { mutableStateOf(ActiveDropdown.NONE) }
     var mostrarFiltros by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
+    var grupoQuery    by remember { mutableStateOf("") }
+    var campoQuery    by remember { mutableStateOf("") }
+    var distritoQuery by remember { mutableStateOf("") }
+    var iglesiaQuery  by remember { mutableStateOf("") }
 
     fun expand(d: ActiveDropdown) { active = d }
     fun collapse() { active = ActiveDropdown.NONE; focusManager.clearFocus() }
+
+    LaunchedEffect(active) {
+        if (active != ActiveDropdown.GRUPO)    grupoQuery = ""
+        if (active != ActiveDropdown.CAMPO)    campoQuery = ""
+        if (active != ActiveDropdown.DISTRITO) distritoQuery = ""
+        if (active != ActiveDropdown.IGLESIA)  iglesiaQuery = ""
+    }
+
+    val filteredGrupos = remember(grupoQuery, uiState.filteredGrupos) {
+        if (grupoQuery.isBlank()) uiState.filteredGrupos
+        else uiState.filteredGrupos.filter {
+            it.nombre.contains(grupoQuery, ignoreCase = true) ||
+            it.iglesiaNombre.contains(grupoQuery, ignoreCase = true) ||
+            it.districtNombre.contains(grupoQuery, ignoreCase = true) ||
+            it.campoNombre.contains(grupoQuery, ignoreCase = true)
+        }
+    }
+    val filteredCampos = remember(campoQuery, uiState.allCampos) {
+        if (campoQuery.isBlank()) uiState.allCampos
+        else uiState.allCampos.filter { it.nombre.contains(campoQuery, ignoreCase = true) }
+    }
+    val filteredDistritos = remember(distritoQuery, uiState.filteredDistritos) {
+        if (distritoQuery.isBlank()) uiState.filteredDistritos
+        else uiState.filteredDistritos.filter { it.nombre.contains(distritoQuery, ignoreCase = true) }
+    }
+    val filteredIglesias = remember(iglesiaQuery, uiState.filteredIglesias) {
+        if (iglesiaQuery.isBlank()) uiState.filteredIglesias
+        else uiState.filteredIglesias.filter {
+            it.nombre.contains(iglesiaQuery, ignoreCase = true) ||
+            it.districtNombre.contains(iglesiaQuery, ignoreCase = true) ||
+            it.campoNombre.contains(iglesiaQuery, ignoreCase = true)
+        }
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Background)
-            .verticalScroll(rememberScrollState())
             .statusBarsPadding()
             .navigationBarsPadding()
             .padding(horizontal = 24.dp),
@@ -151,142 +194,472 @@ private fun LoginScreenContent(
 
         Spacer(Modifier.height(36.dp))
 
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text  = stringResource(R.string.login_section_label),
-                style = MaterialTheme.typography.labelSmall,
-                color = Muted,
+        // ── Tarjeta de inicio de sesión ───────────────────────────────────────
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .neuElevated(cornerRadius = 28.dp)
+                .clip(RoundedCornerShape(28.dp))
+                .background(Background),
+        ) {
+            // ── Cabecera ───────────────────────────────────────────────────────
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Background)
+                    .padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 20.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(32.dp)
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Accent),
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text  = stringResource(R.string.login_section_label),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Accent,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text       = stringResource(R.string.login_title),
+                    style      = MaterialTheme.typography.headlineMedium,
+                    color      = Ink,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text  = stringResource(R.string.login_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Mid,
+                )
+            }
+
+            HorizontalDivider(
+                color     = Muted.copy(alpha = 0.2f),
+                thickness = 1.dp,
             )
-            Spacer(Modifier.height(4.dp))
+
+            // ── Formulario: peso 1f, padding propio ───────────────────────────
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(horizontal = 20.dp, vertical = 20.dp),
+            ) {
+
+            // ── Buscador GP fijo (no scrollea) ────────────────────────────────
+            val grupoExpandido = active == ActiveDropdown.GRUPO && !mostrarFiltros
             Text(
-                text       = stringResource(R.string.login_title),
-                style      = MaterialTheme.typography.headlineMedium,
-                color      = Ink,
-                fontWeight = FontWeight.Bold,
+                text     = stringResource(R.string.login_label_tu_gp),
+                style    = MaterialTheme.typography.labelSmall,
+                color    = if (grupoExpandido) Accent else Muted,
+                modifier = Modifier.padding(bottom = 4.dp),
             )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text  = stringResource(R.string.login_subtitle),
-                style = MaterialTheme.typography.bodyMedium,
-                color = Mid,
+            DropdownSearchBox(
+                query         = grupoQuery,
+                selectedName  = "",
+                placeholder   = stringResource(R.string.login_buscar_gp_hint),
+                expanded      = grupoExpandido,
+                isActive      = grupoExpandido,
+                leadingIcon   = {
+                    Icon(
+                        imageVector        = Icons.Default.Search,
+                        contentDescription = null,
+                        tint               = if (grupoExpandido) Accent else Muted,
+                        modifier           = Modifier.size(18.dp),
+                    )
+                },
+                onQueryChange = { q ->
+                    grupoQuery = q
+                    mostrarFiltros = false
+                    if (active != ActiveDropdown.GRUPO) expand(ActiveDropdown.GRUPO)
+                },
+                onFocused = { mostrarFiltros = false; expand(ActiveDropdown.GRUPO) },
+                onToggle  = {
+                    if (grupoExpandido) collapse()
+                    else { mostrarFiltros = false; expand(ActiveDropdown.GRUPO) }
+                },
             )
+
+            Spacer(Modifier.height(12.dp))
+
+            val contentExpandido = grupoExpandido || mostrarFiltros
+
+            if (!contentExpandido) {
+                // ── "Más opciones" arriba cuando nada está abierto ───────────
+                MasOpcionesButton(
+                    mostrarFiltros = mostrarFiltros,
+                    onClick        = { mostrarFiltros = !mostrarFiltros; if (mostrarFiltros) collapse() },
+                )
+                Spacer(Modifier.weight(1f))
+            } else {
+                // ── Zona scrollable ───────────────────────────────────────────
+                Box(modifier = Modifier.weight(1f)) {
+                    if (!mostrarFiltros) {
+                        // Lista de grupos (LazyColumn, Box tiene altura fija por weight)
+                        if (filteredGrupos.isEmpty()) {
+                            Text(
+                                text      = stringResource(R.string.login_sin_resultados),
+                                style     = MaterialTheme.typography.bodyMedium,
+                                color     = Muted,
+                                textAlign = TextAlign.Center,
+                                modifier  = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 6.dp, bottom = 12.dp),
+                            )
+                        } else {
+                            LazyColumn(
+                                modifier       = Modifier.fillMaxSize(),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                    top = 4.dp, bottom = 4.dp,
+                                ),
+                            ) {
+                                itemsIndexed(filteredGrupos, key = { _, g -> g.id }) { idx, grupo ->
+                                    val subtitulo = listOf(
+                                        grupo.iglesiaNombre,
+                                        grupo.districtNombre,
+                                        grupo.campoNombre,
+                                    ).filter { it.isNotBlank() }.joinToString(" · ")
+                                    Column {
+                                        Row(
+                                            modifier          = Modifier
+                                                .fillMaxWidth()
+                                                .clickable { onGrupoTap(grupo); collapse() }
+                                                .padding(horizontal = 4.dp, vertical = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text       = grupo.nombre,
+                                                    style      = MaterialTheme.typography.bodyLarge,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color      = Ink,
+                                                )
+                                                if (subtitulo.isNotBlank()) {
+                                                    Spacer(Modifier.height(2.dp))
+                                                    Text(
+                                                        text  = subtitulo,
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        color = Muted,
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        if (idx < filteredGrupos.lastIndex) {
+                                            HorizontalDivider(color = Muted.copy(alpha = 0.15f))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // Filtros en orden fijo. Al tocar uno, scroll automático al tope.
+                        val filterListState = rememberLazyListState()
+                        LaunchedEffect(active) {
+                            when (active) {
+                                ActiveDropdown.CAMPO    -> filterListState.animateScrollToItem(0)
+                                ActiveDropdown.DISTRITO -> filterListState.animateScrollToItem(1)
+                                ActiveDropdown.IGLESIA  -> filterListState.animateScrollToItem(2)
+                                else                    -> {}
+                            }
+                        }
+                        LazyColumn(
+                            state               = filterListState,
+                            modifier            = Modifier.fillMaxSize(),
+                            contentPadding      = androidx.compose.foundation.layout.PaddingValues(
+                                top = 4.dp, bottom = 12.dp,
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            item {
+                                FilterBlock(
+                                    label         = stringResource(R.string.login_label_campo),
+                                    placeholder   = stringResource(R.string.login_placeholder_campo),
+                                    query         = campoQuery,
+                                    selectedName  = uiState.selectedCampo?.nombre ?: "",
+                                    isExpanded    = active == ActiveDropdown.CAMPO,
+                                    onQueryChange = { q -> campoQuery = q; if (active != ActiveDropdown.CAMPO) expand(ActiveDropdown.CAMPO) },
+                                    onToggle      = { if (active == ActiveDropdown.CAMPO) collapse() else expand(ActiveDropdown.CAMPO) },
+                                    resultsContent = {
+                                        FilterItemList(
+                                            items      = filteredCampos,
+                                            itemLabel  = { it.nombre },
+                                            isSelected = { it.nombre == (uiState.selectedCampo?.nombre ?: "") },
+                                            onSelected = { onCampoSelected(it); collapse() },
+                                        )
+                                    },
+                                )
+                            }
+                            item {
+                                FilterBlock(
+                                    label         = stringResource(R.string.login_label_distrito),
+                                    placeholder   = stringResource(R.string.login_placeholder_distrito),
+                                    query         = distritoQuery,
+                                    selectedName  = uiState.selectedDistrito?.nombre ?: "",
+                                    isExpanded    = active == ActiveDropdown.DISTRITO,
+                                    onQueryChange = { q -> distritoQuery = q; if (active != ActiveDropdown.DISTRITO) expand(ActiveDropdown.DISTRITO) },
+                                    onToggle      = { if (active == ActiveDropdown.DISTRITO) collapse() else expand(ActiveDropdown.DISTRITO) },
+                                    resultsContent = {
+                                        FilterItemList(
+                                            items      = filteredDistritos,
+                                            itemLabel  = { it.nombre },
+                                            isSelected = { it.nombre == (uiState.selectedDistrito?.nombre ?: "") },
+                                            onSelected = { onDistritoSelected(it); collapse() },
+                                        )
+                                    },
+                                )
+                            }
+                            item {
+                                FilterBlock(
+                                    label         = stringResource(R.string.login_label_iglesia),
+                                    placeholder   = stringResource(R.string.login_placeholder_iglesia),
+                                    query         = iglesiaQuery,
+                                    selectedName  = uiState.selectedIglesia?.nombre ?: "",
+                                    isExpanded    = active == ActiveDropdown.IGLESIA,
+                                    onQueryChange = { q -> iglesiaQuery = q; if (active != ActiveDropdown.IGLESIA) expand(ActiveDropdown.IGLESIA) },
+                                    onToggle      = { if (active == ActiveDropdown.IGLESIA) collapse() else expand(ActiveDropdown.IGLESIA) },
+                                    resultsContent = {
+                                        IglesiaItemList(
+                                            items      = filteredIglesias,
+                                            selected   = uiState.selectedIglesia,
+                                            onSelected = { onIglesiaSelected(it); collapse() },
+                                        )
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // ── "Más opciones" baja al fondo cuando hay contenido expandido
+                MasOpcionesButton(
+                    mostrarFiltros = mostrarFiltros,
+                    onClick        = { mostrarFiltros = !mostrarFiltros; if (mostrarFiltros) collapse() },
+                )
+            }
+
+            // ── Error / Loading ───────────────────────────────────────────────
+            if (uiState.error != null) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text     = uiState.error,
+                    style    = MaterialTheme.typography.bodyMedium,
+                    color    = Blush,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            if (uiState.isLoading) {
+                Box(
+                    modifier         = Modifier.fillMaxWidth().height(56.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(color = Accent)
+                }
+            }
+            } // formulario
         }
 
         Spacer(Modifier.height(24.dp))
+    }
+}
 
-        // ── Grupo (primario, siempre visible) ─────────────────────────────────
-        GrupoDropdown(
-            label          = stringResource(R.string.login_label_tu_gp),
-            placeholder    = stringResource(R.string.login_buscar_gp_hint),
-            selectedGrupo  = null,
-            items          = uiState.filteredGrupos,
-            onItemSelected = { item -> onGrupoTap(item); collapse() },
-            expanded       = active == ActiveDropdown.GRUPO,
-            onExpand       = { expand(ActiveDropdown.GRUPO) },
-            onCollapse     = ::collapse,
-            modifier       = Modifier.fillMaxWidth(),
+// ── Bloque de filtro: buscador + resultados inline (sin LazyColumn) ───────────
+// Usado dentro de un Column(verticalScroll), por eso los resultados son Column.
+
+@Composable
+private fun FilterBlock(
+    label:          String,
+    placeholder:    String,
+    query:          String,
+    selectedName:   String,
+    isExpanded:     Boolean,
+    onQueryChange:  (String) -> Unit,
+    onToggle:       () -> Unit,
+    resultsContent: @Composable () -> Unit,
+) {
+    Text(
+        text     = label,
+        style    = MaterialTheme.typography.labelSmall,
+        color    = if (isExpanded) Accent else Muted,
+        modifier = Modifier.padding(bottom = 4.dp),
+    )
+    DropdownSearchBox(
+        query         = query,
+        selectedName  = selectedName,
+        placeholder   = placeholder,
+        expanded      = isExpanded,
+        isActive      = isExpanded,
+        leadingIcon   = {
+            Icon(
+                imageVector        = Icons.Default.Search,
+                contentDescription = null,
+                tint               = if (isExpanded) Accent else Muted,
+                modifier           = Modifier.size(18.dp),
+            )
+        },
+        onQueryChange = onQueryChange,
+        onFocused     = { if (!isExpanded) onToggle() },
+        onToggle      = onToggle,
+    )
+    if (isExpanded) {
+        Spacer(Modifier.height(6.dp))
+        resultsContent()
+    }
+}
+
+// ── Items de filtro genérico (campo / distrito) ───────────────────────────────
+
+@Composable
+private fun <T> FilterItemList(
+    items:      List<T>,
+    itemLabel:  (T) -> String,
+    isSelected: (T) -> Boolean,
+    onSelected: (T) -> Unit,
+) {
+    if (items.isEmpty()) {
+        Text(
+            text      = stringResource(R.string.login_sin_resultados),
+            style     = MaterialTheme.typography.bodyMedium,
+            color     = Muted,
+            textAlign = TextAlign.Center,
+            modifier  = Modifier.fillMaxWidth().padding(vertical = 12.dp),
         )
-
-        Spacer(Modifier.height(12.dp))
-
-        // ── Filtros avanzados (colapsados por defecto) ────────────────────────
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable {
-                    mostrarFiltros = !mostrarFiltros
-                    if (!mostrarFiltros) {
-                        collapse()
-                    }
+    } else {
+        Column {
+            items.forEachIndexed { idx, item ->
+                val sel = isSelected(item)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(if (sel) Accent.copy(alpha = 0.07f) else Color.Transparent)
+                        .clickable { onSelected(item) }
+                        .padding(horizontal = 4.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text       = itemLabel(item),
+                        style      = MaterialTheme.typography.bodyMedium,
+                        fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal,
+                        color      = if (sel) Accent else Ink,
+                        modifier   = Modifier.weight(1f),
+                    )
+                    if (sel) Icon(Icons.Default.Check, null, tint = Sage, modifier = Modifier.size(16.dp))
                 }
-                .padding(vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+                if (idx < items.lastIndex) {
+                    HorizontalDivider(color = Muted.copy(alpha = 0.15f))
+                }
+            }
+        }
+    }
+}
+
+// ── Items de iglesia (2 líneas) ───────────────────────────────────────────────
+
+@Composable
+private fun IglesiaItemList(
+    items:      List<IglesiaItem>,
+    selected:   IglesiaItem?,
+    onSelected: (IglesiaItem) -> Unit,
+) {
+    if (items.isEmpty()) {
+        Text(
+            text      = stringResource(R.string.login_sin_resultados),
+            style     = MaterialTheme.typography.bodyMedium,
+            color     = Muted,
+            textAlign = TextAlign.Center,
+            modifier  = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        )
+    } else {
+        Column {
+            items.forEachIndexed { idx, iglesia ->
+                val sel = iglesia.id == selected?.id
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(if (sel) Accent.copy(alpha = 0.07f) else Color.Transparent)
+                        .clickable { onSelected(iglesia) }
+                        .padding(horizontal = 4.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text       = iglesia.nombre,
+                            style      = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color      = if (sel) Accent else Ink,
+                        )
+                        val sub = buildString {
+                            if (iglesia.districtNombre.isNotBlank()) append(iglesia.districtNombre)
+                            if (iglesia.districtNombre.isNotBlank() && iglesia.campoNombre.isNotBlank()) append(" · ")
+                            if (iglesia.campoNombre.isNotBlank()) append(iglesia.campoNombre)
+                        }
+                        if (sub.isNotBlank()) {
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text  = sub,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (sel) Accent.copy(alpha = 0.7f) else Muted,
+                            )
+                        }
+                    }
+                    if (sel) Icon(Icons.Default.Check, null, tint = Sage, modifier = Modifier.size(18.dp))
+                }
+                if (idx < items.lastIndex) {
+                    HorizontalDivider(color = Muted.copy(alpha = 0.15f))
+                }
+            }
+        }
+    }
+}
+
+// ── Botón "Más opciones" con diseño card ─────────────────────────────────────
+
+@Composable
+private fun MasOpcionesButton(
+    mostrarFiltros: Boolean,
+    onClick:        () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (mostrarFiltros) Modifier.neuInset(cornerRadius = 14.dp)
+                else Modifier.neuElevated(cornerRadius = 14.dp)
+            )
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (mostrarFiltros) BackgroundDeep else Background)
+            .then(if (mostrarFiltros) Modifier.drawWithContent {
+                drawContent()
+                val s = 1.5.dp.toPx()
+                drawRoundRect(
+                    color        = Accent,
+                    topLeft      = Offset(s / 2, s / 2),
+                    size         = Size(size.width - s, size.height - s),
+                    cornerRadius = CornerRadius(14.dp.toPx()),
+                    style        = Stroke(width = s),
+                )
+            } else Modifier)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text      = stringResource(R.string.login_mas_opciones),
-                style     = MaterialTheme.typography.bodyMedium,
-                color     = Mid,
-                modifier  = Modifier.weight(1f),
+                text     = stringResource(R.string.login_mas_opciones),
+                style    = MaterialTheme.typography.bodyMedium,
+                color    = if (mostrarFiltros) Accent else Mid,
+                modifier = Modifier.weight(1f),
             )
             Icon(
                 imageVector        = if (mostrarFiltros) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                 contentDescription = null,
-                tint               = Muted,
-                modifier           = Modifier.size(18.dp),
+                tint               = if (mostrarFiltros) Accent else Muted,
+                modifier           = Modifier.size(20.dp),
             )
         }
-
-        AnimatedVisibility(visible = mostrarFiltros) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Spacer(Modifier.height(4.dp))
-
-                SimpleCardDropdown(
-                    label        = stringResource(R.string.login_label_campo),
-                    placeholder  = stringResource(R.string.login_placeholder_campo),
-                    selectedName = uiState.selectedCampo?.nombre ?: "",
-                    items        = uiState.allCampos,
-                    itemLabel    = { it.nombre },
-                    onItemSelected = { item -> onCampoSelected(item); collapse() },
-                    expanded   = active == ActiveDropdown.CAMPO,
-                    onExpand   = { expand(ActiveDropdown.CAMPO) },
-                    onCollapse = ::collapse,
-                    modifier   = Modifier.fillMaxWidth(),
-                )
-
-                Spacer(Modifier.height(12.dp))
-
-                SimpleCardDropdown(
-                    label        = stringResource(R.string.login_label_distrito),
-                    placeholder  = stringResource(R.string.login_placeholder_distrito),
-                    selectedName = uiState.selectedDistrito?.nombre ?: "",
-                    items        = uiState.filteredDistritos,
-                    itemLabel    = { it.nombre },
-                    onItemSelected = { item -> onDistritoSelected(item); collapse() },
-                    expanded   = active == ActiveDropdown.DISTRITO,
-                    onExpand   = { expand(ActiveDropdown.DISTRITO) },
-                    onCollapse = ::collapse,
-                    modifier   = Modifier.fillMaxWidth(),
-                )
-
-                Spacer(Modifier.height(12.dp))
-
-                IglesiaDropdown(
-                    label        = stringResource(R.string.login_label_iglesia),
-                    placeholder  = stringResource(R.string.login_placeholder_iglesia),
-                    selectedIglesia = uiState.selectedIglesia,
-                    items        = uiState.filteredIglesias,
-                    onItemSelected = { iglesia -> onIglesiaSelected(iglesia); collapse() },
-                    expanded   = active == ActiveDropdown.IGLESIA,
-                    onExpand   = { expand(ActiveDropdown.IGLESIA) },
-                    onCollapse = ::collapse,
-                    modifier   = Modifier.fillMaxWidth(),
-                )
-
-                Spacer(Modifier.height(12.dp))
-            }
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        if (uiState.error != null) {
-            Text(
-                text     = uiState.error,
-                style    = MaterialTheme.typography.bodyMedium,
-                color    = Blush,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-            )
-        }
-
-        if (uiState.isLoading) {
-            Box(
-                modifier         = Modifier.fillMaxWidth().height(56.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator(color = Accent)
-            }
-        }
-
-        Spacer(Modifier.height(40.dp))
     }
 }
 
@@ -528,6 +901,8 @@ private fun DropdownSearchBox(
     onQueryChange: (String) -> Unit,
     onFocused:    () -> Unit,
     onToggle:     () -> Unit,
+    isActive:     Boolean = false,
+    leadingIcon:  (@Composable () -> Unit)? = null,
 ) {
     Box(
         modifier = Modifier
@@ -535,6 +910,17 @@ private fun DropdownSearchBox(
             .clip(RoundedCornerShape(14.dp))
             .neuInset(cornerRadius = 14.dp)
             .background(BackgroundDeep, RoundedCornerShape(14.dp))
+            .then(if (isActive) Modifier.drawWithContent {
+                drawContent()
+                val s = 1.5.dp.toPx()
+                drawRoundRect(
+                    color        = Accent,
+                    topLeft      = Offset(s / 2, s / 2),
+                    size         = Size(size.width - s, size.height - s),
+                    cornerRadius = CornerRadius(14.dp.toPx()),
+                    style        = Stroke(width = s),
+                )
+            } else Modifier)
             .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
         BasicTextField(
@@ -548,6 +934,10 @@ private fun DropdownSearchBox(
                 .onFocusChanged { if (it.isFocused && !expanded) onFocused() },
             decorationBox = { innerTextField ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (leadingIcon != null) {
+                        leadingIcon()
+                        Spacer(Modifier.width(10.dp))
+                    }
                     Box(modifier = Modifier.weight(1f)) {
                         val hint = when {
                             query.isNotEmpty()        -> null
@@ -566,7 +956,7 @@ private fun DropdownSearchBox(
                     Icon(
                         imageVector        = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                         contentDescription = null,
-                        tint               = Muted,
+                        tint               = if (isActive) Accent else Muted,
                         modifier           = Modifier.size(20.dp).clickable(onClick = onToggle),
                     )
                 }

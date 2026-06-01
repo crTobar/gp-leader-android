@@ -3,6 +3,7 @@ package com.gpleader.app.feature.sabado
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gpleader.app.core.data.repository.AsistenciaParaGuardar
+import com.gpleader.app.core.data.repository.GroupLogRepository
 import com.gpleader.app.core.data.repository.GrupoRepository
 import com.gpleader.app.core.data.repository.IglesiaItem
 import com.gpleader.app.core.data.repository.MiembroRepository
@@ -17,9 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.DayOfWeek
 import java.time.LocalDate
-import java.time.temporal.TemporalAdjusters
 import javax.inject.Inject
 
 data class MiembroSabado(
@@ -45,17 +44,17 @@ data class SabadoCultoUiState(
 
 @HiltViewModel
 class SabadoCultoViewModel @Inject constructor(
-    private val miembroRepo: MiembroRepository,
-    private val reunionRepo: ReunionRepository,
-    private val grupoRepo: GrupoRepository,
-    private val session: SessionManager,
+    private val miembroRepo:  MiembroRepository,
+    private val reunionRepo:  ReunionRepository,
+    private val grupoRepo:    GrupoRepository,
+    private val groupLogRepo: GroupLogRepository,
+    private val session:      SessionManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SabadoCultoUiState())
     val uiState: StateFlow<SabadoCultoUiState> = _uiState.asStateFlow()
 
     private val sabadoDeEstaSemana: LocalDate = LocalDate.now()
-        .with(TemporalAdjusters.previousOrSame(DayOfWeek.SATURDAY))
 
     init {
         cargarDatos()
@@ -72,8 +71,7 @@ class SabadoCultoViewModel @Inject constructor(
                 }.getOrNull()
                 if (existente != null) {
                     existente.id
-                } else if (LocalDate.now().dayOfWeek == DayOfWeek.SATURDAY) {
-                    // Solo crear borrador si hoy es sábado
+                } else {
                     runCatching {
                         reunionRepo.saveReunion(
                             grupoId       = session.grupoId,
@@ -84,8 +82,6 @@ class SabadoCultoViewModel @Inject constructor(
                             status        = "draft",
                         ).getOrNull()
                     }.getOrNull() ?: ""
-                } else {
-                    ""
                 }
             }
 
@@ -128,6 +124,12 @@ class SabadoCultoViewModel @Inject constructor(
                         )
                     }
                 }
+        }
+    }
+
+    fun onSelTodos(presente: Boolean) {
+        _uiState.update { state ->
+            state.copy(miembros = state.miembros.map { m -> m.copy(presente = presente) })
         }
     }
 
@@ -198,6 +200,9 @@ class SabadoCultoViewModel @Inject constructor(
             }
             reunionRepo.submitSabbathMeeting(meetingId, asistencias)
                 .onSuccess {
+                    val fmtFecha   = java.time.format.DateTimeFormatter.ofPattern("EEE d 'De' MMMM", java.util.Locale("es"))
+                    val fechaLabel = sabadoDeEstaSemana.format(fmtFecha).split(" ").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+                    groupLogRepo.logAccion(session.grupoId, "saturday_worship_submitted", "Culto sábado del $fechaLabel registrado por ${session.miembroNombre}")
                     _uiState.update { it.copy(isSending = false, navigateToExito = true) }
                 }
                 .onFailure { e ->

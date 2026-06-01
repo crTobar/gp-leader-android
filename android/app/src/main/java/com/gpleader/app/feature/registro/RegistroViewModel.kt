@@ -3,12 +3,17 @@ package com.gpleader.app.feature.registro
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gpleader.app.R
 import com.gpleader.app.core.data.repository.ActividadRepository
 import com.gpleader.app.core.data.repository.ActividadTipoData
+import com.gpleader.app.core.data.repository.ActividadTotalData
 import com.gpleader.app.core.data.repository.AsistenciaParaGuardar
+import com.gpleader.app.core.data.repository.ChurchHit
+import com.gpleader.app.core.data.repository.GroupLogRepository
+import com.gpleader.app.core.data.repository.IglesiaRepository
 import com.gpleader.app.core.data.repository.MiembroRepository
 import com.gpleader.app.core.data.repository.RegistroActividadData
 import com.gpleader.app.core.data.repository.ReunionRepository
@@ -17,6 +22,8 @@ import com.gpleader.app.core.data.repository.nombreCompleto
 import com.gpleader.app.core.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,7 +37,8 @@ import javax.inject.Inject
 
 enum class EstadoAsistencia { PRESENTE, AUSENTE, JUSTIFICADO }
 enum class NivelActividad   { UNION, PASTOR, GP }
-enum class TipoMarcador     { CHECKBOX, CONTADOR, MONETARIO }
+enum class TipoMarcador     { CHECKBOX, CONTADOR, MONETARIO, PARTICIPANTES }
+enum class RegistryKind     { GP_MEETING, SATURDAY_WORSHIP }
 
 // ── Domain models ──────────────────────────────────────────────────────────────
 
@@ -59,8 +67,9 @@ data class MiembroDesglose(
     val miembroId:     String,
     val nombre:        String,
     val iniciales:     String,
-    val cantidad:      Int    = 0,
-    val montoDesglose: Double = 0.0,  // para actividades MONETARIO
+    val cantidad:      Int     = 0,
+    val montoDesglose: Double  = 0.0,  // para actividades MONETARIO
+    val participo:     Boolean = false, // para actividades PARTICIPANTES
 )
 
 data class ActividadRegistro(
@@ -80,6 +89,10 @@ data class ActividadRegistro(
     val tieneDesglose:    Boolean    = false,
     val desgloseExpandido: Boolean   = false,
     val desgloseMiembros: List<MiembroDesglose> = emptyList(),
+    val totalAcumulado:   Int?       = null,   // acumulado del periodo para CONTADOR y PARTICIPANTES
+    val montoAcumulado:   Double?    = null,   // acumulado del periodo para MONETARIO
+    val startDate:        java.time.LocalDate? = null,
+    val endDate:          java.time.LocalDate? = null,
 )
 
 // ── UI state ──────────────────────────────────────────────────────────────────
@@ -87,6 +100,8 @@ data class ActividadRegistro(
 data class RegistroUiState(
     val nombreGrupo:       String                  = "",
     val mensajePaso3:    String?                 = null,
+    // ── Tipo de registro ─────────────────────────────────────────────────────
+    val registryKind:      RegistryKind            = RegistryKind.GP_MEETING,
     // ── Paso 1 ───────────────────────────────────────────────────────────────
     val fecha:             LocalDate               = LocalDate.now(),
     val noHuboReunion:     Boolean                 = false,
@@ -99,6 +114,12 @@ data class RegistroUiState(
     val showConfirmNoHuboReunion: Boolean          = false,
     val errorSinAsistencia: Boolean                = false,
     val errorSinAsistenciaTrigger: Int             = 0,
+    // ── Culto de sábado — iglesia por miembro ────────────────────────────────
+    val groupChurch:           ChurchHit?                   = null,
+    val memberChurches:        Map<String, ChurchHit>       = emptyMap(),
+    val memberChurchQueries:   Map<String, String>          = emptyMap(),
+    val memberChurchResults:   Map<String, List<ChurchHit>> = emptyMap(),
+    val memberChurchSearching: Set<String>                  = emptySet(),
     // ── Paso 2 ───────────────────────────────────────────────────────────────
     val actividades:                  List<ActividadRegistro> = emptyList(),
     val errorActividadesObligatorias: Boolean                 = false,
@@ -117,11 +138,14 @@ data class RegistroUiState(
 
 @HiltViewModel
 class RegistroViewModel @Inject constructor(
+    savedStateHandle:              SavedStateHandle,
     @ApplicationContext private val context: Context,
-    private val miembroRepo: MiembroRepository,
-    private val reunionRepo: ReunionRepository,
-    private val actividadRepo: ActividadRepository,
-    private val session: SessionManager,
+    private val miembroRepo:       MiembroRepository,
+    private val reunionRepo:       ReunionRepository,
+    private val actividadRepo:     ActividadRepository,
+    private val groupLogRepo:      GroupLogRepository,
+    private val iglesiaRepo:       IglesiaRepository,
+    private val session:           SessionManager,
 ) : ViewModel() {
 
     private val prefs by lazy {
@@ -129,18 +153,40 @@ class RegistroViewModel @Inject constructor(
     }
     private fun justificadoUsos() = prefs.getInt("justificado_usos", 0)
 
+    private val registryKind: RegistryKind = when (savedStateHandle.get<String>("kind")) {
+        "saturday_worship" -> RegistryKind.SATURDAY_WORSHIP
+        else               -> RegistryKind.GP_MEETING
+    }
+
     private val _uiState = MutableStateFlow(RegistroUiState())
     val uiState: StateFlow<RegistroUiState> = _uiState.asStateFlow()
+
+    private val churchSearchJobs = mutableMapOf<String, Job>()
 
     init {
         _uiState.update {
             it.copy(
                 showJustificadoHint = justificadoUsos() < 5,
                 nombreGrupo         = session.grupoNombre,
+                registryKind        = registryKind,
             )
         }
         cargarMiembros()
         cargarVisitasAnteriores()
+        if (registryKind == RegistryKind.SATURDAY_WORSHIP) {
+            cargarGroupChurch()
+        }
+    }
+
+    private fun cargarGroupChurch() {
+        val iglesiaId = session.iglesiaId
+        if (iglesiaId.isBlank()) return
+        viewModelScope.launch {
+            val hit = runCatching { iglesiaRepo.getChurchById(iglesiaId) }.getOrNull()
+            if (hit != null) {
+                _uiState.update { it.copy(groupChurch = hit) }
+            }
+        }
     }
 
     private fun cargarMiembros() {
@@ -162,10 +208,13 @@ class RegistroViewModel @Inject constructor(
 
     private fun cargarActividades(desgloseVacio: List<MiembroDesglose>) {
         viewModelScope.launch {
-            actividadRepo.getActividadesTipo(session.iglesiaId).fold(
+            actividadRepo.getActividadesTipo(session.iglesiaId, session.districtId, session.campoId, session.grupoId).fold(
                 onSuccess = { tipos ->
+                    val filtrados = filteredActivityTypes(tipos)
+                    val totales = actividadRepo.getActividadesConTotales(session.grupoId)
+                        .getOrElse { emptyMap() }
                     _uiState.update { s ->
-                        s.copy(actividades = tipos.map { it.toActividadRegistro(desgloseVacio) })
+                        s.copy(actividades = filtrados.map { it.toActividadRegistro(desgloseVacio, totales[it.id]) })
                     }
                 },
                 onFailure = { /* mantener lista vacía */ },
@@ -173,20 +222,43 @@ class RegistroViewModel @Inject constructor(
         }
     }
 
-    private fun ActividadTipoData.toActividadRegistro(desgloseVacio: List<MiembroDesglose>): ActividadRegistro {
+    private fun filteredActivityTypes(source: List<ActividadTipoData>): List<ActividadTipoData> {
+        if (_uiState.value.registryKind != RegistryKind.SATURDAY_WORSHIP) return source
+        val keywords = listOf("sabado", "sabbath", "culto", "escuela sabatica", "escuela sab")
+        fun normalize(s: String) = s.lowercase()
+            .replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u")
+        val filtered = source.filter { tipo ->
+            val haystack = normalize(tipo.nombre)
+            keywords.any { haystack.contains(it) }
+        }
+        return if (filtered.isEmpty()) source else filtered
+    }
+
+    fun recargarActividades() {
+        val desgloseVacio = _uiState.value.miembros.map { m ->
+            MiembroDesglose(m.id, m.nombre, m.iniciales)
+        }
+        cargarActividades(desgloseVacio)
+    }
+
+    private fun ActividadTipoData.toActividadRegistro(
+        desgloseVacio: List<MiembroDesglose>,
+        total: ActividadTotalData? = null,
+    ): ActividadRegistro {
         val nivel = when (level) {
             "union"  -> NivelActividad.UNION
             "pastor" -> NivelActividad.PASTOR
             else     -> NivelActividad.GP
         }
         val tipo = when (markerType) {
-            "monetary" -> TipoMarcador.MONETARIO
-            "checkbox" -> TipoMarcador.CHECKBOX
-            else       -> TipoMarcador.CONTADOR
+            "monetary"     -> TipoMarcador.MONETARIO
+            "checkbox"     -> TipoMarcador.CHECKBOX
+            "participants" -> TipoMarcador.PARTICIPANTES
+            else           -> TipoMarcador.CONTADOR
         }
-        val bloqueada     = nivel == NivelActividad.UNION
+        val bloqueada     = false
         val esObligatoria = nivel == NivelActividad.PASTOR && tipo == TipoMarcador.CONTADOR
-        val tieneDesglose = nivel == NivelActividad.PASTOR && tipo == TipoMarcador.CONTADOR
+        val tieneDesglose = !bloqueada && tipo != TipoMarcador.CHECKBOX
         return ActividadRegistro(
             id               = id,
             nombre           = nombre,
@@ -198,7 +270,10 @@ class RegistroViewModel @Inject constructor(
             tipoMarcador     = tipo,
             bloqueada        = bloqueada,
             tieneDesglose    = tieneDesglose,
+            desgloseExpandido = true,
             desgloseMiembros = if (tieneDesglose) desgloseVacio else emptyList(),
+            totalAcumulado   = total?.totalCantidad,
+            montoAcumulado   = total?.montoTotal,
         )
     }
 
@@ -367,13 +442,71 @@ class RegistroViewModel @Inject constructor(
         _uiState.update { it.copy(visitasColapsadas = !it.visitasColapsadas) }
     }
 
+    // ── Culto de sábado — búsqueda de iglesia por miembro ────────────────────
+
+    fun updateMemberChurchQuery(memberId: String, query: String) {
+        _uiState.update { s ->
+            s.copy(memberChurchQueries = s.memberChurchQueries + (memberId to query))
+        }
+        churchSearchJobs[memberId]?.cancel()
+        churchSearchJobs[memberId] = viewModelScope.launch {
+            _uiState.update { s -> s.copy(memberChurchSearching = s.memberChurchSearching + memberId) }
+            if (query.isNotBlank()) delay(380)
+            val results = runCatching {
+                iglesiaRepo.searchChurches(query, maxResults = if (query.isBlank()) 20 else 5)
+            }.getOrElse { emptyList() }
+            _uiState.update { s ->
+                s.copy(
+                    memberChurchResults   = s.memberChurchResults + (memberId to results),
+                    memberChurchSearching = s.memberChurchSearching - memberId,
+                )
+            }
+        }
+    }
+
+    fun selectMemberChurch(memberId: String, hit: ChurchHit) {
+        churchSearchJobs[memberId]?.cancel()
+        _uiState.update { s ->
+            s.copy(
+                memberChurches      = s.memberChurches + (memberId to hit),
+                memberChurchQueries = s.memberChurchQueries + (memberId to hit.churchName),
+                memberChurchResults = s.memberChurchResults - memberId,
+                memberChurchSearching = s.memberChurchSearching - memberId,
+            )
+        }
+    }
+
+    fun clearMemberChurch(memberId: String) {
+        churchSearchJobs[memberId]?.cancel()
+        _uiState.update { s ->
+            s.copy(
+                memberChurches      = s.memberChurches - memberId,
+                memberChurchQueries = s.memberChurchQueries + (memberId to ""),
+                memberChurchResults = s.memberChurchResults - memberId,
+                memberChurchSearching = s.memberChurchSearching - memberId,
+            )
+        }
+    }
+
     fun onContinuarClick() {
         val alguno = _uiState.value.miembros.any { it.estado != null }
         if (!alguno) {
             _uiState.update { it.copy(errorSinAsistencia = true, errorSinAsistenciaTrigger = it.errorSinAsistenciaTrigger + 1) }
             return
         }
-        _uiState.update { it.copy(navigateToPaso2 = true) }
+        if (_uiState.value.registryKind == RegistryKind.SATURDAY_WORSHIP) {
+            _uiState.update { it.copy(navigateToPaso3 = true) }
+        } else {
+            _uiState.update { it.copy(navigateToPaso2 = true) }
+        }
+    }
+
+    fun onRegistryKindChange(kind: RegistryKind) {
+        _uiState.update { it.copy(registryKind = kind) }
+        if (kind == RegistryKind.SATURDAY_WORSHIP && _uiState.value.groupChurch == null) {
+            cargarGroupChurch()
+        }
+        recargarActividades()
     }
 
     // ── Paso 2 ────────────────────────────────────────────────────────────────
@@ -383,16 +516,45 @@ class RegistroViewModel @Inject constructor(
             s.copy(
                 actividades = s.actividades.map { a ->
                     if (a.id != actividadId) return@map a
-                    // Si el desglose existente supera el nuevo total, resetear contadores
-                    val newDesglose = if (a.tieneDesglose && cantidad != null) {
-                        val sum = a.desgloseMiembros.sumOf { it.cantidad }
-                        if (sum > cantidad) a.desgloseMiembros.map { it.copy(cantidad = 0) }
-                        else a.desgloseMiembros
-                    } else a.desgloseMiembros
+                    val newDesglose = when {
+                        a.tipoMarcador == TipoMarcador.CONTADOR && a.tieneDesglose && cantidad != null -> {
+                            val sum = a.desgloseMiembros.sumOf { it.cantidad }
+                            if (sum > cantidad) a.desgloseMiembros.map { it.copy(cantidad = 0) }
+                            else a.desgloseMiembros
+                        }
+                        a.tipoMarcador == TipoMarcador.PARTICIPANTES && cantidad != null -> {
+                            val checked = a.desgloseMiembros.count { it.participo }
+                            if (checked > cantidad) {
+                                // Desmarcar el exceso desde el final de la lista
+                                var restante = checked - cantidad
+                                a.desgloseMiembros.map { m ->
+                                    if (m.participo && restante > 0) { restante--; m.copy(participo = false) }
+                                    else m
+                                }
+                            } else a.desgloseMiembros
+                        }
+                        else -> a.desgloseMiembros
+                    }
                     a.copy(cantidad = cantidad, desgloseMiembros = newDesglose)
                 },
                 errorActividadesObligatorias = false,
             )
+        }
+    }
+
+    fun onDesgloseParticipacionChange(actividadId: String, miembroId: String, checked: Boolean) {
+        _uiState.update { s ->
+            s.copy(actividades = s.actividades.map { a ->
+                if (a.id != actividadId) return@map a
+                val newDesglose = a.desgloseMiembros.map { m ->
+                    if (m.miembroId == miembroId) m.copy(participo = checked) else m
+                }
+                val count = newDesglose.count { it.participo }
+                a.copy(
+                    desgloseMiembros = newDesglose,
+                    cantidad = count.takeIf { count > 0 },
+                )
+            })
         }
     }
 
@@ -408,14 +570,14 @@ class RegistroViewModel @Inject constructor(
         _uiState.update { s ->
             s.copy(actividades = s.actividades.map { a ->
                 if (a.id != actividadId) return@map a
-                val totalGeneral = a.cantidad ?: Int.MAX_VALUE
-                val sumOtros = a.desgloseMiembros
-                    .filter { it.miembroId != miembroId }
-                    .sumOf { it.cantidad }
-                val maxEste = (totalGeneral - sumOtros).coerceAtLeast(0)
-                a.copy(desgloseMiembros = a.desgloseMiembros.map { m ->
-                    if (m.miembroId == miembroId) m.copy(cantidad = nuevaCantidad.coerceIn(0, maxEste)) else m
-                })
+                val newDesglose = a.desgloseMiembros.map { m ->
+                    if (m.miembroId == miembroId) m.copy(cantidad = nuevaCantidad.coerceAtLeast(0)) else m
+                }
+                val nuevoTotal = newDesglose.sumOf { it.cantidad }
+                a.copy(
+                    desgloseMiembros = newDesglose,
+                    cantidad = nuevoTotal.takeIf { nuevoTotal > 0 },
+                )
             })
         }
     }
@@ -443,14 +605,14 @@ class RegistroViewModel @Inject constructor(
         _uiState.update { s ->
             s.copy(actividades = s.actividades.map { a ->
                 if (a.id != actividadId) return@map a
-                val montoTotal = a.monto ?: Double.MAX_VALUE
-                val sumOtros = a.desgloseMiembros
-                    .filter { it.miembroId != miembroId }
-                    .sumOf { it.montoDesglose }
-                val maxEste = (montoTotal - sumOtros).coerceAtLeast(0.0)
-                a.copy(desgloseMiembros = a.desgloseMiembros.map { m ->
-                    if (m.miembroId == miembroId) m.copy(montoDesglose = nuevoMonto.coerceIn(0.0, maxEste)) else m
-                })
+                val newDesglose = a.desgloseMiembros.map { m ->
+                    if (m.miembroId == miembroId) m.copy(montoDesglose = nuevoMonto.coerceAtLeast(0.0)) else m
+                }
+                val nuevoMontoTotal = newDesglose.sumOf { it.montoDesglose }
+                a.copy(
+                    desgloseMiembros = newDesglose,
+                    monto = nuevoMontoTotal.takeIf { nuevoMontoTotal > 0.0 },
+                )
             })
         }
     }
@@ -467,36 +629,29 @@ class RegistroViewModel @Inject constructor(
     }
 
     fun onAgregarActividadExtra(
-        nombre:        String,
-        tipoMarcador:  TipoMarcador,
-        cantidad:      Int?,
-        unidad:        String,
-        monto:         Double?,
-        tieneDesglose: Boolean,
+        nombre:             String,
+        markerType:         String,
+        isMemberAccessible: Boolean,
+        startDate:          java.time.LocalDate? = null,
+        endDate:            java.time.LocalDate? = null,
     ) {
         if (nombre.isBlank()) return
-        val id = "extra_${System.currentTimeMillis()}"
-        val desgloseVacio = if (tieneDesglose)
-            _uiState.value.miembros.map { m ->
-                MiembroDesglose(m.id, m.nombre, m.iniciales)
+        viewModelScope.launch {
+            actividadRepo.saveActividadTipo(
+                nombre             = nombre.trim(),
+                level              = "my_group",
+                markerType         = markerType,
+                frecuencia         = "semanal",
+                unitLabel          = "",
+                isMemberAccessible = isMemberAccessible,
+                iglesiaId          = session.iglesiaId,
+                grupoId            = session.grupoId,
+                scope              = "group",
+                startDate          = startDate,
+                endDate            = endDate,
+            ).onSuccess {
+                recargarActividades()
             }
-        else emptyList()
-        _uiState.update { s ->
-            s.copy(
-                actividades = s.actividades + ActividadRegistro(
-                    id             = id,
-                    nombre         = nombre.trim(),
-                    nivel          = NivelActividad.GP,
-                    unidad         = unidad,
-                    esOficial      = false,
-                    esExtra        = true,
-                    tipoMarcador   = tipoMarcador,
-                    cantidad       = cantidad,
-                    monto          = monto,
-                    tieneDesglose  = tieneDesglose,
-                    desgloseMiembros = desgloseVacio,
-                )
-            )
         }
     }
 
@@ -504,9 +659,10 @@ class RegistroViewModel @Inject constructor(
         val hayVacia = _uiState.value.actividades.any { a ->
             if (!a.esObligatoria) return@any false
             when (a.tipoMarcador) {
-                TipoMarcador.CHECKBOX  -> a.realizado == null
-                TipoMarcador.CONTADOR  -> a.cantidad == null
-                TipoMarcador.MONETARIO -> a.monto == null
+                TipoMarcador.CHECKBOX      -> a.realizado == null
+                TipoMarcador.CONTADOR      -> a.cantidad == null
+                TipoMarcador.MONETARIO     -> a.monto == null
+                TipoMarcador.PARTICIPANTES -> a.cantidad == null
             }
         }
         if (hayVacia) {
@@ -549,14 +705,18 @@ class RegistroViewModel @Inject constructor(
         _uiState.update { it.copy(isEnviando = true, errorEnvio = null, mensajePaso3 = null) }
         viewModelScope.launch {
             val state = _uiState.value
+            val esSabado = state.registryKind == RegistryKind.SATURDAY_WORSHIP
             val asistencias = buildList {
                 state.miembros.forEach { m ->
-                    if (m.estado != null) add(
+                    add(
                         AsistenciaParaGuardar(
-                            miembroId    = m.id,
-                            nombreVisita = null,
-                            esVisita     = false,
-                            estado       = m.estado.name,
+                            miembroId       = m.id,
+                            nombreVisita    = null,
+                            esVisita        = false,
+                            estado          = (m.estado ?: EstadoAsistencia.AUSENTE).name,
+                            iglesiaVisitadaId = if (esSabado)
+                                state.memberChurches[m.id]?.id ?: state.groupChurch?.id
+                            else null,
                         )
                     )
                 }
@@ -576,11 +736,12 @@ class RegistroViewModel @Inject constructor(
                 fecha         = state.fecha,
                 noHuboReunion = state.noHuboReunion,
                 asistencias   = asistencias,
+                tipoReunion   = if (esSabado) "saturday_worship" else "gp_meeting",
             )
 
             if (reunionResult.isFailure) {
                 val e = reunionResult.exceptionOrNull()
-                val msg = if (e?.message?.contains("23505") == true || e?.message?.contains("duplicate key") == true)
+                val msg = if (e?.message?.contains("23505") == true || e?.message?.contains("duplicate key") == true || e?.message?.contains("meeting_unique") == true)
                     "Ya existe una reunión registrada para esta fecha."
                 else
                     e?.message ?: "Error al enviar. Intenta de nuevo."
@@ -589,6 +750,14 @@ class RegistroViewModel @Inject constructor(
             }
 
             val meetingId = reunionResult.getOrThrow()
+
+            // Log de reunión enviada (best-effort)
+            val fmtFecha = java.time.format.DateTimeFormatter.ofPattern("EEE d 'De' MMMM", java.util.Locale("es"))
+            val fechaLabel = state.fecha.format(fmtFecha).split(" ").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+            val actionType = if (esSabado) "saturday_worship_submitted" else "meeting_submitted"
+            val actionMsg  = if (esSabado) "Culto de sábado del $fechaLabel enviado por ${session.miembroNombre}"
+                             else "Reunión de GP del $fechaLabel enviada por ${session.miembroNombre}"
+            groupLogRepo.logAccion(session.grupoId, actionType, actionMsg)
 
             // Guardar registros de actividades (best-effort; no bloquea al usuario si falla)
             if (!state.noHuboReunion) {
@@ -609,8 +778,9 @@ class RegistroViewModel @Inject constructor(
                 false -> 0
                 null  -> return null  // no interactuada, no guardar
             }
-            TipoMarcador.CONTADOR  -> a.cantidad  // null = no llenada, se guarda como null
-            TipoMarcador.MONETARIO -> null         // monto va en campo separado
+            TipoMarcador.CONTADOR      -> a.cantidad  // null = no llenada, se guarda como null
+            TipoMarcador.MONETARIO     -> null         // monto va en campo separado
+            TipoMarcador.PARTICIPANTES -> a.cantidad  // se guarda el total global declarado
         }
         return RegistroActividadData(
             actividadTipoId = a.id,

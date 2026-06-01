@@ -14,31 +14,47 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -64,18 +80,21 @@ import com.gpleader.app.core.ui.theme.Mid
 import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.Sage
 import com.gpleader.app.core.ui.theme.Violet
+import com.gpleader.app.core.ui.components.AppBottomNavBar
+import com.gpleader.app.core.ui.components.NAV_TAB_HISTORIAL
+import com.gpleader.app.core.ui.components.NAV_TAB_INICIO
 import com.gpleader.app.core.ui.theme.neuElevated
 import com.gpleader.app.core.ui.theme.neuElevatedSm
+import com.gpleader.app.core.data.repository.AsignadoPotencial
 import com.gpleader.app.core.data.repository.SabbathMeetingResumen
+import com.gpleader.app.core.data.repository.Solicitud
 import com.gpleader.app.core.ui.theme.neuGlow
+import com.gpleader.app.core.ui.theme.neuInset
+import com.gpleader.app.core.ui.theme.neuInsetSm
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
 
-// ── Constantes para las pestañas del bottom nav ───────────────────────────────
-private const val TAB_INICIO    = 0
-private const val TAB_HISTORIAL = 1
-private const val TAB_PERFIL    = 2
 
 // Nombres de mes abreviados en español
 private val MESES_ES = arrayOf(
@@ -86,7 +105,7 @@ private val MESES_ES = arrayOf(
 
 @Composable
 fun HomeScreen(
-    onNavigateToRegistro: () -> Unit,
+    onNavigateToRegistro: (kind: String) -> Unit,
     onNavigateToHistorial: () -> Unit,
     onNavigateToDetalle: (String) -> Unit,
     onNavigateToPerfil: () -> Unit = {},
@@ -103,12 +122,6 @@ fun HomeScreen(
         }
     }
 
-    LaunchedEffect(uiState.navigateToRegistro) {
-        if (uiState.navigateToRegistro) {
-            onNavigateToRegistro()
-            viewModel.consumeRegistroNavigation()
-        }
-    }
     LaunchedEffect(uiState.navigateToHistorial) {
         if (uiState.navigateToHistorial) {
             onNavigateToHistorial()
@@ -130,13 +143,19 @@ fun HomeScreen(
     }
 
     HomeScreenContent(
-        uiState              = uiState,
-        onRegistrarClick     = viewModel::onRegistrarClick,
-        onVerTodasClick      = viewModel::onVerTodasClick,
-        onReunionClick       = viewModel::onReunionClick,
-        onHistorialTabClick  = onNavigateToHistorial,
-        onPerfilTabClick     = onNavigateToPerfil,
-        onSabadoCultoClick   = viewModel::onSabadoCultoClick,
+        uiState               = uiState,
+        onNavigateToRegistro  = onNavigateToRegistro,
+        onVerTodasClick       = viewModel::onVerTodasClick,
+        onReunionClick        = viewModel::onReunionClick,
+        onHistorialTabClick   = onNavigateToHistorial,
+        onPerfilTabClick      = onNavigateToPerfil,
+        onSabadoCultoClick    = viewModel::onSabadoCultoClick,
+        onDelegarClick        = viewModel::onDelegarClick,
+        onCancelarSolicitud   = viewModel::onCancelarSolicitud,
+        onCrearSolicitud      = viewModel::onCrearSolicitud,
+        onDismissDelegarSheet = viewModel::onDismissDelegarSheet,
+        onActivarSolicitud    = viewModel::onActivarSolicitud,
+        onDismissActivarDialog = viewModel::onDismissActivarDialog,
     )
 }
 
@@ -146,26 +165,33 @@ fun HomeScreen(
 @Composable
 private fun HomeScreenContent(
     uiState: HomeUiState,
-    onRegistrarClick: () -> Unit,
+    onNavigateToRegistro: (kind: String) -> Unit = {},
     onVerTodasClick: () -> Unit,
     onReunionClick: (String) -> Unit,
     onHistorialTabClick: () -> Unit,
     onPerfilTabClick: () -> Unit = {},
     onSabadoCultoClick: () -> Unit = {},
+    onDelegarClick: () -> Unit = {},
+    onCancelarSolicitud: (String) -> Unit = {},
+    onCrearSolicitud: (String, String?) -> Unit = { _, _ -> },
+    onDismissDelegarSheet: () -> Unit = {},
+    onActivarSolicitud: (String) -> Unit = {},
+    onDismissActivarDialog: () -> Unit = {},
 ) {
-    var selectedTab by remember { mutableIntStateOf(TAB_INICIO) }
+    var selectedTab        by remember { mutableIntStateOf(NAV_TAB_INICIO) }
+    var showRegistrarSheet by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = Background,
         bottomBar = {
-            BottomNavBar(
-                selectedTab     = selectedTab,
-                onInicioClick   = { selectedTab = TAB_INICIO },
+            AppBottomNavBar(
+                selectedTab      = selectedTab,
+                onInicioClick    = { selectedTab = NAV_TAB_INICIO },
                 onHistorialClick = {
-                    selectedTab = TAB_HISTORIAL
+                    selectedTab = NAV_TAB_HISTORIAL
                     onHistorialTabClick()
                 },
-                onPerfilClick   = { onPerfilTabClick() },
+                onPerfilClick    = { onPerfilTabClick() },
             )
         },
     ) { innerPadding ->
@@ -183,7 +209,7 @@ private fun HomeScreenContent(
 
                 TopBar(
                     nombreLider      = uiState.nombreLider,
-                    onRegistrarClick = onRegistrarClick,
+                    onRegistrarClick = { showRegistrarSheet = true },
                 )
 
                 Spacer(Modifier.height(20.dp))
@@ -238,8 +264,47 @@ private fun HomeScreenContent(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                 )
 
+                Spacer(Modifier.height(8.dp))
+
+                // ── Solicitudes activas ───────────────────────────────────────
+                if (uiState.solicitudesActivas.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    SectionSeparator(label = "DELEGACIONES")
+                    Spacer(Modifier.height(12.dp))
+                    uiState.solicitudesActivas.forEach { solicitud ->
+                        SolicitudActivaCard(
+                            solicitud = solicitud,
+                            onCancelar = { onCancelarSolicitud(solicitud.id) },
+                            modifier  = Modifier.padding(vertical = 4.dp),
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+
+
                 Spacer(Modifier.height(16.dp))
             }
+        }
+    }
+
+    // ── Sheet: elegir tipo de registro ────────────────────────────────────────
+    if (showRegistrarSheet) {
+        TipoRegistroSheet(
+            onDismiss    = { showRegistrarSheet = false },
+            onGpMeeting  = { showRegistrarSheet = false; onNavigateToRegistro("gp_meeting") },
+            onSabado     = { showRegistrarSheet = false; onNavigateToRegistro("saturday_worship") },
+        )
+    }
+
+    // ── Dialogo: solicitud asignada pendiente de activar ─────────────────────
+    if (uiState.showActivarDialog) {
+        val sol = uiState.solicitudAsignada
+        if (sol != null) {
+            ActivarSolicitudDialog(
+                solicitud  = sol,
+                onActivar  = { onActivarSolicitud(sol.id) },
+                onDismiss  = onDismissActivarDialog,
+            )
         }
     }
 
@@ -604,7 +669,7 @@ private fun GrupoCard(
                 Text(
                     text  = "$porcentajeAsistencia%",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Sage,
+                    color = Accent,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
@@ -617,7 +682,7 @@ private fun GrupoCard(
                     .fillMaxWidth()
                     .height(8.dp)
                     .clip(RoundedCornerShape(4.dp)),
-                color      = Sage,
+                color      = Accent,
                 trackColor = BackgroundDeep,
                 strokeCap  = StrokeCap.Round,
             )
@@ -687,9 +752,9 @@ private fun StatCellFeatured(
 ) {
     Box(
         modifier = modifier
-            .neuElevated(cornerRadius = 20.dp)
+            .neuGlow(cornerRadius = 20.dp)
             .clip(RoundedCornerShape(20.dp))
-            .background(Ink),
+            .background(Accent),
         contentAlignment = Alignment.Center,
     ) {
         Column(
@@ -713,7 +778,7 @@ private fun StatCellFeatured(
             Text(
                 text  = stringResource(R.string.home_label_ult_reunion),
                 style = MaterialTheme.typography.labelSmall,
-                color = Color.White.copy(alpha = 0.5f),
+                color = Color.White.copy(alpha = 0.6f),
             )
         }
     }
@@ -795,10 +860,10 @@ private fun ReunionCard(
     val progreso = if (total > 0) reunion.presentes / total.toFloat() else 0f
 
     val (badgeColor, badgeBgColor, badgeTexto) = when (reunion.estado) {
-        EstadoReunion.ENVIADA        -> Triple(Sage, Sage.copy(alpha = 0.15f), stringResource(R.string.home_badge_enviada))
-        EstadoReunion.APROBADA       -> Triple(Sage, Sage.copy(alpha = 0.15f), stringResource(R.string.home_badge_aprobada))
-        EstadoReunion.PENDIENTE_SYNC -> Triple(Gold, Gold.copy(alpha = 0.15f), stringResource(R.string.home_badge_pendiente))
-        EstadoReunion.BORRADOR       -> Triple(Muted, Muted.copy(alpha = 0.15f), stringResource(R.string.home_badge_borrador))
+        EstadoReunion.ENVIADA        -> Triple(Accent, Accent.copy(alpha = 0.12f), stringResource(R.string.home_badge_enviada))
+        EstadoReunion.APROBADA       -> Triple(Sage,   Sage.copy(alpha = 0.15f),   stringResource(R.string.home_badge_aprobada))
+        EstadoReunion.PENDIENTE_SYNC -> Triple(Gold,   Gold.copy(alpha = 0.15f),   stringResource(R.string.home_badge_pendiente))
+        EstadoReunion.BORRADOR       -> Triple(Muted,  Muted.copy(alpha = 0.15f),  stringResource(R.string.home_badge_borrador))
     }
 
     NeuCard(modifier = modifier.fillMaxWidth().padding(horizontal = 4.dp), onClick = onClick) {
@@ -843,7 +908,7 @@ private fun ReunionCard(
                         .fillMaxWidth()
                         .height(5.dp)
                         .clip(RoundedCornerShape(3.dp)),
-                    color      = Sage,
+                    color      = Accent,
                     trackColor = BackgroundDeep,
                     strokeCap  = StrokeCap.Round,
                 )
@@ -906,74 +971,444 @@ private fun EmptyStateReuniones() {
     }
 }
 
-// ── Bottom nav bar ────────────────────────────────────────────────────────────
+
+
+// ── Solicitud: tarjeta activa ─────────────────────────────────────────────────
 
 @Composable
-private fun BottomNavBar(
-    selectedTab: Int,
-    onInicioClick: () -> Unit,
-    onHistorialClick: () -> Unit,
-    onPerfilClick: () -> Unit,
+private fun SolicitudActivaCard(
+    solicitud: Solicitud,
+    onCancelar: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        HorizontalDivider(color = Muted.copy(alpha = 0.2f))
+    val (badgeColor, badgeLabel) = when (solicitud.status) {
+        "active"  -> Sage to "Activa"
+        "pending" -> Gold to "Pendiente"
+        else      -> Muted to solicitud.status
+    }
+    NeuCard(modifier = modifier.fillMaxWidth()) {
         Row(
-            modifier              = Modifier
-                .fillMaxWidth()
-                .background(Background)
-                .padding(vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
+            modifier          = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            NavTabItem(
-                icon      = Icons.Default.Home,
-                label     = stringResource(R.string.home_nav_inicio),
-                isActive  = selectedTab == TAB_INICIO,
-                onClick   = onInicioClick,
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(badgeColor.copy(alpha = 0.15f))
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                    ) {
+                        Text(
+                            text  = badgeLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = badgeColor,
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text     = "Delegación activa",
+                        style    = MaterialTheme.typography.bodyMedium,
+                        color    = Ink,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (solicitud.assignedToNombre.isNotBlank()) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text  = "Para: ${solicitud.assignedToNombre}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Mid,
+                    )
+                }
+            }
+            if (solicitud.status == "pending") {
+                Spacer(Modifier.width(8.dp))
+                TextButton(onClick = onCancelar) {
+                    Text("Cancelar", color = Blush, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+    }
+}
+
+// ── Solicitud: diálogo activar ────────────────────────────────────────────────
+
+@Composable
+private fun ActivarSolicitudDialog(
+    solicitud: Solicitud,
+    onActivar: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor   = Background,
+        title = {
+            Text(
+                text  = "Solicitud de delegación",
+                style = MaterialTheme.typography.titleLarge,
+                color = Ink,
             )
-            NavTabItem(
-                icon      = Icons.Default.DateRange,
-                label     = stringResource(R.string.home_nav_historial),
-                isActive  = selectedTab == TAB_HISTORIAL,
-                onClick   = onHistorialClick,
+        },
+        text = {
+            Column {
+                Text(
+                    text  = "Tenés una reunión pendiente por registrar.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Mid,
+                )
+                if (!solicitud.note.isNullOrBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text  = "Nota: ${solicitud.note}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Mid,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onActivar) {
+                Text("Activar y registrar", color = Accent)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Más tarde", color = Mid)
+            }
+        },
+    )
+}
+
+// ── Solicitud: sheet crear delegación ─────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DelegarReunionSheet(
+    asignados: List<AsignadoPotencial>,
+    isLoading: Boolean,
+    isCreando: Boolean,
+    error:     String?,
+    onCrear:   (assignedToId: String, nota: String?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var selectedId by remember { mutableStateOf<String?>(null) }
+    var nota       by remember { mutableStateOf("") }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState       = sheetState,
+        containerColor   = Background,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp),
+        ) {
+            Text(
+                text  = "Delegar reunión",
+                style = MaterialTheme.typography.titleLarge,
+                color = Ink,
+                fontWeight = FontWeight.Bold,
             )
-            NavTabItem(
-                icon      = Icons.Default.Person,
-                label     = stringResource(R.string.home_nav_perfil),
-                isActive  = selectedTab == TAB_PERFIL,
-                onClick   = onPerfilClick,
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text  = "Seleccioná a quién se delega el registro.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Mid,
+            )
+            Spacer(Modifier.height(16.dp))
+
+            when {
+                isLoading -> {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(80.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { CircularProgressIndicator(color = Accent) }
+                }
+                asignados.isEmpty() -> {
+                    Text(
+                        text  = "No hay delegados registrados en este grupo.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Muted,
+                    )
+                }
+                else -> {
+                    LazyColumn(
+                        modifier             = Modifier.fillMaxWidth(),
+                        verticalArrangement  = Arrangement.spacedBy(6.dp),
+                    ) {
+                        items(asignados) { asignado ->
+                            val isSelected = asignado.profileId == selectedId
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .then(
+                                        if (isSelected) Modifier.neuElevatedSm(14.dp)
+                                        else Modifier.neuElevated(14.dp)
+                                    )
+                                    .background(
+                                        if (isSelected) Accent.copy(alpha = 0.08f) else Background,
+                                        RoundedCornerShape(14.dp),
+                                    )
+                                    .clickable { selectedId = asignado.profileId }
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text  = asignado.nombre,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = if (isSelected) Accent else Ink,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                    val rolDisplay = when (asignado.rol) {
+                                        "leader"             -> "Líder"
+                                        "co_leader"          -> "Co-líder"
+                                        "anciano"            -> "Anciano"
+                                        "pastor_practicante" -> "Pastor practicante"
+                                        "member"             -> "Miembro"
+                                        else                 -> asignado.rol
+                                    }
+                                    Text(
+                                        text  = rolDisplay,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = Mid,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Campo nota opcional
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .neuElevated(cornerRadius = 14.dp)
+                    .background(Background, RoundedCornerShape(14.dp))
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+            ) {
+                if (nota.isEmpty()) {
+                    Text(
+                        text  = "Nota opcional…",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Muted,
+                    )
+                }
+                BasicTextField(
+                    value         = nota,
+                    onValueChange = { nota = it },
+                    textStyle     = MaterialTheme.typography.bodyMedium.copy(color = Ink),
+                    modifier      = Modifier.fillMaxWidth(),
+                )
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            if (error != null) {
+                Text(
+                    text  = error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Blush,
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+
+            val canCreate = selectedId != null && !isCreando
+            Box(modifier = Modifier.fillMaxWidth()) {
+                if (isCreando) {
+                    CircularProgressIndicator(
+                        color    = Accent,
+                        modifier = Modifier.align(Alignment.Center).size(28.dp),
+                    )
+                } else {
+                    com.gpleader.app.core.ui.components.NeuButtonPrimary(
+                        text     = "Crear delegación",
+                        onClick  = {
+                            val id = selectedId ?: return@NeuButtonPrimary
+                            onCrear(id, nota.trim().ifBlank { null })
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(if (!canCreate) Modifier.alpha(0.5f) else Modifier),
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ── Sheet: elegir tipo de registro ───────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TipoRegistroSheet(
+    onDismiss:   () -> Unit,
+    onGpMeeting: () -> Unit,
+    onSabado:    () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState       = sheetState,
+        containerColor   = Background,
+        dragHandle       = null,
+        shape            = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp)
+                .padding(top = 20.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            // ── Handle pill ───────────────────────────────────────────────────
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier         = Modifier.fillMaxWidth(),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(48.dp)
+                        .height(5.dp)
+                        .neuInset(cornerRadius = 3.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(BackgroundDeep),
+                )
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            // ── Título ────────────────────────────────────────────────────────
+            Column(modifier = Modifier.padding(horizontal = 4.dp)) {
+                Text(
+                    text  = "¿Qué deseas registrar?",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = Ink,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text  = "Elige el tipo de registro para esta sesión",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Muted,
+                )
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            // ── Opciones ──────────────────────────────────────────────────────
+            RegistrarOpcion(
+                icon      = Icons.Filled.Groups,
+                titulo    = "Reunión de GP",
+                subtitulo = "Registro semanal del grupo pequeño",
+                color     = Accent,
+                onClick   = onGpMeeting,
+            )
+
+            RegistrarOpcion(
+                icon      = Icons.Filled.AutoAwesome,
+                titulo    = "Culto de Sábado",
+                subtitulo = "Asistencia al culto del sábado",
+                color     = Violet,
+                onClick   = onSabado,
             )
         }
     }
 }
 
 @Composable
-private fun NavTabItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    isActive: Boolean,
-    onClick: () -> Unit,
+private fun RegistrarOpcion(
+    icon:      ImageVector,
+    titulo:    String,
+    subtitulo: String,
+    color:     Color,
+    onClick:   () -> Unit,
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier            = Modifier
-            .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 8.dp),
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .neuElevated(cornerRadius = 20.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Background)
+            .clickable(onClick = onClick),
     ) {
-        Icon(
-            imageVector        = icon,
-            contentDescription = label,
-            tint               = if (isActive) Accent else Muted,
-            modifier           = Modifier.size(22.dp),
-        )
-        Spacer(Modifier.height(3.dp))
-        Text(
-            text  = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = if (isActive) Accent else Muted,
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier          = Modifier.fillMaxWidth(),
+        ) {
+            // ── Franja de color lateral ───────────────────────────────────────
+            Box(
+                modifier = Modifier
+                    .width(5.dp)
+                    .height(80.dp)
+                    .clip(RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp))
+                    .background(color),
+            )
+
+            Spacer(Modifier.width(16.dp))
+
+            // ── Ícono neumórfico (hundido) ────────────────────────────────────
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(48.dp)
+                    .neuInsetSm(cornerRadius = 14.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(BackgroundDeep),
+            ) {
+                Icon(
+                    imageVector        = icon,
+                    contentDescription = null,
+                    tint               = color,
+                    modifier           = Modifier.size(22.dp),
+                )
+            }
+
+            Spacer(Modifier.width(14.dp))
+
+            // ── Textos ────────────────────────────────────────────────────────
+            Column(
+                modifier            = Modifier
+                    .weight(1f)
+                    .padding(vertical = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Text(
+                    text       = titulo,
+                    style      = MaterialTheme.typography.bodyLarge,
+                    color      = Ink,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text  = subtitulo,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Mid,
+                )
+            }
+
+            // ── Flecha ────────────────────────────────────────────────────────
+            Icon(
+                imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint               = Muted,
+                modifier           = Modifier
+                    .size(20.dp)
+                    .padding(end = 4.dp),
+            )
+
+            Spacer(Modifier.width(16.dp))
+        }
     }
 }
-
 
 // ── Previews ──────────────────────────────────────────────────────────────────
 
@@ -996,8 +1431,7 @@ private val previewUiState = HomeUiState(
 private fun HomeScreenPreview() {
     GpLeaderTheme {
         HomeScreenContent(
-            uiState                = previewUiState,
-            onRegistrarClick       = {},
+            uiState             = previewUiState,
             onVerTodasClick     = {},
             onReunionClick      = {},
             onHistorialTabClick = {},
@@ -1010,8 +1444,7 @@ private fun HomeScreenPreview() {
 private fun HomeScreenEmptyPreview() {
     GpLeaderTheme {
         HomeScreenContent(
-            uiState                = previewUiState.copy(reunionesRecientes = emptyList()),
-            onRegistrarClick       = {},
+            uiState             = previewUiState.copy(reunionesRecientes = emptyList()),
             onVerTodasClick     = {},
             onReunionClick      = {},
             onHistorialTabClick = {},

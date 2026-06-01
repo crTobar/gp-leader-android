@@ -185,7 +185,9 @@ class LoginViewModel @Inject constructor(
         session.iglesiaId        = grupo.iglesiaId
         session.iglesiaNombre    = iglesia?.nombre ?: ""
         session.districtId       = distrito?.id ?: ""
+        session.districtNombre   = distrito?.nombre ?: ""
         session.campoId          = campo?.id ?: ""
+        session.campoNombre      = campo?.nombre ?: ""
         _uiState.update { it.copy(navigateToQuienEres = true) }
     }
 

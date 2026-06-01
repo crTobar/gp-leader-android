@@ -8,9 +8,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
@@ -28,7 +31,10 @@ class ReunionRepositoryImpl @Inject constructor(
         val data = supabase.from("meeting").select(
             columns = Columns.raw("*, attendance(*)")
         ) {
-            filter { eq("small_group_id", grupoId) }
+            filter {
+                eq("small_group_id", grupoId)
+                eq("registry_kind", "gp_meeting")
+            }
         }.data
 
         val all = parseReuniones(data)
@@ -43,12 +49,13 @@ class ReunionRepositoryImpl @Inject constructor(
         noHuboReunion: Boolean,
         asistencias:   List<AsistenciaParaGuardar>,
         tipoReunion:   String,
+        status:        String,
     ): Result<String> = runCatching {
         // 1 — Insertar la reunión y recuperar el ID generado
         val meetingPayload = buildJsonObject {
             put("small_group_id", grupoId)
             put("meeting_date",   fecha.toString())
-            put("status",         "submitted")
+            put("status",         status)
             put("registry_kind",  tipoReunion)
             put("no_meeting",     noHuboReunion)
         }
@@ -121,8 +128,9 @@ class ReunionRepositoryImpl @Inject constructor(
         val data = supabase.from("meeting").select(
             columns = Columns.raw(
                 "id, meeting_date, status, registry_kind, no_meeting, " +
-                "attendance(status, visited_church_id, church:visited_church_id(nombre:name), " +
-                "member(first_name, middle_name, last_name, second_last_name, is_visitor))"
+                "attendance(member_id, status, visited_church_id, church(nombre:name), " +
+                "member(first_name, middle_name, last_name, second_last_name, is_visitor)), " +
+                "activity_record(count, monto, notes, activity_type(name, level, unit_label))"
             )
         ) {
             filter { eq("id", reunionId) }
@@ -140,10 +148,11 @@ class ReunionRepositoryImpl @Inject constructor(
         val asistencias  = mutableListOf<AsistenciaConNombre>()
 
         attendance.forEach { elem ->
-            val a      = elem.jsonObject
-            val status = a["status"]?.jsonPrimitive?.contentOrNull ?: ""
-            val member = a["member"]?.jsonObject
-            val church = a["church"]?.jsonObject
+            val a        = elem.jsonObject
+            val memberId = a["member_id"]?.jsonPrimitive?.contentOrNull
+            val status   = a["status"]?.jsonPrimitive?.contentOrNull ?: ""
+            val member   = a["member"]?.takeIf { it !is JsonNull }?.jsonObject
+            val church   = a["church"]?.takeIf { it !is JsonNull }?.jsonObject
 
             val estadoDisplay = when (status.uppercase()) {
                 "PRESENT"   -> { presentes++;    "P" }
@@ -168,12 +177,26 @@ class ReunionRepositoryImpl @Inject constructor(
                 }.trim()
 
                 asistencias.add(AsistenciaConNombre(
-                    nombre               = nombre,
-                    estado               = estadoDisplay,
-                    esVisita             = isVisitor,
+                    memberId              = memberId,
+                    nombre                = nombre,
+                    estado                = estadoDisplay,
+                    esVisita              = isVisitor,
                     iglesiaVisitadaNombre = iglesiaVisitada,
                 ))
             }
+        }
+
+        val actRecords = obj["activity_record"]?.jsonArray ?: JsonArray(emptyList())
+        val actividades = actRecords.mapNotNull { elem ->
+            val r    = elem.jsonObject
+            val tipo = r["activity_type"]?.takeIf { it !is JsonNull }?.jsonObject ?: return@mapNotNull null
+            ActividadConDetalle(
+                nombre   = tipo["name"]?.jsonPrimitive?.contentOrNull ?: "",
+                nivel    = tipo["level"]?.jsonPrimitive?.contentOrNull ?: "my_group",
+                cantidad = r["count"]?.jsonPrimitive?.intOrNull,
+                monto    = r["monto"]?.jsonPrimitive?.doubleOrNull,
+                unidad   = tipo["unit_label"]?.jsonPrimitive?.contentOrNull ?: "",
+            )
         }
 
         DetalleReunionData(
@@ -186,23 +209,21 @@ class ReunionRepositoryImpl @Inject constructor(
             ausentes     = ausentes,
             justificados = justificados,
             asistencias  = asistencias,
+            actividades  = actividades,
             tipoReunion  = obj["registry_kind"]?.jsonPrimitive?.contentOrNull ?: "gp_meeting",
         )
     }
 
     override suspend fun getSabbathMeeting(grupoId: String, fecha: LocalDate): Result<SabbathMeetingResumen?> = runCatching {
-        val inicioSemana = fecha.minusDays(fecha.dayOfWeek.value.toLong() - 1)
-        val finSemana    = inicioSemana.plusDays(6)
-
         val data = supabase.from("meeting").select(
             columns = Columns.raw("id, meeting_date, status, attendance(status)")
         ) {
             filter {
                 eq("small_group_id", grupoId)
                 eq("registry_kind", "saturday_worship")
-                gte("meeting_date", inicioSemana.toString())
-                lte("meeting_date", finSemana.toString())
+                eq("meeting_date",  fecha.toString())
             }
+            limit(1)
         }.data
 
         val arr = Json.parseToJsonElement(data).jsonArray
@@ -290,8 +311,8 @@ class ReunionRepositoryImpl @Inject constructor(
         else                                  -> "present"
     }
 
-    private fun parseReuniones(data: String): List<ReunionConStats> =
-        Json.parseToJsonElement(data).jsonArray.map { elem ->
+    private fun parseReuniones(data: String): List<ReunionConStats> {
+        return Json.parseToJsonElement(data).jsonArray.map { elem ->
             val obj        = elem.jsonObject
             val attendance = obj["attendance"]?.jsonArray ?: JsonArray(emptyList())
 
@@ -300,7 +321,8 @@ class ReunionRepositoryImpl @Inject constructor(
             var justificados = 0
 
             attendance.forEach { a ->
-                when (a.jsonObject["status"]?.jsonPrimitive?.contentOrNull?.uppercase()) {
+                val status = a.jsonObject["status"]?.jsonPrimitive?.contentOrNull
+                when (status?.uppercase()) {
                     "PRESENTE", "PRESENT"                    -> presentes++
                     "AUSENTE",  "ABSENT"                     -> ausentes++
                     "JUSTIFICADO", "EXCUSED", "JUSTIFIED"    -> justificados++
@@ -320,4 +342,5 @@ class ReunionRepositoryImpl @Inject constructor(
                 justificados  = justificados,
             )
         }
+    }
 }

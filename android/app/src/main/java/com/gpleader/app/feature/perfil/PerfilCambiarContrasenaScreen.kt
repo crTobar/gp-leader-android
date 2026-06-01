@@ -71,6 +71,7 @@ import com.gpleader.app.core.ui.theme.neuInset
 @Composable
 fun PerfilCambiarContrasenaScreen(
     onNavigateBack: () -> Unit,
+    esPrimerLogin: Boolean = false,
     viewModel: PerfilViewModel = hiltViewModel(),
 ) {
     val uiState          by viewModel.uiState.collectAsState()
@@ -99,13 +100,14 @@ fun PerfilCambiarContrasenaScreen(
 
     CambiarContrasenaContent(
         uiState               = uiState,
+        esPrimerLogin         = esPrimerLogin,
         snackbarHostState     = snackbarHostState,
         snackbarColor         = snackbarColor,
         onNavigateBack        = onNavigateBack,
         onContrasenaActualChange  = viewModel::onContrasenaActualChange,
         onNuevaContrasenaChange   = viewModel::onNuevaContrasenaChange,
         onConfirmarContrasenaChange = viewModel::onConfirmarContrasenaChange,
-        onActualizarClick     = viewModel::onActualizarContrasenaClick,
+        onActualizarClick     = { viewModel.onActualizarContrasenaClick(esPrimerLogin) },
     )
 }
 
@@ -114,6 +116,7 @@ fun PerfilCambiarContrasenaScreen(
 @Composable
 private fun CambiarContrasenaContent(
     uiState:                    PerfilUiState,
+    esPrimerLogin:              Boolean = false,
     snackbarHostState:          SnackbarHostState,
     snackbarColor:              Color,
     onNavigateBack:             () -> Unit,
@@ -122,7 +125,8 @@ private fun CambiarContrasenaContent(
     onConfirmarContrasenaChange: (String) -> Unit,
     onActualizarClick:          () -> Unit,
 ) {
-    val allMet = uiState.requisitos.todosCompletos
+    val allMet = uiState.requisitos.todosCompletos &&
+        (esPrimerLogin || uiState.contrasenaActual.isNotBlank())
 
     Scaffold(
         containerColor = Background,
@@ -174,19 +178,21 @@ private fun CambiarContrasenaContent(
                 HeroSection()
             }
 
-            // ── Contraseña actual ─────────────────────────────────────────────
-            item {
-                NeuTextField(
-                    value         = uiState.contrasenaActual,
-                    onValueChange = onContrasenaActualChange,
-                    label         = stringResource(R.string.cambiar_contrasena_label_actual),
-                    placeholder   = "",
-                    isPassword    = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Password,
-                        imeAction    = ImeAction.Next,
-                    ),
-                )
+            // ── Contraseña actual (solo si no es primer login) ────────────────
+            if (!esPrimerLogin) {
+                item {
+                    NeuTextField(
+                        value         = uiState.contrasenaActual,
+                        onValueChange = onContrasenaActualChange,
+                        label         = stringResource(R.string.cambiar_contrasena_label_actual),
+                        placeholder   = "",
+                        isPassword    = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction    = ImeAction.Next,
+                        ),
+                    )
+                }
             }
 
             // ── Nueva contraseña ──────────────────────────────────────────────

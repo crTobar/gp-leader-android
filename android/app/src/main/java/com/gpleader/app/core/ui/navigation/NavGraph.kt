@@ -10,10 +10,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.gpleader.app.feature.auth.ConfirmarIdentidadScreen
 import com.gpleader.app.feature.auth.LoginScreen
 import com.gpleader.app.feature.auth.QuienEresScreen
 import com.gpleader.app.feature.auth.SabadoAutoMarcarScreen
 import com.gpleader.app.feature.auth.SabadoConfirmacionScreen
+import com.gpleader.app.feature.miembro.MiembroHomeScreen
 import com.gpleader.app.feature.historial.HistorialScreen
 import com.gpleader.app.feature.sabado.SabadoCultoScreen
 import com.gpleader.app.feature.home.HomeScreen
@@ -22,8 +24,8 @@ import com.gpleader.app.feature.perfil.PerfilDatosGrupoScreen
 import com.gpleader.app.feature.perfil.PerfilDatosPersonalesScreen
 import com.gpleader.app.feature.perfil.PerfilPrincipalScreen
 import com.gpleader.app.feature.perfil.RegistroActividadScreen
-import com.gpleader.app.feature.perfil.ReportesScreen
 import com.gpleader.app.feature.registro.AgregarActividadScreen
+import com.gpleader.app.feature.registro.AgregarActividadStandaloneScreen
 import com.gpleader.app.feature.registro.DetalleActividadScreen
 import com.gpleader.app.feature.registro.ExitoEnviadoScreen
 import com.gpleader.app.feature.registro.ExitoOfflineScreen
@@ -37,6 +39,9 @@ import com.gpleader.app.feature.miembros.MiembrosListaScreen
 import com.gpleader.app.feature.miembros.MiembrosViewModel
 import com.gpleader.app.feature.historial.DetalleReunionScreen
 import com.gpleader.app.feature.registro.RegistroViewModel
+import com.gpleader.app.feature.actividades.ActividadesListScreen
+import com.gpleader.app.feature.actividades.ActividadHistorialScreen
+import com.gpleader.app.feature.miembro.MiembroActividadesScreen
 
 object NavRoutes {
     const val LOGIN                      = "login"
@@ -49,8 +54,14 @@ object NavRoutes {
     const val PERFIL_CAMBIAR_CONTRASENA = "perfil/cambiar_contrasena"
     const val PERFIL_DATOS_GRUPO          = "perfil/datos_grupo"
     const val PERFIL_REGISTRO_ACTIVIDAD   = "perfil/registro_actividad"
-    const val PERFIL_REPORTES             = "perfil/reportes"
     const val DETALLE_REUNION             = "detalle_reunion/{reunionId}"
+
+    // ── Miembro regular (perfil guardado) ────────────────────────────────────
+    const val CONFIRMAR_IDENTIDAD = "confirmar_identidad/{miembroId}/{miembroNombre}"
+    const val MIEMBRO_HOME        = "miembro_home"
+
+    fun confirmarIdentidad(miembroId: String, miembroNombre: String) =
+        "confirmar_identidad/${android.net.Uri.encode(miembroId)}/${android.net.Uri.encode(miembroNombre)}"
 
     // ── Sábado ────────────────────────────────────────────────────────────────
     const val SABADO_AUTOMARCAR   = "sabado_automarcar/{miembroId}"
@@ -64,8 +75,17 @@ object NavRoutes {
     const val MIEMBROS_EDITAR  = "miembros/editar"
     const val MIEMBROS_AGREGAR = "miembros/agregar"
 
+    // ── Actividades ───────────────────────────────────────────────────────────
+    const val ACTIVIDADES_LISTA    = "actividades_lista"
+    const val ACTIVIDAD_HISTORIAL  = "actividad_historial/{actividadTipoId}"
+    const val CREAR_ACTIVIDAD_TIPO = "crear_actividad_tipo"
+    const val MIEMBRO_ACTIVIDADES  = "miembro_actividades"
+
+    fun actividadHistorial(actividadTipoId: String) = "actividad_historial/$actividadTipoId"
+
     // ── Registro nested graph ─────────────────────────────────────────────────
     const val REGISTRO_GRAPH         = "registro"
+    const val REGISTRO_GRAPH_ROUTE   = "registro?kind={kind}"
     const val REGISTRO_PASO1         = "registro/paso1"
     const val REGISTRO_PASO2         = "registro/paso2"
     const val REGISTRO_PASO3         = "registro/paso3"
@@ -78,6 +98,7 @@ object NavRoutes {
     fun detalleActividad(actividadId: String) = "registro/detalle/$actividadId"
     fun sabadoAutoMarcar(miembroId: String)   = "sabado_automarcar/$miembroId"
     fun sabadoConfirmacion(iglesiaName: String) = "sabado_confirmacion/${android.net.Uri.encode(iglesiaName)}"
+    fun registroGraph(kind: String = "gp_meeting") = "registro?kind=$kind"
 }
 
 @Composable
@@ -109,11 +130,50 @@ fun AppNavGraph(
                 onNavigateToCambiarContrasena = {
                     navController.navigate(NavRoutes.CAMBIAR_CONTRASENA_INICIAL)
                 },
-                onNavigateToConfirmacion = { iglesiaName ->
-                    navController.navigate(NavRoutes.sabadoConfirmacion(iglesiaName)) {
-                        popUpTo(NavRoutes.QUIEN_ERES) { inclusive = false }
+                onNavigateToConfirmarIdentidad = { miembroId, miembroNombre ->
+                    navController.navigate(NavRoutes.confirmarIdentidad(miembroId, miembroNombre))
+                },
+                onNavigateToLogin = {
+                    navController.navigate(NavRoutes.LOGIN) {
+                        popUpTo(0) { inclusive = true }
                     }
                 },
+            )
+        }
+
+        composable(
+            route     = NavRoutes.CONFIRMAR_IDENTIDAD,
+            arguments = listOf(
+                navArgument("miembroId")    { type = NavType.StringType },
+                navArgument("miembroNombre") { type = NavType.StringType },
+            ),
+        ) {
+            ConfirmarIdentidadScreen(
+                onConfirmado = {
+                    navController.navigate(NavRoutes.MIEMBRO_HOME) {
+                        popUpTo(NavRoutes.LOGIN) { inclusive = true }
+                    }
+                },
+                onNoSoyYo = { navController.popBackStack() },
+            )
+        }
+
+        composable(NavRoutes.MIEMBRO_HOME) {
+            MiembroHomeScreen(
+                onCerrarSesion = {
+                    navController.navigate(NavRoutes.LOGIN) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
+                onNavigateToActividades = {
+                    navController.navigate(NavRoutes.MIEMBRO_ACTIVIDADES)
+                },
+            )
+        }
+
+        composable(NavRoutes.MIEMBRO_ACTIVIDADES) {
+            MiembroActividadesScreen(
+                onNavigateBack = { navController.popBackStack() },
             )
         }
 
@@ -141,8 +201,10 @@ fun AppNavGraph(
             SabadoConfirmacionScreen(
                 iglesiaNombre = iglesiaName,
                 onCerrar = {
-                    navController.navigate(NavRoutes.LOGIN) {
-                        popUpTo(0) { inclusive = true }
+                    if (!navController.popBackStack(NavRoutes.MIEMBRO_HOME, inclusive = false)) {
+                        navController.navigate(NavRoutes.LOGIN) {
+                            popUpTo(0) { inclusive = true }
+                        }
                     }
                 },
             )
@@ -150,9 +212,10 @@ fun AppNavGraph(
 
         composable(NavRoutes.CAMBIAR_CONTRASENA_INICIAL) {
             PerfilCambiarContrasenaScreen(
+                esPrimerLogin  = true,
                 onNavigateBack = {
-                    navController.navigate(NavRoutes.QUIEN_ERES) {
-                        popUpTo(NavRoutes.CAMBIAR_CONTRASENA_INICIAL) { inclusive = true }
+                    navController.navigate(NavRoutes.HOME) {
+                        popUpTo(0) { inclusive = true }
                     }
                 },
             )
@@ -160,7 +223,7 @@ fun AppNavGraph(
 
         composable(NavRoutes.HOME) {
             HomeScreen(
-                onNavigateToRegistro    = { navController.navigate(NavRoutes.REGISTRO_GRAPH) },
+                onNavigateToRegistro    = { kind -> navController.navigate(NavRoutes.registroGraph(kind)) },
                 onNavigateToHistorial   = { navController.navigate(NavRoutes.HISTORIAL) },
                 onNavigateToDetalle     = { id -> navController.navigate(NavRoutes.detalleReunion(id)) },
                 onNavigateToPerfil      = { navController.navigate(NavRoutes.PERFIL) },
@@ -188,7 +251,7 @@ fun AppNavGraph(
                 },
                 onNavigateToDetalle  = { id -> navController.navigate(NavRoutes.detalleReunion(id)) },
                 onNavigateToPerfil   = { navController.navigate(NavRoutes.PERFIL) },
-                onNavigateToRegistro = { navController.navigate(NavRoutes.REGISTRO_GRAPH) },
+                onNavigateToRegistro = { navController.navigate(NavRoutes.registroGraph()) },
             )
         }
 
@@ -209,7 +272,7 @@ fun AppNavGraph(
                 onNavigateToDatosGrupo        = { navController.navigate(NavRoutes.PERFIL_DATOS_GRUPO) },
                 onNavigateToMiembros          = { navController.navigate(NavRoutes.MIEMBROS_GRAPH) },
                 onNavigateToRegistroActividad = { navController.navigate(NavRoutes.PERFIL_REGISTRO_ACTIVIDAD) },
-                onNavigateToReportes          = { navController.navigate(NavRoutes.PERFIL_REPORTES) },
+                onNavigateToActividadesLista  = { navController.navigate(NavRoutes.ACTIVIDADES_LISTA) },
                 onNavigateToLogin             = {
                     navController.navigate(NavRoutes.LOGIN) {
                         popUpTo(0) { inclusive = true }
@@ -243,12 +306,6 @@ fun AppNavGraph(
 
         composable(NavRoutes.PERFIL_REGISTRO_ACTIVIDAD) {
             RegistroActividadScreen(
-                onNavigateBack = { navController.popBackStack() },
-            )
-        }
-
-        composable(NavRoutes.PERFIL_REPORTES) {
-            ReportesScreen(
                 onNavigateBack = { navController.popBackStack() },
             )
         }
@@ -339,14 +396,42 @@ fun AppNavGraph(
             )
         }
 
+        composable(NavRoutes.ACTIVIDADES_LISTA) {
+            ActividadesListScreen(
+                onNavigateBack        = { navController.popBackStack() },
+                onNavigateToHistorial = { tipoId ->
+                    navController.navigate(NavRoutes.actividadHistorial(tipoId))
+                },
+                onNavigateToCrear     = {
+                    navController.navigate(NavRoutes.CREAR_ACTIVIDAD_TIPO)
+                },
+            )
+        }
+
+        composable(NavRoutes.CREAR_ACTIVIDAD_TIPO) {
+            AgregarActividadStandaloneScreen(
+                onNavigateBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route     = NavRoutes.ACTIVIDAD_HISTORIAL,
+            arguments = listOf(navArgument("actividadTipoId") { type = NavType.StringType }),
+        ) {
+            ActividadHistorialScreen(
+                onNavigateBack = { navController.popBackStack() },
+            )
+        }
+
         // ── Registro nested graph (ViewModel compartido) ───────────────────────
         navigation(
-            route            = NavRoutes.REGISTRO_GRAPH,
+            route            = NavRoutes.REGISTRO_GRAPH_ROUTE,
             startDestination = NavRoutes.REGISTRO_PASO1,
+            arguments        = listOf(navArgument("kind") { defaultValue = "gp_meeting" }),
         ) {
             composable(NavRoutes.REGISTRO_PASO1) { backStackEntry ->
                 val graphEntry = remember(backStackEntry) {
-                    navController.getBackStackEntry(NavRoutes.REGISTRO_GRAPH)
+                    navController.getBackStackEntry(NavRoutes.REGISTRO_GRAPH_ROUTE)
                 }
                 val sharedVm: RegistroViewModel = hiltViewModel(graphEntry)
                 RegistroPaso1Screen(
@@ -359,7 +444,7 @@ fun AppNavGraph(
 
             composable(NavRoutes.REGISTRO_PASO2) { backStackEntry ->
                 val graphEntry = remember(backStackEntry) {
-                    navController.getBackStackEntry(NavRoutes.REGISTRO_GRAPH)
+                    navController.getBackStackEntry(NavRoutes.REGISTRO_GRAPH_ROUTE)
                 }
                 val sharedVm: RegistroViewModel = hiltViewModel(graphEntry)
                 RegistroPaso2Screen(
@@ -380,7 +465,7 @@ fun AppNavGraph(
                 arguments = listOf(navArgument("actividadId") { type = NavType.StringType }),
             ) { backStackEntry ->
                 val graphEntry = remember(backStackEntry) {
-                    navController.getBackStackEntry(NavRoutes.REGISTRO_GRAPH)
+                    navController.getBackStackEntry(NavRoutes.REGISTRO_GRAPH_ROUTE)
                 }
                 val sharedVm: RegistroViewModel = hiltViewModel(graphEntry)
                 val actividadId = backStackEntry.arguments?.getString("actividadId") ?: ""
@@ -393,7 +478,7 @@ fun AppNavGraph(
 
             composable(NavRoutes.AGREGAR_ACTIVIDAD) { backStackEntry ->
                 val graphEntry = remember(backStackEntry) {
-                    navController.getBackStackEntry(NavRoutes.REGISTRO_GRAPH)
+                    navController.getBackStackEntry(NavRoutes.REGISTRO_GRAPH_ROUTE)
                 }
                 val sharedVm: RegistroViewModel = hiltViewModel(graphEntry)
                 AgregarActividadScreen(
@@ -404,7 +489,7 @@ fun AppNavGraph(
 
             composable(NavRoutes.REGISTRO_PASO3) { backStackEntry ->
                 val graphEntry = remember(backStackEntry) {
-                    navController.getBackStackEntry(NavRoutes.REGISTRO_GRAPH)
+                    navController.getBackStackEntry(NavRoutes.REGISTRO_GRAPH_ROUTE)
                 }
                 val sharedVm: RegistroViewModel = hiltViewModel(graphEntry)
                 RegistroPaso3Screen(
@@ -417,7 +502,7 @@ fun AppNavGraph(
 
             composable(NavRoutes.EXITO_ENVIADO) { backStackEntry ->
                 val graphEntry = remember(backStackEntry) {
-                    navController.getBackStackEntry(NavRoutes.REGISTRO_GRAPH)
+                    navController.getBackStackEntry(NavRoutes.REGISTRO_GRAPH_ROUTE)
                 }
                 val sharedVm: RegistroViewModel = hiltViewModel(graphEntry)
                 ExitoEnviadoScreen(
@@ -437,7 +522,7 @@ fun AppNavGraph(
 
             composable(NavRoutes.EXITO_OFFLINE) { backStackEntry ->
                 val graphEntry = remember(backStackEntry) {
-                    navController.getBackStackEntry(NavRoutes.REGISTRO_GRAPH)
+                    navController.getBackStackEntry(NavRoutes.REGISTRO_GRAPH_ROUTE)
                 }
                 val sharedVm: RegistroViewModel = hiltViewModel(graphEntry)
                 ExitoOfflineScreen(

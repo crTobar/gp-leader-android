@@ -23,10 +23,19 @@ data class AsistenciaParaGuardar(
 )
 
 data class AsistenciaConNombre(
+    val memberId:            String? = null,
     val nombre:              String,
     val estado:              String,   // "P", "A", "J"
     val esVisita:            Boolean,
     val iglesiaVisitadaNombre: String? = null,
+)
+
+data class ActividadConDetalle(
+    val nombre:    String,
+    val nivel:     String,   // "union", "district", "church", "my_group"
+    val cantidad:  Int?,
+    val monto:     Double?,
+    val unidad:    String,
 )
 
 data class DetalleReunionData(
@@ -37,6 +46,7 @@ data class DetalleReunionData(
     val ausentes:     Int,
     val justificados: Int,
     val asistencias:  List<AsistenciaConNombre>,
+    val actividades:  List<ActividadConDetalle> = emptyList(),
     val tipoReunion:  String = "gp_meeting",
 )
 
@@ -56,6 +66,7 @@ interface ReunionRepository {
         noHuboReunion: Boolean,
         asistencias:   List<AsistenciaParaGuardar>,
         tipoReunion:   String = "gp_meeting",
+        status:        String = "submitted",
     ): Result<String>
     suspend fun getDetalleReunion(reunionId: String): Result<DetalleReunionData>
     suspend fun getSabbathMeeting(grupoId: String, fecha: LocalDate): Result<SabbathMeetingResumen?>

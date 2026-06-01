@@ -20,10 +20,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,7 +35,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.gpleader.app.R
+import com.gpleader.app.core.data.repository.GroupLogEntry
 import com.gpleader.app.core.ui.components.NeuCard
 import com.gpleader.app.core.ui.theme.Accent
 import com.gpleader.app.core.ui.theme.Background
@@ -44,40 +49,21 @@ import com.gpleader.app.core.ui.theme.Mid
 import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.Sage
 import com.gpleader.app.core.ui.theme.neuElevated
-
-// ── Modelos ───────────────────────────────────────────────────────────────────
-
-enum class TipoEventoActividad { RESTAURADO, ARCHIVADO, REUNION_ENVIADA, REUNION_CREADA }
-
-data class EventoActividad(
-    val id:     String,
-    val tipo:   TipoEventoActividad,
-    val titulo: String,
-    val fecha:  String,
-)
-
-// ── Datos de muestra ──────────────────────────────────────────────────────────
-
-private val SAMPLE_EVENTOS = listOf(
-    EventoActividad("1", TipoEventoActividad.RESTAURADO,      "Pedro Visitante fue restaurado",           "Lun 6 De Abril"),
-    EventoActividad("2", TipoEventoActividad.ARCHIVADO,       "Pedro Visitante fue archivado",            "Lun 6 De Abril"),
-    EventoActividad("3", TipoEventoActividad.RESTAURADO,      "Juan Carlos Pérez fue restaurado",         "Lun 6 De Abril"),
-    EventoActividad("4", TipoEventoActividad.ARCHIVADO,       "Juan Carlos Pérez fue archivado",          "Lun 6 De Abril"),
-    EventoActividad("5", TipoEventoActividad.REUNION_ENVIADA, "Reunión del Lun 6 De Abril enviada",       "Lun 6 De Abril"),
-    EventoActividad("6", TipoEventoActividad.RESTAURADO,      "Pedro Visitante fue restaurado",           "Lun 6 De Abril"),
-    EventoActividad("7", TipoEventoActividad.ARCHIVADO,       "Pedro Visitante fue archivado",            "Lun 6 De Abril"),
-    EventoActividad("8", TipoEventoActividad.REUNION_CREADA,  "Reunión del 06/04/2026",                   "Lun 6 De Abril"),
-    EventoActividad("9", TipoEventoActividad.REUNION_CREADA,  "Reunión del 06/04/2026",                   "Lun 6 De Abril"),
-)
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 @Composable
 fun RegistroActividadScreen(
     onNavigateBack: () -> Unit,
+    viewModel: RegistroActividadViewModel = hiltViewModel(),
 ) {
+    val uiState by viewModel.uiState.collectAsState()
+
     RegistroActividadContent(
-        eventos        = SAMPLE_EVENTOS,
+        uiState        = uiState,
         onNavigateBack = onNavigateBack,
     )
 }
@@ -86,7 +72,7 @@ fun RegistroActividadScreen(
 
 @Composable
 private fun RegistroActividadContent(
-    eventos:        List<EventoActividad>,
+    uiState:        RegistroActividadUiState,
     onNavigateBack: () -> Unit,
 ) {
     Column(
@@ -94,7 +80,6 @@ private fun RegistroActividadContent(
             .fillMaxSize()
             .background(Background),
     ) {
-        // Top bar
         Row(
             modifier = Modifier
                 .statusBarsPadding()
@@ -120,73 +105,113 @@ private fun RegistroActividadContent(
             }
             Spacer(Modifier.width(12.dp))
             Text(
-                text  = stringResource(R.string.perfil_registro_actividad),
-                style = MaterialTheme.typography.titleLarge,
-                color = Ink,
+                text       = stringResource(R.string.perfil_registro_actividad),
+                style      = MaterialTheme.typography.titleLarge,
+                color      = Ink,
                 fontWeight = FontWeight.SemiBold,
             )
         }
 
-        // Lista de eventos
-        LazyColumn(
-            modifier        = Modifier.fillMaxSize(),
-            contentPadding  = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            items(eventos, key = { it.id }) { evento ->
-                EventoRow(evento = evento)
+        when {
+            uiState.isLoading -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Accent)
+                }
+            }
+
+            uiState.error != null -> {
+                Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+                    Text(uiState.error, style = MaterialTheme.typography.bodyLarge, color = Blush)
+                }
+            }
+
+            uiState.entradas.isEmpty() -> {
+                Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+                    Text(
+                        text  = "No hay actividad registrada aún.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Muted,
+                    )
+                }
+            }
+
+            else -> {
+                LazyColumn(
+                    modifier            = Modifier.fillMaxSize(),
+                    contentPadding      = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(uiState.entradas, key = { it.id }) { entrada ->
+                        EntradaRow(entrada = entrada)
+                    }
+                }
             }
         }
     }
 }
 
-// ── Fila de evento ────────────────────────────────────────────────────────────
+// ── Fila ──────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun EventoRow(evento: EventoActividad) {
-    val (iconoColor, iconoTexto) = when (evento.tipo) {
-        TipoEventoActividad.RESTAURADO      -> Sage  to "↑"
-        TipoEventoActividad.ARCHIVADO       -> Gold  to "↓"
-        TipoEventoActividad.REUNION_ENVIADA -> Accent to "✓"
-        TipoEventoActividad.REUNION_CREADA  -> Accent to "📅"
-    }
+private fun EntradaRow(entrada: GroupLogEntry) {
+    val (icono, color) = iconoYColor(entrada.actionType)
 
     NeuCard(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier          = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            modifier              = Modifier.padding(14.dp),
+            verticalAlignment     = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // Ícono circular
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(iconoColor.copy(alpha = 0.12f)),
+                    .background(color.copy(alpha = 0.12f)),
             ) {
-                Text(
-                    text  = iconoTexto,
-                    color = iconoColor,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                Text(text = icono, color = color, style = MaterialTheme.typography.bodyMedium)
             }
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text  = evento.titulo,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Ink,
+                    text       = entrada.description,
+                    style      = MaterialTheme.typography.bodyMedium,
+                    color      = Ink,
                     fontWeight = FontWeight.Medium,
                 )
                 Text(
-                    text  = evento.fecha,
+                    text  = formatFecha(entrada),
                     style = MaterialTheme.typography.labelSmall,
                     color = Muted,
                 )
             }
         }
     }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+private fun iconoYColor(actionType: String): Pair<String, Color> = when (actionType) {
+    "member_unarchived"          -> "↑" to Sage
+    "member_archived"            -> "↓" to Gold
+    "member_added"               -> "+"  to Sage
+    "meeting_submitted"          -> "✓" to Accent
+    "saturday_worship_submitted" -> "✓" to Gold
+    "meeting_edited"             -> "✎" to Mid
+    "activity_updated"           -> "≡" to Accent
+    "deputy_submission_created"  -> "→" to Ink
+    else                         -> "·" to Muted
+}
+
+private val fmtDia   = DateTimeFormatter.ofPattern("EEE", Locale("es"))
+private val fmtMes   = DateTimeFormatter.ofPattern("MMMM", Locale("es"))
+
+private fun formatFecha(entrada: GroupLogEntry): String {
+    val zdt   = entrada.createdAt.atZone(ZoneId.systemDefault())
+    val dia   = zdt.format(fmtDia).replaceFirstChar { it.uppercase() }
+    val num   = zdt.dayOfMonth
+    val mes   = zdt.format(fmtMes).replaceFirstChar { it.uppercase() }
+    return "$dia $num De $mes"
 }
 
 // ── Preview ───────────────────────────────────────────────────────────────────
@@ -196,7 +221,7 @@ private fun EventoRow(evento: EventoActividad) {
 private fun RegistroActividadPreview() {
     GpLeaderTheme {
         RegistroActividadContent(
-            eventos        = SAMPLE_EVENTOS,
+            uiState        = RegistroActividadUiState(isLoading = false, entradas = emptyList()),
             onNavigateBack = {},
         )
     }

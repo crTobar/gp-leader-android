@@ -111,6 +111,7 @@ private fun RegistroPaso3Content(
 ) {
     val isEnviando = uiState.isEnviando
     val errorEnvio = uiState.errorEnvio
+    val esSabado   = uiState.registryKind == RegistryKind.SATURDAY_WORSHIP
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -120,8 +121,8 @@ private fun RegistroPaso3Content(
             modifier       = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 128.dp),
         ) {
-            item { Paso3TopBar(pasoActivo = 3, onNavigateBack = onNavigateBack) }
-            item { StepperRow(pasoActivo = 3) }
+            item { Paso3TopBar(pasoActivo = 3, esSabado = esSabado, onNavigateBack = onNavigateBack) }
+            item { StepperRow(pasoActivo = 3, esSabado = esSabado) }
             item { Spacer(Modifier.height(20.dp)) }
             item {
                 ResumenCard(
@@ -132,18 +133,20 @@ private fun RegistroPaso3Content(
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
             }
-            item { Spacer(Modifier.height(20.dp)) }
-            item {
-                ActividadesSeparador(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-            }
-            item { Spacer(Modifier.height(12.dp)) }
-            item {
-                ActividadesResumen(
-                    actividades = uiState.actividades,
-                    modifier    = Modifier.padding(horizontal = 16.dp),
-                )
+            if (!esSabado) {
+                item { Spacer(Modifier.height(20.dp)) }
+                item {
+                    ActividadesSeparador(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                }
+                item { Spacer(Modifier.height(12.dp)) }
+                item {
+                    ActividadesResumen(
+                        actividades = uiState.actividades,
+                        modifier    = Modifier.padding(horizontal = 16.dp),
+                    )
+                }
             }
             item { Spacer(Modifier.height(108.dp)) }
         }
@@ -213,17 +216,19 @@ private fun RegistroPaso3Content(
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
-                Text(
-                    text       = stringResource(R.string.paso3_btn_editar_actividades),
-                    style      = MaterialTheme.typography.bodyLarge,
-                    color      = Muted,
-                    modifier   = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(onClick = onNavigateBack)
-                        .padding(vertical = 10.dp),
-                    textAlign  = TextAlign.Center,
-                )
+                if (!esSabado) {
+                    Text(
+                        text       = stringResource(R.string.paso3_btn_editar_actividades),
+                        style      = MaterialTheme.typography.bodyLarge,
+                        color      = Muted,
+                        modifier   = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable(onClick = onNavigateBack)
+                            .padding(vertical = 10.dp),
+                        textAlign  = TextAlign.Center,
+                    )
+                }
             }
         }
     }
@@ -232,12 +237,10 @@ private fun RegistroPaso3Content(
 // ── Top bar ───────────────────────────────────────────────────────────────────
 
 @Composable
-private fun Paso3TopBar(pasoActivo: Int, onNavigateBack: () -> Unit) {
-    val stepLabel = when (pasoActivo) {
-        1    -> stringResource(R.string.registro_step_asistencia)
-        2    -> stringResource(R.string.registro_step_actividades)
-        else -> stringResource(R.string.registro_step_resumen)
-    }
+private fun Paso3TopBar(pasoActivo: Int, esSabado: Boolean = false, onNavigateBack: () -> Unit) {
+    val totalPasos = if (esSabado) 2 else 3
+    val numeroPaso = if (esSabado) 2 else pasoActivo
+    val stepLabel  = stringResource(R.string.registro_step_resumen)
     Row(
         modifier          = Modifier
             .fillMaxWidth()
@@ -272,7 +275,7 @@ private fun Paso3TopBar(pasoActivo: Int, onNavigateBack: () -> Unit) {
                 textAlign = TextAlign.Center,
             )
             Text(
-                text      = stringResource(R.string.registro_subtitulo_paso, pasoActivo, stepLabel),
+                text      = "Paso $numeroPaso de $totalPasos · $stepLabel",
                 style     = MaterialTheme.typography.bodySmall,
                 color     = Muted,
                 textAlign = TextAlign.Center,
@@ -285,12 +288,16 @@ private fun Paso3TopBar(pasoActivo: Int, onNavigateBack: () -> Unit) {
 // ── Stepper ───────────────────────────────────────────────────────────────────
 
 @Composable
-private fun StepperRow(pasoActivo: Int) {
-    val labels = listOf(
+private fun StepperRow(pasoActivo: Int, esSabado: Boolean = false) {
+    val labels = if (esSabado) listOf(
+        stringResource(R.string.registro_step_asistencia),
+        stringResource(R.string.registro_step_resumen),
+    ) else listOf(
         stringResource(R.string.registro_step_asistencia),
         stringResource(R.string.registro_step_actividades),
         stringResource(R.string.registro_step_resumen),
     )
+    val efectivoPaso = if (esSabado && pasoActivo >= 3) 2 else pasoActivo
 
     Column(
         modifier = Modifier
@@ -301,10 +308,10 @@ private fun StepperRow(pasoActivo: Int) {
         Row(modifier = Modifier.fillMaxWidth()) {
             labels.forEachIndexed { idx, label ->
                 val numero         = idx + 1
-                val activo         = numero == pasoActivo
-                val completado     = numero < pasoActivo
-                val lineColorLeft  = if (pasoActivo > idx)     Accent else Muted.copy(alpha = 0.4f)
-                val lineColorRight = if (pasoActivo > idx + 1) Accent else Muted.copy(alpha = 0.4f)
+                val activo         = numero == efectivoPaso
+                val completado     = numero < efectivoPaso
+                val lineColorLeft  = if (efectivoPaso > idx)     Accent else Muted.copy(alpha = 0.4f)
+                val lineColorRight = if (efectivoPaso > idx + 1) Accent else Muted.copy(alpha = 0.4f)
 
                 Column(
                     modifier = Modifier
@@ -377,8 +384,8 @@ private fun ResumenCard(
     modifier:    Modifier = Modifier,
 ) {
     val miembrosPresentes    = uiState.miembros.count { it.estado == EstadoAsistencia.PRESENTE }
-    val miembrosAusentes     = uiState.miembros.count { it.estado == EstadoAsistencia.AUSENTE }
     val miembrosJustificados = uiState.miembros.count { it.estado == EstadoAsistencia.JUSTIFICADO }
+    val miembrosAusentes     = uiState.miembros.size - miembrosPresentes - miembrosJustificados
     val presentes            = miembrosPresentes + uiState.visitasDeHoy.count { it.estado == EstadoAsistencia.PRESENTE }
     val total                = uiState.miembros.size + uiState.visitasDeHoy.size
     val pct                  = if (total > 0) presentes * 100 / total else 0

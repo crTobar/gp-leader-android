@@ -3,6 +3,7 @@ package com.gpleader.app.feature.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gpleader.app.core.data.repository.AsignadoPotencial
+import com.gpleader.app.core.data.repository.GroupLogRepository
 import com.gpleader.app.core.data.repository.GrupoRepository
 import com.gpleader.app.core.data.repository.ReunionRepository
 import com.gpleader.app.core.data.repository.SabbathMeetingResumen
@@ -15,9 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.DayOfWeek
 import java.time.LocalDate
-import java.time.temporal.TemporalAdjusters
 import javax.inject.Inject
 
 // ── Display models ────────────────────────────────────────────────────────────
@@ -76,6 +75,7 @@ class HomeViewModel @Inject constructor(
     private val reunionRepo:   ReunionRepository,
     private val grupoRepo:     GrupoRepository,
     private val solicitudRepo: SolicitudRepository,
+    private val groupLogRepo:  GroupLogRepository,
     private val session:       SessionManager,
 ) : ViewModel() {
 
@@ -117,19 +117,18 @@ class HomeViewModel @Inject constructor(
 
     private fun cargarSabbath() {
         viewModelScope.launch {
-            val today  = LocalDate.now()
-            val sabado = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SATURDAY))
+            val today = LocalDate.now()
 
             var resumen = runCatching {
-                reunionRepo.getSabbathMeeting(session.grupoId, sabado).getOrNull()
+                reunionRepo.getSabbathMeeting(session.grupoId, today).getOrNull()
             }.getOrNull()
 
-            // Solo crear borrador si HOY es sábado y todavía no existe la sesión
-            if (resumen == null && today.dayOfWeek == DayOfWeek.SATURDAY) {
+            // Si no existe para hoy, crear borrador (para pruebas funciona cualquier día)
+            if (resumen == null) {
                 runCatching {
                     reunionRepo.saveReunion(
                         grupoId       = session.grupoId,
-                        fecha         = sabado,
+                        fecha         = today,
                         noHuboReunion = false,
                         asistencias   = emptyList(),
                         tipoReunion   = "saturday_worship",
@@ -137,7 +136,7 @@ class HomeViewModel @Inject constructor(
                     )
                 }
                 resumen = runCatching {
-                    reunionRepo.getSabbathMeeting(session.grupoId, sabado).getOrNull()
+                    reunionRepo.getSabbathMeeting(session.grupoId, today).getOrNull()
                 }.getOrNull()
             }
 
@@ -241,7 +240,8 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { solicitudRepo.getAsignadosPotenciales(session.grupoId) }
                 .onSuccess { lista ->
-                    _uiState.update { it.copy(asignadosPotenciales = lista, isLoadingAsignados = false) }
+                    val sinLider = lista.filter { it.profileId != session.miembroId }
+                    _uiState.update { it.copy(asignadosPotenciales = sinLider, isLoadingAsignados = false) }
                 }
                 .onFailure {
                     _uiState.update { it.copy(isLoadingAsignados = false) }
@@ -259,6 +259,10 @@ class HomeViewModel @Inject constructor(
             runCatching {
                 solicitudRepo.createSolicitud(assignedToId, session.grupoId, nota)
             }.onSuccess { nueva ->
+                // Buscar nombre del delegado para el log
+                val nombreDelegado = _uiState.value.asignadosPotenciales
+                    .find { it.profileId == assignedToId }?.nombre ?: "miembro"
+                groupLogRepo.logAccion(session.grupoId, "deputy_submission_created", "Delegación creada para $nombreDelegado")
                 _uiState.update { state ->
                     state.copy(
                         isCreandoSolicitud = false,

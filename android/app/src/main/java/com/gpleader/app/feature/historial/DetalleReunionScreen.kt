@@ -55,6 +55,8 @@ import com.gpleader.app.core.ui.theme.Ink
 import com.gpleader.app.core.ui.theme.Mid
 import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.Sage
+import com.gpleader.app.core.ui.components.AppBottomNavBar
+import com.gpleader.app.core.ui.components.NAV_TAB_HISTORIAL
 import com.gpleader.app.core.ui.theme.neuElevated
 import com.gpleader.app.core.ui.theme.neuElevatedSm
 import java.time.DayOfWeek
@@ -138,7 +140,8 @@ private fun DetalleReunionContent(
             )
         },
         bottomBar = {
-            BottomNavBar(
+            AppBottomNavBar(
+                selectedTab      = NAV_TAB_HISTORIAL,
                 onInicioClick    = onNavigateToHome,
                 onHistorialClick = onNavigateToHistorial,
                 onPerfilClick    = onNavigateToPerfil,
@@ -590,60 +593,6 @@ private fun ActividadFila(actividad: ActividadDetalle) {
 }
 
 // ── Bottom nav bar ────────────────────────────────────────────────────────────
-
-@Composable
-private fun BottomNavBar(
-    onInicioClick:    () -> Unit,
-    onHistorialClick: () -> Unit,
-    onPerfilClick:    () -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding(),
-    ) {
-        HorizontalDivider(color = Muted.copy(alpha = 0.2f))
-        Row(
-            modifier              = Modifier
-                .fillMaxWidth()
-                .background(Background)
-                .padding(vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-        ) {
-            NavTabItem(Icons.Default.Home,      "INICIO",    true,  onInicioClick)
-            NavTabItem(Icons.Default.DateRange, "HISTORIAL", false, onHistorialClick)
-            NavTabItem(Icons.Default.Person,    "PERFIL",    false, onPerfilClick)
-        }
-    }
-}
-
-@Composable
-private fun NavTabItem(
-    icon:     ImageVector,
-    label:    String,
-    isActive: Boolean,
-    onClick:  () -> Unit,
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier            = Modifier
-            .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 8.dp),
-    ) {
-        Icon(
-            imageVector        = icon,
-            contentDescription = label,
-            tint               = if (isActive) Accent else Muted,
-            modifier           = Modifier.size(22.dp),
-        )
-        Spacer(Modifier.height(3.dp))
-        Text(
-            text  = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = if (isActive) Accent else Muted,
-        )
-    }
-}
 
 // ── Previews ──────────────────────────────────────────────────────────────────
 

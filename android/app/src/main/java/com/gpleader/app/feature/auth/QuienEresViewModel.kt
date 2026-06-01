@@ -2,8 +2,6 @@ package com.gpleader.app.feature.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.gpleader.app.core.data.repository.GrupoRepository
-import com.gpleader.app.core.data.repository.IglesiaItem
 import com.gpleader.app.core.data.repository.MiembroRepository
 import com.gpleader.app.core.data.repository.iniciales
 import com.gpleader.app.core.data.repository.nombreCompleto
@@ -12,18 +10,20 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
-import io.github.jan.supabase.functions.functions
-import kotlinx.coroutines.delay
+import io.github.jan.supabase.postgrest.postgrest
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.Json
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
-import java.time.DayOfWeek
-import java.time.LocalDate
 import javax.inject.Inject
 
 data class MiembroSesion(
@@ -34,7 +34,10 @@ data class MiembroSesion(
 )
 
 data class QuienEresUiState(
-    val grupoNombre: String = "",
+    val grupoNombre:    String = "",
+    val iglesiaNombre:  String = "",
+    val districtNombre: String = "",
+    val campoNombre:    String = "",
     val miembros: List<MiembroSesion> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
@@ -46,29 +49,15 @@ data class QuienEresUiState(
     val isAuthenticating: Boolean = false,
     val authError: String? = null,
 
-    // Sheet auto-marcado sábado
-    val showSabadoSheet: Boolean = false,
-    val sabadoMiembroNombre: String = "",
-    val sabadoMiembroId: String = "",
-    val sabadoIglesias: List<IglesiaItem> = emptyList(),
-    val sabadoIglesiasLoading: Boolean = false,
-    val sabadoBusqueda: String = "",
-    val sabadoSelectedIglesiaId: String = "",
-    val sabadoSelectedIglesiaNombre: String = "",
-    val sabadoEnviando: Boolean = false,
-    val sabadoError: String? = null,
-
     // Navegación
     val navigateToHome: Boolean = false,
     val navigateToCambiarContrasena: Boolean = false,
-    val navigateToConfirmacion: String? = null, // iglesia nombre
-    val showNoEsSabadoMsg: Boolean = false,
+    val navigateToConfirmarIdentidad: MiembroSesion? = null,
 )
 
 @HiltViewModel
 class QuienEresViewModel @Inject constructor(
     private val miembroRepo: MiembroRepository,
-    private val grupoRepo: GrupoRepository,
     private val session: SessionManager,
     private val supabase: SupabaseClient,
 ) : ViewModel() {
@@ -77,7 +66,15 @@ class QuienEresViewModel @Inject constructor(
     val uiState: StateFlow<QuienEresUiState> = _uiState.asStateFlow()
 
     init {
-        _uiState.update { it.copy(grupoNombre = session.grupoNombre, isLoading = true) }
+        _uiState.update {
+            it.copy(
+                grupoNombre    = session.grupoNombre,
+                iglesiaNombre  = session.iglesiaNombre,
+                districtNombre = session.districtNombre,
+                campoNombre    = session.campoNombre,
+                isLoading      = true,
+            )
+        }
         viewModelScope.launch {
             miembroRepo.getMiembrosActivos(session.grupoId)
                 .catch { e ->
@@ -110,16 +107,12 @@ class QuienEresViewModel @Inject constructor(
                 it.copy(showPasswordDialog = true, pendingLider = miembro, authError = null, contrasenaDialog = "")
             }
         } else {
-            if (esSabadoHoy()) {
-                abrirSabadoSheet(miembro)
-            } else {
-                _uiState.update { it.copy(showNoEsSabadoMsg = true) }
-                viewModelScope.launch {
-                    delay(3_000)
-                    _uiState.update { it.copy(showNoEsSabadoMsg = false) }
-                }
-            }
+            _uiState.update { it.copy(navigateToConfirmarIdentidad = miembro) }
         }
+    }
+
+    fun consumeConfirmarIdentidadNavigation() {
+        _uiState.update { it.copy(navigateToConfirmarIdentidad = null) }
     }
 
     // ── Contraseña líder ───────────────────────────────────────────────────────
@@ -151,6 +144,21 @@ class QuienEresViewModel @Inject constructor(
             }.onSuccess {
                 session.miembroId     = lider.id
                 session.miembroNombre = lider.nombre
+                // Crear sesión gp_sessions para gp_set_password (si el grupo tiene gp_code)
+                val gpCode = session.gpCode
+                if (gpCode.isNotBlank()) {
+                    runCatching {
+                        val resp = supabase.postgrest.rpc("gp_login", buildJsonObject {
+                            put("p_gp_code",    gpCode)
+                            put("p_password",   contrasena)
+                            put("p_device_info", "Android")
+                        })
+                        val row = Json.parseToJsonElement(resp.data).jsonArray.firstOrNull()?.jsonObject
+                        row?.get("session_token")?.jsonPrimitive?.contentOrNull
+                    }.getOrNull()?.let { token ->
+                        session.sessionToken = token
+                    }
+                }
                 if (!session.grupoPasswordSet) {
                     _uiState.update { it.copy(isAuthenticating = false, showPasswordDialog = false, navigateToCambiarContrasena = true) }
                 } else {
@@ -166,85 +174,6 @@ class QuienEresViewModel @Inject constructor(
         _uiState.update { it.copy(showPasswordDialog = false, pendingLider = null, contrasenaDialog = "", authError = null) }
     }
 
-    // ── Sheet sábado ───────────────────────────────────────────────────────────
-
-    private fun abrirSabadoSheet(miembro: MiembroSesion) {
-        _uiState.update {
-            it.copy(
-                showSabadoSheet           = true,
-                sabadoMiembroId           = miembro.id,
-                sabadoMiembroNombre       = miembro.nombre,
-                sabadoSelectedIglesiaId   = session.iglesiaId,
-                sabadoSelectedIglesiaNombre = session.iglesiaNombre,
-                sabadoIglesias            = emptyList(),
-                sabadoIglesiasLoading     = true,
-                sabadoBusqueda            = "",
-                sabadoError               = null,
-            )
-        }
-        viewModelScope.launch {
-            val iglesias = runCatching { grupoRepo.getIglesias() }.getOrElse { emptyList() }
-            _uiState.update { it.copy(sabadoIglesias = iglesias, sabadoIglesiasLoading = false) }
-        }
-    }
-
-    fun onSabadoIglesiaSelected(iglesia: IglesiaItem) {
-        _uiState.update {
-            it.copy(
-                sabadoSelectedIglesiaId     = iglesia.id,
-                sabadoSelectedIglesiaNombre = iglesia.nombre,
-                sabadoBusqueda              = "",
-            )
-        }
-    }
-
-    fun onSabadoBusquedaChange(query: String) {
-        _uiState.update { it.copy(sabadoBusqueda = query) }
-    }
-
-    fun onSabadoUsarIglesiaPropia() {
-        _uiState.update {
-            it.copy(
-                sabadoSelectedIglesiaId     = session.iglesiaId,
-                sabadoSelectedIglesiaNombre = session.iglesiaNombre,
-                sabadoBusqueda              = "",
-            )
-        }
-    }
-
-    fun onSabadoMarcarClick() {
-        val grupoId     = session.grupoId
-        val mId         = _uiState.value.sabadoMiembroId.ifBlank { return }
-        val iglesiaId   = _uiState.value.sabadoSelectedIglesiaId
-        val iglesiaNombre = _uiState.value.sabadoSelectedIglesiaNombre
-
-        _uiState.update { it.copy(sabadoEnviando = true, sabadoError = null) }
-        viewModelScope.launch {
-            runCatching {
-                supabase.functions.invoke(
-                    function = "sabbath-self-mark",
-                    body     = buildJsonObject {
-                        put("groupId",  grupoId)
-                        put("memberId", mId)
-                        if (iglesiaId.isNotBlank()) put("churchId", iglesiaId)
-                    },
-                )
-            }.onSuccess {
-                _uiState.update {
-                    it.copy(sabadoEnviando = false, showSabadoSheet = false, navigateToConfirmacion = iglesiaNombre)
-                }
-            }.onFailure {
-                _uiState.update {
-                    it.copy(sabadoEnviando = false, sabadoError = "No se pudo registrar. Intenta de nuevo.")
-                }
-            }
-        }
-    }
-
-    fun onDismissSabadoSheet() {
-        _uiState.update { it.copy(showSabadoSheet = false, sabadoError = null) }
-    }
-
     // ── Consumidores de navegación ─────────────────────────────────────────────
 
     fun consumeHomeNavigation() {
@@ -254,14 +183,4 @@ class QuienEresViewModel @Inject constructor(
     fun consumeCambiarContrasenaNavigation() {
         _uiState.update { it.copy(navigateToCambiarContrasena = false) }
     }
-
-    fun consumeConfirmacionNavigation() {
-        _uiState.update { it.copy(navigateToConfirmacion = null) }
-    }
-
-    fun consumeNoEsSabadoMsg() {
-        _uiState.update { it.copy(showNoEsSabadoMsg = false) }
-    }
-
-    private fun esSabadoHoy(): Boolean = true // TODO: restaurar → LocalDate.now().dayOfWeek == DayOfWeek.SATURDAY
 }
