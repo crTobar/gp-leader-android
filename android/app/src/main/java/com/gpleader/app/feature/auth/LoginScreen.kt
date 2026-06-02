@@ -1,10 +1,23 @@
 package com.gpleader.app.feature.auth
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,6 +29,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -38,9 +53,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -83,6 +101,7 @@ import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.Sage
 import com.gpleader.app.core.ui.theme.neuElevated
 import com.gpleader.app.core.ui.theme.neuInset
+import com.gpleader.app.core.ui.theme.neuInsetInner
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
@@ -111,6 +130,7 @@ fun LoginScreen(
 
 // ── Content ───────────────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun LoginScreenContent(
     uiState:            LoginUiState,
@@ -121,11 +141,17 @@ private fun LoginScreenContent(
 ) {
     var active by remember { mutableStateOf(ActiveDropdown.NONE) }
     var mostrarFiltros by remember { mutableStateOf(false) }
+    var cardExpandido  by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     var grupoQuery    by remember { mutableStateOf("") }
     var campoQuery    by remember { mutableStateOf("") }
     var distritoQuery by remember { mutableStateOf("") }
     var iglesiaQuery  by remember { mutableStateOf("") }
+
+    // La tarjeta se expande automáticamente al interactuar con cualquier campo
+    LaunchedEffect(active, mostrarFiltros) {
+        if (active != ActiveDropdown.NONE || mostrarFiltros) cardExpandido = true
+    }
 
     fun expand(d: ActiveDropdown) { active = d }
     fun collapse() { active = ActiveDropdown.NONE; focusManager.clearFocus() }
@@ -163,6 +189,28 @@ private fun LoginScreenContent(
         }
     }
 
+    SharedTransitionLayout {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val density = LocalDensity.current
+        val screenH = with(density) { maxHeight.toPx() }
+
+        // Posición exacta del logo real en el header (se actualiza tras el primer layout)
+        var headerLogoCenterY by remember { mutableFloatStateOf(0f) }
+
+        val logoY        = remember { Animatable(0f) }
+        val logoScale    = remember { Animatable(1.25f) }  // 80dp / 64dp = 1.25
+        val overlayAlpha = remember { Animatable(1f) }
+
+        LaunchedEffect(Unit) {
+            delay(1000)
+            // targetY calculado con la posición real capturada por onGloballyPositioned
+            val targetY = headerLogoCenterY - screenH / 2f
+            launch { logoY.animateTo(targetY, tween(700, easing = FastOutSlowInEasing)) }
+            launch { logoScale.animateTo(0.8f, tween(700, easing = FastOutSlowInEasing)) }
+            delay(700)
+            overlayAlpha.animateTo(0f, tween(350))
+        }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -172,27 +220,40 @@ private fun LoginScreenContent(
             .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(Modifier.height(36.dp))
-
-        AppLogo()
-
-        Spacer(Modifier.height(20.dp))
-
-        Text(
-            text      = stringResource(R.string.login_app_titulo),
-            style     = MaterialTheme.typography.displayLarge,
-            color     = Ink,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text      = stringResource(R.string.login_header_subtitle),
-            style     = MaterialTheme.typography.bodyMedium,
-            color     = Mid,
-            textAlign = TextAlign.Center,
-        )
-
-        Spacer(Modifier.height(36.dp))
+        AnimatedVisibility(
+            visible = !cardExpandido,
+            enter   = fadeIn(tween(200)) + expandVertically(tween(300)),
+            exit    = fadeOut(tween(150)) + shrinkVertically(tween(300)),
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Spacer(Modifier.height(36.dp))
+                AppLogo(
+                    modifier = Modifier
+                        .sharedElement(
+                            state                  = rememberSharedContentState("app-logo"),
+                            animatedVisibilityScope = this@AnimatedVisibility,
+                        )
+                        .onGloballyPositioned { coords ->
+                            headerLogoCenterY = coords.positionInRoot().y + coords.size.height / 2f
+                        }
+                )
+                Spacer(Modifier.height(20.dp))
+                Text(
+                    text      = stringResource(R.string.login_app_titulo),
+                    style     = MaterialTheme.typography.displayLarge,
+                    color     = Ink,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text      = stringResource(R.string.login_header_subtitle),
+                    style     = MaterialTheme.typography.bodyMedium,
+                    color     = Mid,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(36.dp))
+            }
+}
 
         // ── Tarjeta de inicio de sesión ───────────────────────────────────────
         Column(
@@ -201,41 +262,89 @@ private fun LoginScreenContent(
                 .weight(1f)
                 .neuElevated(cornerRadius = 28.dp)
                 .clip(RoundedCornerShape(28.dp))
-                .background(Background),
+                .background(Background)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication        = null,
+                    onClick           = { cardExpandido = true },
+                ),
         ) {
-            // ── Cabecera ───────────────────────────────────────────────────────
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Background)
-                    .padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 20.dp),
+            // ── Cabecera — modo normal ─────────────────────────────────────────
+            AnimatedVisibility(
+                visible = !cardExpandido,
+                exit    = fadeOut(tween(150)) + shrinkVertically(tween(200)),
             ) {
-                Box(
+                Column(
                     modifier = Modifier
-                        .width(32.dp)
-                        .height(3.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(Accent),
-                )
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    text  = stringResource(R.string.login_section_label),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Accent,
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text       = stringResource(R.string.login_title),
-                    style      = MaterialTheme.typography.headlineMedium,
-                    color      = Ink,
-                    fontWeight = FontWeight.Bold,
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text  = stringResource(R.string.login_subtitle),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Mid,
-                )
+                        .fillMaxWidth()
+                        .background(Background)
+                        .padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 20.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(32.dp)
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Accent),
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text  = stringResource(R.string.login_section_label),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Accent,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text       = stringResource(R.string.login_title),
+                        style      = MaterialTheme.typography.headlineMedium,
+                        color      = Ink,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text  = stringResource(R.string.login_subtitle),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Mid,
+                    )
+                }
+            }
+
+            // ── Cabecera — modo expandido (logo a la derecha) ─────────────────
+            AnimatedVisibility(
+                visible = cardExpandido,
+                enter   = fadeIn(tween(250)),
+            ) {
+                Row(
+                    modifier          = Modifier
+                        .fillMaxWidth()
+                        .background(Background)
+                        .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text  = stringResource(R.string.login_section_label),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Accent,
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text       = stringResource(R.string.login_title),
+                            style      = MaterialTheme.typography.headlineMedium,
+                            color      = Ink,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    AppLogo(
+                        size         = 44.dp,
+                        cornerRadius = 14.dp,
+                        iconSize     = 22.dp,
+                        modifier     = Modifier.sharedElement(
+                            state                   = rememberSharedContentState("app-logo"),
+                            animatedVisibilityScope = this@AnimatedVisibility,
+                        ),
+                    )
+                }
             }
 
             HorizontalDivider(
@@ -250,57 +359,48 @@ private fun LoginScreenContent(
                     .weight(1f)
                     .padding(horizontal = 20.dp, vertical = 20.dp),
             ) {
-
-            // ── Buscador GP fijo (no scrollea) ────────────────────────────────
             val grupoExpandido = active == ActiveDropdown.GRUPO && !mostrarFiltros
-            Text(
-                text     = stringResource(R.string.login_label_tu_gp),
-                style    = MaterialTheme.typography.labelSmall,
-                color    = if (grupoExpandido) Accent else Muted,
-                modifier = Modifier.padding(bottom = 4.dp),
-            )
-            DropdownSearchBox(
-                query         = grupoQuery,
-                selectedName  = "",
-                placeholder   = stringResource(R.string.login_buscar_gp_hint),
-                expanded      = grupoExpandido,
-                isActive      = grupoExpandido,
-                leadingIcon   = {
-                    Icon(
-                        imageVector        = Icons.Default.Search,
-                        contentDescription = null,
-                        tint               = if (grupoExpandido) Accent else Muted,
-                        modifier           = Modifier.size(18.dp),
-                    )
-                },
-                onQueryChange = { q ->
-                    grupoQuery = q
-                    mostrarFiltros = false
-                    if (active != ActiveDropdown.GRUPO) expand(ActiveDropdown.GRUPO)
-                },
-                onFocused = { mostrarFiltros = false; expand(ActiveDropdown.GRUPO) },
-                onToggle  = {
-                    if (grupoExpandido) collapse()
-                    else { mostrarFiltros = false; expand(ActiveDropdown.GRUPO) }
-                },
-            )
 
-            Spacer(Modifier.height(12.dp))
-
-            val contentExpandido = grupoExpandido || mostrarFiltros
-
-            if (!contentExpandido) {
-                // ── "Más opciones" arriba cuando nada está abierto ───────────
-                MasOpcionesButton(
-                    mostrarFiltros = mostrarFiltros,
-                    onClick        = { mostrarFiltros = !mostrarFiltros; if (mostrarFiltros) collapse() },
+            if (!mostrarFiltros) {
+                // ── Modo normal: GP fijo arriba + lista de grupos debajo ──────
+                Text(
+                    text     = stringResource(R.string.login_label_tu_gp),
+                    style    = MaterialTheme.typography.labelSmall,
+                    color    = if (grupoExpandido) Accent else Muted,
+                    modifier = Modifier.padding(bottom = 4.dp),
                 )
-                Spacer(Modifier.weight(1f))
-            } else {
-                // ── Zona scrollable ───────────────────────────────────────────
-                Box(modifier = Modifier.weight(1f)) {
-                    if (!mostrarFiltros) {
-                        // Lista de grupos (LazyColumn, Box tiene altura fija por weight)
+                DropdownSearchBox(
+                    query         = grupoQuery,
+                    selectedName  = "",
+                    placeholder   = stringResource(R.string.login_buscar_gp_hint),
+                    expanded      = grupoExpandido,
+                    isActive      = grupoExpandido,
+                    leadingIcon   = {
+                        Icon(
+                            imageVector        = Icons.Default.Search,
+                            contentDescription = null,
+                            tint               = if (grupoExpandido) Accent else Muted,
+                            modifier           = Modifier.size(18.dp),
+                        )
+                    },
+                    onQueryChange = { q ->
+                        grupoQuery = q
+                        if (active != ActiveDropdown.GRUPO) expand(ActiveDropdown.GRUPO)
+                    },
+                    onFocused = { expand(ActiveDropdown.GRUPO) },
+                    onToggle  = { if (grupoExpandido) collapse() else expand(ActiveDropdown.GRUPO) },
+                )
+
+                Spacer(Modifier.height(12.dp))
+
+                if (!grupoExpandido) {
+                    MasOpcionesButton(
+                        mostrarFiltros = false,
+                        onClick        = { mostrarFiltros = true; collapse() },
+                    )
+                    Spacer(Modifier.weight(1f))
+                } else {
+                    Box(modifier = Modifier.weight(1f)) {
                         if (filteredGrupos.isEmpty()) {
                             Text(
                                 text      = stringResource(R.string.login_sin_resultados),
@@ -312,133 +412,191 @@ private fun LoginScreenContent(
                                     .padding(top = 6.dp, bottom = 12.dp),
                             )
                         } else {
-                            LazyColumn(
-                                modifier       = Modifier.fillMaxSize(),
-                                contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                                    top = 4.dp, bottom = 4.dp,
-                                ),
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState()),
                             ) {
-                                itemsIndexed(filteredGrupos, key = { _, g -> g.id }) { idx, grupo ->
+                                Spacer(Modifier.height(4.dp))
+                                filteredGrupos.forEachIndexed { idx, grupo ->
                                     val subtitulo = listOf(
                                         grupo.iglesiaNombre,
                                         grupo.districtNombre,
                                         grupo.campoNombre,
                                     ).filter { it.isNotBlank() }.joinToString(" · ")
-                                    Column {
-                                        Row(
-                                            modifier          = Modifier
-                                                .fillMaxWidth()
-                                                .clickable { onGrupoTap(grupo); collapse() }
-                                                .padding(horizontal = 4.dp, vertical = 12.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                        ) {
-                                            Column(modifier = Modifier.weight(1f)) {
+                                    Row(
+                                        modifier          = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { onGrupoTap(grupo); collapse() }
+                                            .padding(horizontal = 4.dp, vertical = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text       = grupo.nombre,
+                                                style      = MaterialTheme.typography.bodyLarge,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color      = Ink,
+                                            )
+                                            if (subtitulo.isNotBlank()) {
+                                                Spacer(Modifier.height(2.dp))
                                                 Text(
-                                                    text       = grupo.nombre,
-                                                    style      = MaterialTheme.typography.bodyLarge,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color      = Ink,
+                                                    text  = subtitulo,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = Muted,
                                                 )
-                                                if (subtitulo.isNotBlank()) {
-                                                    Spacer(Modifier.height(2.dp))
-                                                    Text(
-                                                        text  = subtitulo,
-                                                        style = MaterialTheme.typography.bodyMedium,
-                                                        color = Muted,
-                                                    )
-                                                }
                                             }
                                         }
-                                        if (idx < filteredGrupos.lastIndex) {
-                                            HorizontalDivider(color = Muted.copy(alpha = 0.15f))
-                                        }
+                                    }
+                                    if (idx < filteredGrupos.lastIndex) {
+                                        HorizontalDivider(color = Muted.copy(alpha = 0.15f))
                                     }
                                 }
-                            }
-                        }
-                    } else {
-                        // Filtros en orden fijo. Al tocar uno, scroll automático al tope.
-                        val filterListState = rememberLazyListState()
-                        LaunchedEffect(active) {
-                            when (active) {
-                                ActiveDropdown.CAMPO    -> filterListState.animateScrollToItem(0)
-                                ActiveDropdown.DISTRITO -> filterListState.animateScrollToItem(1)
-                                ActiveDropdown.IGLESIA  -> filterListState.animateScrollToItem(2)
-                                else                    -> {}
-                            }
-                        }
-                        LazyColumn(
-                            state               = filterListState,
-                            modifier            = Modifier.fillMaxSize(),
-                            contentPadding      = androidx.compose.foundation.layout.PaddingValues(
-                                top = 4.dp, bottom = 12.dp,
-                            ),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            item {
-                                FilterBlock(
-                                    label         = stringResource(R.string.login_label_campo),
-                                    placeholder   = stringResource(R.string.login_placeholder_campo),
-                                    query         = campoQuery,
-                                    selectedName  = uiState.selectedCampo?.nombre ?: "",
-                                    isExpanded    = active == ActiveDropdown.CAMPO,
-                                    onQueryChange = { q -> campoQuery = q; if (active != ActiveDropdown.CAMPO) expand(ActiveDropdown.CAMPO) },
-                                    onToggle      = { if (active == ActiveDropdown.CAMPO) collapse() else expand(ActiveDropdown.CAMPO) },
-                                    resultsContent = {
-                                        FilterItemList(
-                                            items      = filteredCampos,
-                                            itemLabel  = { it.nombre },
-                                            isSelected = { it.nombre == (uiState.selectedCampo?.nombre ?: "") },
-                                            onSelected = { onCampoSelected(it); collapse() },
-                                        )
-                                    },
-                                )
-                            }
-                            item {
-                                FilterBlock(
-                                    label         = stringResource(R.string.login_label_distrito),
-                                    placeholder   = stringResource(R.string.login_placeholder_distrito),
-                                    query         = distritoQuery,
-                                    selectedName  = uiState.selectedDistrito?.nombre ?: "",
-                                    isExpanded    = active == ActiveDropdown.DISTRITO,
-                                    onQueryChange = { q -> distritoQuery = q; if (active != ActiveDropdown.DISTRITO) expand(ActiveDropdown.DISTRITO) },
-                                    onToggle      = { if (active == ActiveDropdown.DISTRITO) collapse() else expand(ActiveDropdown.DISTRITO) },
-                                    resultsContent = {
-                                        FilterItemList(
-                                            items      = filteredDistritos,
-                                            itemLabel  = { it.nombre },
-                                            isSelected = { it.nombre == (uiState.selectedDistrito?.nombre ?: "") },
-                                            onSelected = { onDistritoSelected(it); collapse() },
-                                        )
-                                    },
-                                )
-                            }
-                            item {
-                                FilterBlock(
-                                    label         = stringResource(R.string.login_label_iglesia),
-                                    placeholder   = stringResource(R.string.login_placeholder_iglesia),
-                                    query         = iglesiaQuery,
-                                    selectedName  = uiState.selectedIglesia?.nombre ?: "",
-                                    isExpanded    = active == ActiveDropdown.IGLESIA,
-                                    onQueryChange = { q -> iglesiaQuery = q; if (active != ActiveDropdown.IGLESIA) expand(ActiveDropdown.IGLESIA) },
-                                    onToggle      = { if (active == ActiveDropdown.IGLESIA) collapse() else expand(ActiveDropdown.IGLESIA) },
-                                    resultsContent = {
-                                        IglesiaItemList(
-                                            items      = filteredIglesias,
-                                            selected   = uiState.selectedIglesia,
-                                            onSelected = { onIglesiaSelected(it); collapse() },
-                                        )
-                                    },
-                                )
+                                Spacer(Modifier.height(4.dp))
                             }
                         }
                     }
+                    MasOpcionesButton(
+                        mostrarFiltros = false,
+                        onClick        = { mostrarFiltros = true; collapse() },
+                    )
                 }
 
-                // ── "Más opciones" baja al fondo cuando hay contenido expandido
+            } else {
+                // ── Modo filtros: todos los buscadores en columna scrollable ──
+                Box(modifier = Modifier.weight(1f)) {
+                    Column(
+                        modifier            = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Spacer(Modifier.height(4.dp))
+
+                        // TU GP (dentro del scroll)
+                        FilterBlock(
+                            label         = stringResource(R.string.login_label_tu_gp),
+                            placeholder   = stringResource(R.string.login_buscar_gp_hint),
+                            query         = grupoQuery,
+                            selectedName  = "",
+                            isExpanded    = active == ActiveDropdown.GRUPO,
+                            onQueryChange = { q ->
+                                grupoQuery = q
+                                if (active != ActiveDropdown.GRUPO) expand(ActiveDropdown.GRUPO)
+                            },
+                            onToggle      = { if (active == ActiveDropdown.GRUPO) collapse() else expand(ActiveDropdown.GRUPO) },
+                            resultsContent = {
+                                if (filteredGrupos.isEmpty()) {
+                                    Text(
+                                        text      = stringResource(R.string.login_sin_resultados),
+                                        style     = MaterialTheme.typography.bodyMedium,
+                                        color     = Muted,
+                                        modifier  = Modifier.padding(vertical = 8.dp),
+                                    )
+                                } else {
+                                    Column {
+                                        filteredGrupos.forEachIndexed { idx, grupo ->
+                                            val subtitulo = listOf(
+                                                grupo.iglesiaNombre,
+                                                grupo.districtNombre,
+                                                grupo.campoNombre,
+                                            ).filter { it.isNotBlank() }.joinToString(" · ")
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable { onGrupoTap(grupo); collapse() }
+                                                    .padding(horizontal = 4.dp, vertical = 12.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text       = grupo.nombre,
+                                                        style      = MaterialTheme.typography.bodyLarge,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color      = Ink,
+                                                    )
+                                                    if (subtitulo.isNotBlank()) {
+                                                        Spacer(Modifier.height(2.dp))
+                                                        Text(
+                                                            text  = subtitulo,
+                                                            style = MaterialTheme.typography.bodyMedium,
+                                                            color = Muted,
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            if (idx < filteredGrupos.lastIndex) {
+                                                HorizontalDivider(color = Muted.copy(alpha = 0.15f))
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                        )
+
+                        // CAMPO
+                        FilterBlock(
+                            label         = stringResource(R.string.login_label_campo),
+                            placeholder   = stringResource(R.string.login_placeholder_campo),
+                            query         = campoQuery,
+                            selectedName  = uiState.selectedCampo?.nombre ?: "",
+                            isExpanded    = active == ActiveDropdown.CAMPO,
+                            onQueryChange = { q -> campoQuery = q; if (active != ActiveDropdown.CAMPO) expand(ActiveDropdown.CAMPO) },
+                            onToggle      = { if (active == ActiveDropdown.CAMPO) collapse() else expand(ActiveDropdown.CAMPO) },
+                            resultsContent = {
+                                FilterItemList(
+                                    items      = filteredCampos,
+                                    itemLabel  = { it.nombre },
+                                    isSelected = { it.nombre == (uiState.selectedCampo?.nombre ?: "") },
+                                    onSelected = { onCampoSelected(it); collapse() },
+                                )
+                            },
+                        )
+
+                        // DISTRITO
+                        FilterBlock(
+                            label         = stringResource(R.string.login_label_distrito),
+                            placeholder   = stringResource(R.string.login_placeholder_distrito),
+                            query         = distritoQuery,
+                            selectedName  = uiState.selectedDistrito?.nombre ?: "",
+                            isExpanded    = active == ActiveDropdown.DISTRITO,
+                            onQueryChange = { q -> distritoQuery = q; if (active != ActiveDropdown.DISTRITO) expand(ActiveDropdown.DISTRITO) },
+                            onToggle      = { if (active == ActiveDropdown.DISTRITO) collapse() else expand(ActiveDropdown.DISTRITO) },
+                            resultsContent = {
+                                FilterItemList(
+                                    items      = filteredDistritos,
+                                    itemLabel  = { it.nombre },
+                                    isSelected = { it.nombre == (uiState.selectedDistrito?.nombre ?: "") },
+                                    onSelected = { onDistritoSelected(it); collapse() },
+                                )
+                            },
+                        )
+
+                        // IGLESIA
+                        FilterBlock(
+                            label         = stringResource(R.string.login_label_iglesia),
+                            placeholder   = stringResource(R.string.login_placeholder_iglesia),
+                            query         = iglesiaQuery,
+                            selectedName  = uiState.selectedIglesia?.nombre ?: "",
+                            isExpanded    = active == ActiveDropdown.IGLESIA,
+                            onQueryChange = { q -> iglesiaQuery = q; if (active != ActiveDropdown.IGLESIA) expand(ActiveDropdown.IGLESIA) },
+                            onToggle      = { if (active == ActiveDropdown.IGLESIA) collapse() else expand(ActiveDropdown.IGLESIA) },
+                            resultsContent = {
+                                IglesiaItemList(
+                                    items      = filteredIglesias,
+                                    selected   = uiState.selectedIglesia,
+                                    onSelected = { onIglesiaSelected(it); collapse() },
+                                )
+                            },
+                        )
+
+                        Spacer(Modifier.height(4.dp))
+                    }
+                }
+
                 MasOpcionesButton(
-                    mostrarFiltros = mostrarFiltros,
-                    onClick        = { mostrarFiltros = !mostrarFiltros; if (mostrarFiltros) collapse() },
+                    mostrarFiltros = true,
+                    onClick        = { mostrarFiltros = false; collapse() },
                 )
             }
 
@@ -465,6 +623,30 @@ private fun LoginScreenContent(
 
         Spacer(Modifier.height(24.dp))
     }
+
+        // ── Overlay splash: logo desliza hacia el header ─────────────────────
+        if (overlayAlpha.value > 0f) {
+            Box(
+                modifier         = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = overlayAlpha.value }
+                    .background(Background),
+                contentAlignment = Alignment.Center,
+            ) {
+                AppLogo(
+                    size         = 80.dp,
+                    cornerRadius = 24.dp,
+                    iconSize     = 36.dp,
+                    modifier     = Modifier.graphicsLayer {
+                        translationY = logoY.value
+                        scaleX       = logoScale.value
+                        scaleY       = logoScale.value
+                    },
+                )
+            }
+        }
+    } // BoxWithConstraints
+    } // SharedTransitionLayout
 }
 
 // ── Bloque de filtro: buscador + resultados inline (sin LazyColumn) ───────────
@@ -908,8 +1090,8 @@ private fun DropdownSearchBox(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .neuInset(cornerRadius = 14.dp)
-            .background(BackgroundDeep, RoundedCornerShape(14.dp))
+            .background(Background)
+            .neuInsetInner(cornerRadius = 14.dp)
             .then(if (isActive) Modifier.drawWithContent {
                 drawContent()
                 val s = 1.5.dp.toPx()

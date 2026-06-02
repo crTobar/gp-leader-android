@@ -49,8 +49,10 @@ import com.gpleader.app.core.ui.theme.neuElevated
 
 @Composable
 fun MiembroHomeScreen(
-    onCerrarSesion: () -> Unit,
-    onNavigateToActividades: () -> Unit = {},
+    onCerrarSesion:              () -> Unit,
+    onNavigateToActividades:     () -> Unit = {},
+    onNavigateToDuoMisionero:    () -> Unit = {},
+    onNavigateToEstudiosBiblicos: () -> Unit = {},
     viewModel: MiembroHomeViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -63,17 +65,21 @@ fun MiembroHomeScreen(
     }
 
     MiembroHomeContent(
-        uiState                 = uiState,
-        onCerrarSesion          = viewModel::onCerrarSesion,
-        onNavigateToActividades = onNavigateToActividades,
+        uiState                       = uiState,
+        onCerrarSesion                = viewModel::onCerrarSesion,
+        onNavigateToActividades       = onNavigateToActividades,
+        onNavigateToDuoMisionero      = onNavigateToDuoMisionero,
+        onNavigateToEstudiosBiblicos  = onNavigateToEstudiosBiblicos,
     )
 }
 
 @Composable
 private fun MiembroHomeContent(
-    uiState: MiembroHomeUiState,
-    onCerrarSesion: () -> Unit = {},
-    onNavigateToActividades: () -> Unit = {},
+    uiState:                      MiembroHomeUiState,
+    onCerrarSesion:               () -> Unit = {},
+    onNavigateToActividades:      () -> Unit = {},
+    onNavigateToDuoMisionero:     () -> Unit = {},
+    onNavigateToEstudiosBiblicos: () -> Unit = {},
 ) {
     if (uiState.isValidandoPerfil) {
         Box(
@@ -183,7 +189,28 @@ private fun MiembroHomeContent(
 
             Spacer(Modifier.height(24.dp))
 
-            // ── HISTORIAL DEL TRIMESTRE ───────────────────────────────────────
+            // ── Botones de acción ─────────────────────────────────────────────
+            NeuButtonSecondary(
+                text     = "Mi Duo Misionero",
+                onClick  = onNavigateToDuoMisionero,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(8.dp))
+            NeuButtonSecondary(
+                text     = "Mis Estudios Bíblicos",
+                onClick  = onNavigateToEstudiosBiblicos,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(8.dp))
+            NeuButtonSecondary(
+                text     = "Mis Actividades",
+                onClick  = onNavigateToActividades,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            Spacer(Modifier.height(24.dp))
+
+            // ── HISTORIAL DEL TRIMESTRE (al fondo) ───────────────────────────
             Text("HISTORIAL DEL TRIMESTRE", style = MaterialTheme.typography.labelSmall, color = Muted)
             Spacer(Modifier.height(8.dp))
             NeuCard(modifier = Modifier.fillMaxWidth()) {
@@ -196,9 +223,9 @@ private fun MiembroHomeContent(
                     }
                 } else {
                     Row(
-                        modifier            = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 24.dp),
+                        modifier              = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 24.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment   = Alignment.CenterVertically,
+                        verticalAlignment     = Alignment.CenterVertically,
                     ) {
                         StatItem(
                             value = uiState.cultosAsistidos.toString(),
@@ -237,16 +264,7 @@ private fun MiembroHomeContent(
 
             Spacer(Modifier.height(24.dp))
 
-            // ── Actividades ───────────────────────────────────────────────────
-            NeuButtonSecondary(
-                text     = "Mis actividades",
-                onClick  = onNavigateToActividades,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            // ── Cerrar sesión (secundario, al fondo del scroll) ───────────────
+            // ── Cerrar sesión (al fondo del scroll) ───────────────────────────
             NeuButtonSecondary(
                 text     = "Cerrar sesión",
                 onClick  = onCerrarSesion,

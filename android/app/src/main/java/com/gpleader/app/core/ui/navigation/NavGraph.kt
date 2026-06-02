@@ -42,6 +42,9 @@ import com.gpleader.app.feature.registro.RegistroViewModel
 import com.gpleader.app.feature.actividades.ActividadesListScreen
 import com.gpleader.app.feature.actividades.ActividadHistorialScreen
 import com.gpleader.app.feature.miembro.MiembroActividadesScreen
+import com.gpleader.app.feature.miembro.DuoMisioneroScreen
+import com.gpleader.app.feature.miembro.EstudiosBiblicosListScreen
+import com.gpleader.app.feature.miembro.EstudioDetalleScreen
 
 object NavRoutes {
     const val LOGIN                      = "login"
@@ -57,11 +60,15 @@ object NavRoutes {
     const val DETALLE_REUNION             = "detalle_reunion/{reunionId}"
 
     // ── Miembro regular (perfil guardado) ────────────────────────────────────
-    const val CONFIRMAR_IDENTIDAD = "confirmar_identidad/{miembroId}/{miembroNombre}"
-    const val MIEMBRO_HOME        = "miembro_home"
+    const val CONFIRMAR_IDENTIDAD           = "confirmar_identidad/{miembroId}/{miembroNombre}"
+    const val MIEMBRO_HOME                  = "miembro_home"
+    const val MIEMBRO_DUO_MISIONERO         = "miembro_duo_misionero"
+    const val MIEMBRO_ESTUDIOS_BIBLICOS     = "miembro_estudios_biblicos"
+    const val MIEMBRO_ESTUDIO_DETALLE       = "miembro_estudio_detalle/{estudioId}"
 
     fun confirmarIdentidad(miembroId: String, miembroNombre: String) =
         "confirmar_identidad/${android.net.Uri.encode(miembroId)}/${android.net.Uri.encode(miembroNombre)}"
+    fun miembroEstudioDetalle(estudioId: String) = "miembro_estudio_detalle/$estudioId"
 
     // ── Sábado ────────────────────────────────────────────────────────────────
     const val SABADO_AUTOMARCAR   = "sabado_automarcar/{miembroId}"
@@ -165,14 +172,36 @@ fun AppNavGraph(
                         popUpTo(0) { inclusive = true }
                     }
                 },
-                onNavigateToActividades = {
-                    navController.navigate(NavRoutes.MIEMBRO_ACTIVIDADES)
-                },
+                onNavigateToActividades      = { navController.navigate(NavRoutes.MIEMBRO_ACTIVIDADES) },
+                onNavigateToDuoMisionero     = { navController.navigate(NavRoutes.MIEMBRO_DUO_MISIONERO) },
+                onNavigateToEstudiosBiblicos = { navController.navigate(NavRoutes.MIEMBRO_ESTUDIOS_BIBLICOS) },
             )
         }
 
         composable(NavRoutes.MIEMBRO_ACTIVIDADES) {
             MiembroActividadesScreen(
+                onNavigateBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(NavRoutes.MIEMBRO_DUO_MISIONERO) {
+            DuoMisioneroScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(NavRoutes.MIEMBRO_ESTUDIOS_BIBLICOS) {
+            EstudiosBiblicosListScreen(
+                onNavigateBack       = { navController.popBackStack() },
+                onNavigateToDetalle  = { id -> navController.navigate(NavRoutes.miembroEstudioDetalle(id)) },
+            )
+        }
+
+        composable(
+            route     = NavRoutes.MIEMBRO_ESTUDIO_DETALLE,
+            arguments = listOf(navArgument("estudioId") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val estudioId = backStackEntry.arguments?.getString("estudioId") ?: ""
+            EstudioDetalleScreen(
+                estudioId      = estudioId,
                 onNavigateBack = { navController.popBackStack() },
             )
         }

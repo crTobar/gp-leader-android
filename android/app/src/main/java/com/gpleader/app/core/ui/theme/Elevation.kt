@@ -1,7 +1,11 @@
 package com.gpleader.app.core.ui.theme
 
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
@@ -102,6 +106,47 @@ fun Modifier.neuInsetSm(cornerRadius: Dp = 8.dp): Modifier =
         darkOffsetX   = -4f, darkOffsetY  = -4f,
         lightOffsetX  =  4f, lightOffsetY =  4f,
     )
+
+/**
+ * Sombras interiores — gradientes sobre el contenido que simulan profundidad dentro del campo.
+ * Requiere que el modificador se aplique DESPUÉS de clip() y background().
+ * Oscuro arriba-izquierda / claro abajo-derecha.
+ */
+fun Modifier.neuInsetInner(
+    cornerRadius: Dp = 14.dp,
+    shadowSize:   Dp = 22.dp,
+): Modifier = this.drawWithContent {
+    drawContent()
+    val sz = shadowSize.toPx()
+    // Sombra oscura — borde superior
+    drawRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(Color(0x50C2C8D4), Color.Transparent),
+            startY = 0f, endY = sz,
+        )
+    )
+    // Sombra oscura — borde izquierdo
+    drawRect(
+        brush = Brush.horizontalGradient(
+            colors = listOf(Color(0x50C2C8D4), Color.Transparent),
+            startX = 0f, endX = sz,
+        )
+    )
+    // Sombra clara — borde inferior
+    drawRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(Color.Transparent, Color(0x60FFFFFF)),
+            startY = size.height - sz, endY = size.height,
+        )
+    )
+    // Sombra clara — borde derecho
+    drawRect(
+        brush = Brush.horizontalGradient(
+            colors = listOf(Color.Transparent, Color(0x60FFFFFF)),
+            startX = size.width - sz, endX = size.width,
+        )
+    )
+}
 
 /**
  * Botón principal activo (neu-up + halo azul rgba(74,127,212,0.25)).
