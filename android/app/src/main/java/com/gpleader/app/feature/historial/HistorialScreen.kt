@@ -99,10 +99,10 @@ import java.time.Month
 
 @Composable
 fun HistorialScreen(
-    onNavigateToHome:      () -> Unit,
-    onNavigateToDetalle:   (String) -> Unit,
-    onNavigateToPerfil:    () -> Unit = {},
-    onNavigateToRegistro:  () -> Unit = {},
+    onNavigateToHome:         () -> Unit,
+    onNavigateToDetalle:      (String) -> Unit,
+    onNavigateToActividades:  () -> Unit = {},
+    onNavigateToRegistro:     () -> Unit = {},
     viewModel: HistorialViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -117,14 +117,14 @@ fun HistorialScreen(
     }
 
     HistorialContent(
-        uiState              = uiState,
-        onNavigateToHome     = onNavigateToHome,
-        onNavigateToPerfil   = onNavigateToPerfil,
-        onTrimestralChange   = viewModel::onTrimestralChange,
-        onVerTodoClick       = viewModel::onVerTodoClick,
-        onRegistrarClick     = onNavigateToRegistro,
-        onReunionClick       = viewModel::onReunionClick,
-        onEditarReunionClick = viewModel::onEditarReunionClick,
+        uiState                 = uiState,
+        onNavigateToHome        = onNavigateToHome,
+        onNavigateToActividades = onNavigateToActividades,
+        onTrimestralChange      = viewModel::onTrimestralChange,
+        onVerTodoClick          = viewModel::onVerTodoClick,
+        onRegistrarClick        = onNavigateToRegistro,
+        onReunionClick          = viewModel::onReunionClick,
+        onEditarReunionClick    = viewModel::onEditarReunionClick,
     )
 }
 
@@ -132,23 +132,23 @@ fun HistorialScreen(
 
 @Composable
 private fun HistorialContent(
-    uiState:              HistorialUiState,
-    onNavigateToHome:     () -> Unit,
-    onNavigateToPerfil:   () -> Unit,
-    onTrimestralChange:   (String) -> Unit,
-    onVerTodoClick:       () -> Unit,
-    onRegistrarClick:     () -> Unit,
-    onReunionClick:       (String) -> Unit,
-    onEditarReunionClick: (String) -> Unit = {},
+    uiState:                 HistorialUiState,
+    onNavigateToHome:        () -> Unit,
+    onNavigateToActividades: () -> Unit = {},
+    onTrimestralChange:      (String) -> Unit,
+    onVerTodoClick:          () -> Unit,
+    onRegistrarClick:        () -> Unit,
+    onReunionClick:          (String) -> Unit,
+    onEditarReunionClick:    (String) -> Unit = {},
 ) {
     Scaffold(
         containerColor = Background,
         bottomBar = {
             AppBottomNavBar(
-                selectedTab      = NAV_TAB_HISTORIAL,
-                onInicioClick    = onNavigateToHome,
-                onHistorialClick = { },
-                onPerfilClick    = onNavigateToPerfil,
+                selectedTab        = NAV_TAB_HISTORIAL,
+                onInicioClick      = onNavigateToHome,
+                onHistorialClick   = { },
+                onActividadesClick = onNavigateToActividades,
             )
         },
     ) { innerPadding ->
@@ -988,9 +988,9 @@ private fun HistorialPreview() {
                 grupos  = grupos,
                 stats   = HistorialStats(78, 8, 7, 1),
             ),
-            onNavigateToHome   = {},
-            onNavigateToPerfil = {},
-            onTrimestralChange = {},
+            onNavigateToHome        = {},
+            onNavigateToActividades = {},
+            onTrimestralChange      = {},
             onVerTodoClick     = {},
             onRegistrarClick   = {},
             onReunionClick     = {},

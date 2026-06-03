@@ -99,21 +99,21 @@ private fun inicialesDet(nombre: String): String {
 
 @Composable
 fun DetalleReunionScreen(
-    onNavigateBack:        () -> Unit,
-    onNavigateToHome:      () -> Unit = {},
-    onNavigateToHistorial: () -> Unit = {},
-    onNavigateToPerfil:    () -> Unit = {},
-    onEditarClick:         () -> Unit = {},
+    onNavigateBack:          () -> Unit,
+    onNavigateToHome:        () -> Unit = {},
+    onNavigateToHistorial:   () -> Unit = {},
+    onNavigateToActividades: () -> Unit = {},
+    onEditarClick:           () -> Unit = {},
     viewModel: DetalleReunionViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
     DetalleReunionContent(
-        uiState               = uiState,
-        onNavigateBack        = onNavigateBack,
-        onNavigateToHome      = onNavigateToHome,
-        onNavigateToHistorial = onNavigateToHistorial,
-        onNavigateToPerfil    = onNavigateToPerfil,
-        onEditarClick         = onEditarClick,
+        uiState                 = uiState,
+        onNavigateBack          = onNavigateBack,
+        onNavigateToHome        = onNavigateToHome,
+        onNavigateToHistorial   = onNavigateToHistorial,
+        onNavigateToActividades = onNavigateToActividades,
+        onEditarClick           = onEditarClick,
     )
 }
 
@@ -121,12 +121,12 @@ fun DetalleReunionScreen(
 
 @Composable
 private fun DetalleReunionContent(
-    uiState:               DetalleReunionUiState,
-    onNavigateBack:        () -> Unit,
-    onNavigateToHome:      () -> Unit = {},
-    onNavigateToHistorial: () -> Unit = {},
-    onNavigateToPerfil:    () -> Unit = {},
-    onEditarClick:         () -> Unit = {},
+    uiState:                 DetalleReunionUiState,
+    onNavigateBack:          () -> Unit,
+    onNavigateToHome:        () -> Unit = {},
+    onNavigateToHistorial:   () -> Unit = {},
+    onNavigateToActividades: () -> Unit = {},
+    onEditarClick:           () -> Unit = {},
 ) {
     Scaffold(
         containerColor = Background,
@@ -141,10 +141,10 @@ private fun DetalleReunionContent(
         },
         bottomBar = {
             AppBottomNavBar(
-                selectedTab      = NAV_TAB_HISTORIAL,
-                onInicioClick    = onNavigateToHome,
-                onHistorialClick = onNavigateToHistorial,
-                onPerfilClick    = onNavigateToPerfil,
+                selectedTab        = NAV_TAB_HISTORIAL,
+                onInicioClick      = onNavigateToHome,
+                onHistorialClick   = onNavigateToHistorial,
+                onActividadesClick = onNavigateToActividades,
             )
         },
     ) { innerPadding ->

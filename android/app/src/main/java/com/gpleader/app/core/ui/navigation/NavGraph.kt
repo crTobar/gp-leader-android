@@ -40,7 +40,9 @@ import com.gpleader.app.feature.miembros.MiembrosViewModel
 import com.gpleader.app.feature.historial.DetalleReunionScreen
 import com.gpleader.app.feature.registro.RegistroViewModel
 import com.gpleader.app.feature.actividades.ActividadesListScreen
+import com.gpleader.app.feature.actividades.CampanaDetalleScreen
 import com.gpleader.app.feature.actividades.ActividadHistorialScreen
+import com.gpleader.app.feature.miembro.ActividadCampanaScreen
 import com.gpleader.app.feature.miembro.MiembroActividadesScreen
 import com.gpleader.app.feature.miembro.DuoMisioneroScreen
 import com.gpleader.app.feature.miembro.EstudiosBiblicosListScreen
@@ -65,10 +67,13 @@ object NavRoutes {
     const val MIEMBRO_DUO_MISIONERO         = "miembro_duo_misionero"
     const val MIEMBRO_ESTUDIOS_BIBLICOS     = "miembro_estudios_biblicos"
     const val MIEMBRO_ESTUDIO_DETALLE       = "miembro_estudio_detalle/{estudioId}"
+    const val MIEMBRO_ACTIVIDAD_CAMPANA     = "miembro_actividad_campana/{actividadTipoId}/{nombreCampana}/{desde}/{hasta}"
 
     fun confirmarIdentidad(miembroId: String, miembroNombre: String) =
         "confirmar_identidad/${android.net.Uri.encode(miembroId)}/${android.net.Uri.encode(miembroNombre)}"
     fun miembroEstudioDetalle(estudioId: String) = "miembro_estudio_detalle/$estudioId"
+    fun miembroActividadCampana(tipoId: String, nombre: String, desde: String, hasta: String) =
+        "miembro_actividad_campana/$tipoId/${android.net.Uri.encode(nombre)}/$desde/$hasta"
 
     // ── Sábado ────────────────────────────────────────────────────────────────
     const val SABADO_AUTOMARCAR   = "sabado_automarcar/{miembroId}"
@@ -87,8 +92,11 @@ object NavRoutes {
     const val ACTIVIDAD_HISTORIAL  = "actividad_historial/{actividadTipoId}"
     const val CREAR_ACTIVIDAD_TIPO = "crear_actividad_tipo"
     const val MIEMBRO_ACTIVIDADES  = "miembro_actividades"
+    const val CAMPANA_DETALLE      = "campana_detalle/{actividadTipoId}/{nombreCampana}/{desde}/{hasta}"
 
     fun actividadHistorial(actividadTipoId: String) = "actividad_historial/$actividadTipoId"
+    fun campanaDetalle(tipoId: String, nombre: String, desde: String, hasta: String) =
+        "campana_detalle/$tipoId/${android.net.Uri.encode(nombre)}/$desde/$hasta"
 
     // ── Registro nested graph ─────────────────────────────────────────────────
     const val REGISTRO_GRAPH         = "registro"
@@ -180,6 +188,23 @@ fun AppNavGraph(
 
         composable(NavRoutes.MIEMBRO_ACTIVIDADES) {
             MiembroActividadesScreen(
+                onNavigateBack      = { navController.popBackStack() },
+                onNavigateToCampana = { tipoId, nombre, desde, hasta ->
+                    navController.navigate(NavRoutes.miembroActividadCampana(tipoId, nombre, desde, hasta))
+                },
+            )
+        }
+
+        composable(
+            route     = NavRoutes.MIEMBRO_ACTIVIDAD_CAMPANA,
+            arguments = listOf(
+                navArgument("actividadTipoId") { type = NavType.StringType },
+                navArgument("nombreCampana")   { type = NavType.StringType },
+                navArgument("desde")           { type = NavType.StringType },
+                navArgument("hasta")           { type = NavType.StringType },
+            ),
+        ) {
+            ActividadCampanaScreen(
                 onNavigateBack = { navController.popBackStack() },
             )
         }
@@ -256,6 +281,7 @@ fun AppNavGraph(
                 onNavigateToHistorial   = { navController.navigate(NavRoutes.HISTORIAL) },
                 onNavigateToDetalle     = { id -> navController.navigate(NavRoutes.detalleReunion(id)) },
                 onNavigateToPerfil      = { navController.navigate(NavRoutes.PERFIL) },
+                onNavigateToActividades = { navController.navigate(NavRoutes.ACTIVIDADES_LISTA) },
                 onNavigateToSabadoCulto = { navController.navigate(NavRoutes.SABADO_CULTO) },
             )
         }
@@ -278,9 +304,9 @@ fun AppNavGraph(
                         popUpTo(NavRoutes.HOME) { inclusive = false }
                     }
                 },
-                onNavigateToDetalle  = { id -> navController.navigate(NavRoutes.detalleReunion(id)) },
-                onNavigateToPerfil   = { navController.navigate(NavRoutes.PERFIL) },
-                onNavigateToRegistro = { navController.navigate(NavRoutes.registroGraph()) },
+                onNavigateToDetalle     = { id -> navController.navigate(NavRoutes.detalleReunion(id)) },
+                onNavigateToActividades = { navController.navigate(NavRoutes.ACTIVIDADES_LISTA) },
+                onNavigateToRegistro    = { navController.navigate(NavRoutes.registroGraph()) },
             )
         }
 
@@ -410,29 +436,40 @@ fun AppNavGraph(
             arguments = listOf(navArgument("reunionId") { type = NavType.StringType }),
         ) {
             DetalleReunionScreen(
-                onNavigateBack        = { navController.popBackStack() },
-                onNavigateToHome      = {
+                onNavigateBack          = { navController.popBackStack() },
+                onNavigateToHome        = {
                     navController.navigate(NavRoutes.HOME) {
                         popUpTo(NavRoutes.HOME) { inclusive = false }
                     }
                 },
-                onNavigateToHistorial = {
+                onNavigateToHistorial   = {
                     navController.navigate(NavRoutes.HISTORIAL) {
                         popUpTo(NavRoutes.HOME) { inclusive = false }
                     }
                 },
-                onNavigateToPerfil    = { navController.navigate(NavRoutes.PERFIL) },
+                onNavigateToActividades = { navController.navigate(NavRoutes.ACTIVIDADES_LISTA) },
             )
         }
 
         composable(NavRoutes.ACTIVIDADES_LISTA) {
             ActividadesListScreen(
-                onNavigateBack        = { navController.popBackStack() },
-                onNavigateToHistorial = { tipoId ->
+                onNavigateBack         = { navController.popBackStack() },
+                onNavigateToHistorial  = { tipoId ->
                     navController.navigate(NavRoutes.actividadHistorial(tipoId))
                 },
-                onNavigateToCrear     = {
-                    navController.navigate(NavRoutes.CREAR_ACTIVIDAD_TIPO)
+                onNavigateToCrear      = { navController.navigate(NavRoutes.CREAR_ACTIVIDAD_TIPO) },
+                onNavigateToHome       = {
+                    navController.navigate(NavRoutes.HOME) {
+                        popUpTo(NavRoutes.HOME) { inclusive = false }
+                    }
+                },
+                onNavigateToHistScreen = {
+                    navController.navigate(NavRoutes.HISTORIAL) {
+                        popUpTo(NavRoutes.HOME) { inclusive = false }
+                    }
+                },
+                onNavigateToCampana    = { tipoId, nombre, desde, hasta ->
+                    navController.navigate(NavRoutes.campanaDetalle(tipoId, nombre, desde, hasta))
                 },
             )
         }
@@ -448,6 +485,20 @@ fun AppNavGraph(
             arguments = listOf(navArgument("actividadTipoId") { type = NavType.StringType }),
         ) {
             ActividadHistorialScreen(
+                onNavigateBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route     = NavRoutes.CAMPANA_DETALLE,
+            arguments = listOf(
+                navArgument("actividadTipoId") { type = NavType.StringType },
+                navArgument("nombreCampana")   { type = NavType.StringType },
+                navArgument("desde")           { type = NavType.StringType },
+                navArgument("hasta")           { type = NavType.StringType },
+            ),
+        ) {
+            CampanaDetalleScreen(
                 onNavigateBack = { navController.popBackStack() },
             )
         }

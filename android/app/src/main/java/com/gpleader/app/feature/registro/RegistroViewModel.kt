@@ -632,6 +632,7 @@ class RegistroViewModel @Inject constructor(
         nombre:             String,
         markerType:         String,
         isMemberAccessible: Boolean,
+        frecuencia:         String = "semanal",
         startDate:          java.time.LocalDate? = null,
         endDate:            java.time.LocalDate? = null,
     ) {
@@ -641,7 +642,7 @@ class RegistroViewModel @Inject constructor(
                 nombre             = nombre.trim(),
                 level              = "my_group",
                 markerType         = markerType,
-                frecuencia         = "semanal",
+                frecuencia         = frecuencia,
                 unitLabel          = "",
                 isMemberAccessible = isMemberAccessible,
                 iglesiaId          = session.iglesiaId,

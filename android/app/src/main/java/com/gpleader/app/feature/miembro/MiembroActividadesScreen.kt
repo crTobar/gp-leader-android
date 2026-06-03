@@ -24,6 +24,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Remove
@@ -72,26 +73,29 @@ import java.util.Locale
 
 @Composable
 fun MiembroActividadesScreen(
-    onNavigateBack: () -> Unit,
+    onNavigateBack:      () -> Unit,
+    onNavigateToCampana: (tipoId: String, nombre: String, desde: String, hasta: String) -> Unit = { _, _, _, _ -> },
     viewModel: MiembroActividadesViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
     OnResumeEffect { viewModel.cargar() }
 
     MiembroActividadesContent(
-        uiState            = uiState,
-        onNavigateBack     = onNavigateBack,
-        onToggleDiaria     = viewModel::onToggleDiaria,
-        onIncrementar      = viewModel::onIncrementarSemanal,
-        onDecrementar      = viewModel::onDecrementarSemanal,
-        onMontoChange      = viewModel::onMontoSemanalChange,
+        uiState             = uiState,
+        onNavigateBack      = onNavigateBack,
+        onNavigateToCampana = onNavigateToCampana,
+        onToggleDiaria      = viewModel::onToggleDiaria,
+        onIncrementar       = viewModel::onIncrementarSemanal,
+        onDecrementar       = viewModel::onDecrementarSemanal,
+        onMontoChange       = viewModel::onMontoSemanalChange,
     )
 }
 
 @Composable
 private fun MiembroActividadesContent(
     uiState: MiembroActividadesUiState,
-    onNavigateBack: () -> Unit = {},
+    onNavigateBack:      () -> Unit = {},
+    onNavigateToCampana: (tipoId: String, nombre: String, desde: String, hasta: String) -> Unit = { _, _, _, _ -> },
     onToggleDiaria: (String) -> Unit = {},
     onIncrementar: (String) -> Unit = {},
     onDecrementar: (String) -> Unit = {},
@@ -181,9 +185,14 @@ private fun MiembroActividadesContent(
                             SeccionHeader(titulo = "DIARIAS", subtitulo = labelHoy)
                         }
                         items(diarias, key = { it.tipo.id }) { item ->
+                            val esCampana = item.tipo.startDate != null
+                            val hastaNav  = (item.tipo.endDate ?: LocalDate.now()).toString()
                             ActividadDiariaCard(
-                                item      = item,
-                                onToggle  = { onToggleDiaria(item.tipo.id) },
+                                item     = item,
+                                onToggle = { onToggleDiaria(item.tipo.id) },
+                                onTap    = if (esCampana) {
+                                    { onNavigateToCampana(item.tipo.id, item.tipo.nombre, item.tipo.startDate!!.toString(), hastaNav) }
+                                } else null,
                             )
                         }
                     }
@@ -307,46 +316,148 @@ private fun NivelChip(level: String) {
 
 // ── ActividadDiariaCard ───────────────────────────────────────────────────────
 
+private val DIAS_SEMANA_LABELS = listOf("D", "L", "M", "M", "J", "V", "S")
+// DayOfWeek mapping: SUNDAY=0, MONDAY=1, ..., SATURDAY=6
+private fun DayOfWeek.indexSemana(): Int = when (this) {
+    DayOfWeek.SUNDAY    -> 0
+    DayOfWeek.MONDAY    -> 1
+    DayOfWeek.TUESDAY   -> 2
+    DayOfWeek.WEDNESDAY -> 3
+    DayOfWeek.THURSDAY  -> 4
+    DayOfWeek.FRIDAY    -> 5
+    DayOfWeek.SATURDAY  -> 6
+}
+
 @Composable
 private fun ActividadDiariaCard(
-    item: ActividadMiembroUi.Diaria,
+    item:     ActividadMiembroUi.Diaria,
     onToggle: () -> Unit,
+    onTap:    (() -> Unit)? = null,
 ) {
-    NeuCard(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier          = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
+    val hoy     = LocalDate.now()
+    val domingo = hoy.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
+    val ayer    = hoy.minusDays(1)
+
+    val diasSemana = (0..6).map { domingo.plusDays(it.toLong()) }
+
+    val fmtDia    = DateTimeFormatter.ofPattern("EEEE", Locale("es"))
+    val nombreHoy = hoy.format(fmtDia).replaceFirstChar { it.uppercase() }
+    val nombreAyer = ayer.format(fmtDia).replaceFirstChar { it.uppercase() }
+
+    val etiqueta: String
+    val etiquetaColor: androidx.compose.ui.graphics.Color
+    when {
+        item.marcadaHoy -> {
+            etiqueta = "✓ Completado $nombreHoy"
+            etiquetaColor = Sage
+        }
+        !item.diasMarcadosSemana.contains(ayer) && ayer >= (item.tipo.startDate ?: ayer) -> {
+            etiqueta = "Sin marcar $nombreAyer"
+            etiquetaColor = Blush
+        }
+        else -> {
+            etiqueta = "Pendiente $nombreHoy"
+            etiquetaColor = Muted
+        }
+    }
+
+    NeuCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onTap != null) Modifier.clickable(onClick = onTap) else Modifier),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+            // Fila: nivel + nombre + chevron
+            Row(
+                modifier          = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                NivelChip(item.tipo.level)
+                Spacer(Modifier.width(8.dp))
                 Text(
-                    text  = item.tipo.nombre,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Ink,
+                    text       = item.tipo.nombre,
+                    style      = MaterialTheme.typography.bodyLarge,
+                    color      = Ink,
                     fontWeight = FontWeight.Medium,
+                    modifier   = Modifier.weight(1f),
                 )
-                Spacer(Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    NivelChip(item.tipo.level)
-                    if (item.marcadaHoy) {
-                        Spacer(Modifier.width(8.dp))
+                if (onTap != null) {
+                    Icon(
+                        imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "Ver días",
+                        tint               = Muted,
+                        modifier           = Modifier.size(20.dp),
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            // Fila D L M M J V S
+            Row(
+                modifier              = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                diasSemana.forEachIndexed { idx, dia ->
+                    val esFuturo   = dia.isAfter(hoy)
+                    val esHoy      = dia == hoy
+                    val marcado    = item.diasMarcadosSemana.contains(dia)
+                    val esPasado   = dia.isBefore(hoy)
+                    val dentroRango = item.tipo.startDate?.let { !dia.isBefore(it) } ?: true
+
+                    val bgColor = when {
+                        esHoy && marcado    -> Sage.copy(alpha = 0.20f)
+                        esHoy && !marcado   -> Accent.copy(alpha = 0.15f)
+                        esPasado && marcado && dentroRango  -> Sage.copy(alpha = 0.15f)
+                        esPasado && !marcado && dentroRango -> Blush.copy(alpha = 0.15f)
+                        else -> BackgroundDeep
+                    }
+                    val txtColor = when {
+                        esHoy && marcado    -> Sage
+                        esHoy && !marcado   -> Accent
+                        esPasado && marcado && dentroRango  -> Sage
+                        esPasado && !marcado && dentroRango -> Blush
+                        else -> Muted
+                    }
+
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(bgColor),
+                    ) {
                         Text(
-                            text  = "Marcada hoy ✓",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Sage,
+                            text      = DIAS_SEMANA_LABELS[idx],
+                            style     = MaterialTheme.typography.labelSmall,
+                            color     = txtColor,
+                            fontWeight = FontWeight.SemiBold,
                         )
                     }
                 }
             }
 
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.height(8.dp))
 
-            CheckboxNeu(
-                checked   = item.marcadaHoy,
-                isLoading = item.isToggling,
-                onClick   = onToggle,
-            )
+            // Etiqueta de estado + checkbox para actividades sin campaña
+            Row(
+                modifier          = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text      = etiqueta,
+                    style     = MaterialTheme.typography.labelSmall,
+                    color     = etiquetaColor,
+                    modifier  = Modifier.weight(1f),
+                )
+                if (onTap == null) {
+                    CheckboxNeu(
+                        checked   = item.marcadaHoy,
+                        isLoading = item.isToggling,
+                        onClick   = onToggle,
+                    )
+                }
+            }
         }
     }
 }

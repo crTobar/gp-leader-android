@@ -70,6 +70,7 @@ interface ReunionRepository {
     ): Result<String>
     suspend fun getDetalleReunion(reunionId: String): Result<DetalleReunionData>
     suspend fun getSabbathMeeting(grupoId: String, fecha: LocalDate): Result<SabbathMeetingResumen?>
+    suspend fun getReunionesRecientesSabado(grupoId: String, limit: Int = 3): Result<List<SabbathMeetingResumen>>
     suspend fun saveDraftAttendance(
         meetingId:  String,
         memberId:   String,

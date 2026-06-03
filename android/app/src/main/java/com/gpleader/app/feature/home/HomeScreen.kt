@@ -80,7 +80,9 @@ import com.gpleader.app.core.ui.theme.Mid
 import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.Sage
 import com.gpleader.app.core.ui.theme.Violet
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.gpleader.app.core.ui.components.AppBottomNavBar
+import com.gpleader.app.core.ui.components.NAV_TAB_ACTIVIDADES
 import com.gpleader.app.core.ui.components.NAV_TAB_HISTORIAL
 import com.gpleader.app.core.ui.components.NAV_TAB_INICIO
 import com.gpleader.app.core.ui.theme.neuElevated
@@ -109,6 +111,7 @@ fun HomeScreen(
     onNavigateToHistorial: () -> Unit,
     onNavigateToDetalle: (String) -> Unit,
     onNavigateToPerfil: () -> Unit = {},
+    onNavigateToActividades: () -> Unit = {},
     onNavigateToSabadoCulto: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
@@ -143,18 +146,19 @@ fun HomeScreen(
     }
 
     HomeScreenContent(
-        uiState               = uiState,
-        onNavigateToRegistro  = onNavigateToRegistro,
-        onVerTodasClick       = viewModel::onVerTodasClick,
-        onReunionClick        = viewModel::onReunionClick,
-        onHistorialTabClick   = onNavigateToHistorial,
-        onPerfilTabClick      = onNavigateToPerfil,
-        onSabadoCultoClick    = viewModel::onSabadoCultoClick,
-        onDelegarClick        = viewModel::onDelegarClick,
-        onCancelarSolicitud   = viewModel::onCancelarSolicitud,
-        onCrearSolicitud      = viewModel::onCrearSolicitud,
-        onDismissDelegarSheet = viewModel::onDismissDelegarSheet,
-        onActivarSolicitud    = viewModel::onActivarSolicitud,
+        uiState                = uiState,
+        onNavigateToRegistro   = onNavigateToRegistro,
+        onVerTodasClick        = viewModel::onVerTodasClick,
+        onReunionClick         = viewModel::onReunionClick,
+        onHistorialTabClick    = onNavigateToHistorial,
+        onPerfilClick          = onNavigateToPerfil,
+        onActividadesTabClick  = onNavigateToActividades,
+        onSabadoCultoClick     = viewModel::onSabadoCultoClick,
+        onDelegarClick         = viewModel::onDelegarClick,
+        onCancelarSolicitud    = viewModel::onCancelarSolicitud,
+        onCrearSolicitud       = viewModel::onCrearSolicitud,
+        onDismissDelegarSheet  = viewModel::onDismissDelegarSheet,
+        onActivarSolicitud     = viewModel::onActivarSolicitud,
         onDismissActivarDialog = viewModel::onDismissActivarDialog,
     )
 }
@@ -169,7 +173,8 @@ private fun HomeScreenContent(
     onVerTodasClick: () -> Unit,
     onReunionClick: (String) -> Unit,
     onHistorialTabClick: () -> Unit,
-    onPerfilTabClick: () -> Unit = {},
+    onPerfilClick: () -> Unit = {},
+    onActividadesTabClick: () -> Unit = {},
     onSabadoCultoClick: () -> Unit = {},
     onDelegarClick: () -> Unit = {},
     onCancelarSolicitud: (String) -> Unit = {},
@@ -185,13 +190,16 @@ private fun HomeScreenContent(
         containerColor = Background,
         bottomBar = {
             AppBottomNavBar(
-                selectedTab      = selectedTab,
-                onInicioClick    = { selectedTab = NAV_TAB_INICIO },
-                onHistorialClick = {
+                selectedTab        = selectedTab,
+                onInicioClick      = { selectedTab = NAV_TAB_INICIO },
+                onHistorialClick   = {
                     selectedTab = NAV_TAB_HISTORIAL
                     onHistorialTabClick()
                 },
-                onPerfilClick    = { onPerfilTabClick() },
+                onActividadesClick = {
+                    selectedTab = NAV_TAB_ACTIVIDADES
+                    onActividadesTabClick()
+                },
             )
         },
     ) { innerPadding ->
@@ -210,6 +218,7 @@ private fun HomeScreenContent(
                 TopBar(
                     nombreLider      = uiState.nombreLider,
                     onRegistrarClick = { showRegistrarSheet = true },
+                    onAvatarClick    = onPerfilClick,
                 )
 
                 Spacer(Modifier.height(20.dp))
@@ -219,48 +228,13 @@ private fun HomeScreenContent(
                         grupo                = grupo,
                         porcentajeAsistencia = uiState.porcentajeAsistencia,
                     )
-                    Spacer(Modifier.height(16.dp))
-                }
-
-                StatsRow(
-                    porcentaje   = uiState.porcentajeAsistencia,
-                    presentes    = uiState.totalPresentes,
-                    ausentes     = uiState.totalAusentes,
-                    justificados = uiState.totalJustificados,
-                    totalMiembros = uiState.totalMiembros,
-                )
-
-                uiState.sabbathMeeting?.let { sabbath ->
-                    Spacer(Modifier.height(16.dp))
-                    SabbathMeetingCard(
-                        resumen  = sabbath,
-                        onClick  = onSabadoCultoClick,
-                    )
                 }
 
                 Spacer(Modifier.height(24.dp))
 
-                SectionSeparator(label = stringResource(R.string.home_section_recientes))
-
-                Spacer(Modifier.height(12.dp))
-
-                if (uiState.reunionesRecientes.isEmpty()) {
-                    EmptyStateReuniones()
-                } else {
-                    uiState.reunionesRecientes.forEach { reunion ->
-                        ReunionCard(
-                            reunion   = reunion,
-                            onClick   = { onReunionClick(reunion.id) },
-                            modifier  = Modifier.padding(vertical = 6.dp),
-                        )
-                    }
-                }
-
-                Spacer(Modifier.height(16.dp))
-
                 NeuButtonSecondary(
-                    text     = stringResource(R.string.home_btn_ver_todas),
-                    onClick  = onVerTodasClick,
+                    text     = stringResource(R.string.home_btn_ver_actividades),
+                    onClick  = onActividadesTabClick,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                 )
 
@@ -313,15 +287,13 @@ private fun HomeScreenContent(
 // ── Sabbath meeting card ──────────────────────────────────────────────────────
 
 @Composable
-private fun SabbathMeetingCard(
-    resumen: SabbathMeetingResumen,
-    onClick: () -> Unit,
+private fun SabadoReunionCard(
+    resumen:  SabbathMeetingResumen,
+    onClick:  () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val mes = resumen.fecha.month.getDisplayName(TextStyle.SHORT, Locale("es")).uppercase()
     val dia = resumen.fecha.dayOfMonth
-    val progreso = if (resumen.totalMiembros > 0)
-        resumen.presentes.toFloat() / resumen.totalMiembros.toFloat()
-    else 0f
 
     val badgeColor = when (resumen.status.lowercase()) {
         "submitted" -> Sage
@@ -333,49 +305,30 @@ private fun SabbathMeetingCard(
     }
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .neuElevated(cornerRadius = 20.dp)
             .background(Violet.copy(alpha = 0.08f), RoundedCornerShape(20.dp))
             .clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Accent strip izquierdo
         Box(
             modifier = Modifier
                 .width(4.dp)
-                .height(72.dp)
+                .height(64.dp)
                 .clip(RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp))
                 .background(Violet),
         )
-
         Spacer(Modifier.width(14.dp))
-
-        // Fecha
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier            = Modifier.width(40.dp),
+            modifier            = Modifier.width(36.dp),
         ) {
-            Text(
-                text  = mes,
-                style = MaterialTheme.typography.labelSmall,
-                color = Violet,
-            )
-            Text(
-                text       = dia.toString(),
-                style      = MaterialTheme.typography.titleLarge,
-                color      = Ink,
-                fontWeight = FontWeight.Bold,
-            )
+            Text(text = mes, style = MaterialTheme.typography.labelSmall, color = Violet)
+            Text(text = dia.toString(), style = MaterialTheme.typography.titleLarge, color = Ink, fontWeight = FontWeight.Bold)
         }
-
         Spacer(Modifier.width(14.dp))
-
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(top = 16.dp, bottom = 16.dp, end = 18.dp),
-        ) {
+        Column(modifier = Modifier.weight(1f).padding(top = 14.dp, bottom = 14.dp, end = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text       = stringResource(R.string.sabado_card_titulo),
@@ -389,28 +342,30 @@ private fun SabbathMeetingCard(
                         .background(badgeColor.copy(alpha = 0.15f), RoundedCornerShape(6.dp))
                         .padding(horizontal = 8.dp, vertical = 3.dp),
                 ) {
-                    Text(
-                        text  = badgeLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = badgeColor,
-                    )
+                    Text(text = badgeLabel, style = MaterialTheme.typography.labelSmall, color = badgeColor)
                 }
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(4.dp))
             Text(
-                text  = stringResource(R.string.sabado_card_marcados, resumen.presentes, resumen.totalMiembros),
+                text  = "${resumen.presentes} presentes",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Mid,
             )
-            Spacer(Modifier.height(6.dp))
-            LinearProgressIndicator(
-                progress  = { progreso },
-                modifier  = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
-                color     = Violet,
-                trackColor = BackgroundDeep,
-                strokeCap = StrokeCap.Round,
-            )
         }
+    }
+}
+
+@Composable
+private fun EmptyStateSabado() {
+    Box(
+        modifier         = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text  = "Sin registros de culto",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Muted,
+        )
     }
 }
 
@@ -553,11 +508,39 @@ private fun HomeSkeletonContent(modifier: Modifier = Modifier) {
 private fun TopBar(
     nombreLider: String,
     onRegistrarClick: () -> Unit,
+    onAvatarClick: () -> Unit = {},
 ) {
     Row(
         modifier          = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // Avatar con iniciales → navega a Perfil
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .neuElevatedSm(cornerRadius = 14.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Accent)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication        = null,
+                    onClick           = onAvatarClick,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text  = iniciales(nombreLider),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize   = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp,
+                ),
+                color = androidx.compose.ui.graphics.Color.White,
+            )
+        }
+
+        Spacer(Modifier.width(12.dp))
+
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text  = stringResource(R.string.home_label_bienvenida),
@@ -579,6 +562,15 @@ private fun TopBar(
             onClick = onRegistrarClick,
         )
     }
+}
+
+private fun iniciales(nombre: String): String {
+    val partes = nombre.trim().split(" ").filter { it.isNotEmpty() }
+    return when {
+        partes.size >= 2 -> "${partes[0].first()}${partes[1].first()}"
+        partes.size == 1 -> "${partes[0].first()}"
+        else             -> "?"
+    }.uppercase()
 }
 
 // ── Botones pequeños (variante compacta del design system) ────────────────────

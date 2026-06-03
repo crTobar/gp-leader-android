@@ -57,6 +57,8 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.Alignment
@@ -256,6 +258,7 @@ private fun LoginScreenContent(
 }
 
         // ── Tarjeta de inicio de sesión ───────────────────────────────────────
+        var dragAcum by remember { mutableStateOf(0f) }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -263,6 +266,21 @@ private fun LoginScreenContent(
                 .neuElevated(cornerRadius = 28.dp)
                 .clip(RoundedCornerShape(28.dp))
                 .background(Background)
+                .pointerInput(cardExpandido) {
+                    detectVerticalDragGestures(
+                        onDragStart = { dragAcum = 0f },
+                        onVerticalDrag = { change, delta ->
+                            change.consume()
+                            if (cardExpandido && delta > 0f) {
+                                dragAcum += delta
+                                if (dragAcum > 80f) {
+                                    cardExpandido = false
+                                    dragAcum = 0f
+                                }
+                            }
+                        },
+                    )
+                }
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication        = null,
@@ -339,10 +357,16 @@ private fun LoginScreenContent(
                         size         = 44.dp,
                         cornerRadius = 14.dp,
                         iconSize     = 22.dp,
-                        modifier     = Modifier.sharedElement(
-                            state                   = rememberSharedContentState("app-logo"),
-                            animatedVisibilityScope = this@AnimatedVisibility,
-                        ),
+                        modifier     = Modifier
+                            .sharedElement(
+                                state                   = rememberSharedContentState("app-logo"),
+                                animatedVisibilityScope = this@AnimatedVisibility,
+                            )
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication        = null,
+                                onClick           = { cardExpandido = false },
+                            ),
                     )
                 }
             }
@@ -629,6 +653,7 @@ private fun LoginScreenContent(
             Box(
                 modifier         = Modifier
                     .fillMaxSize()
+                    .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } }
                     .graphicsLayer { alpha = overlayAlpha.value }
                     .background(Background),
                 contentAlignment = Alignment.Center,

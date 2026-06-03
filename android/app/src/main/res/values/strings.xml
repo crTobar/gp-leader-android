@@ -52,13 +52,16 @@
     <string name="home_label_justificados">JUSTIFICAR</string>
     <string name="home_label_promedio">PROMEDIO</string>
     <string name="home_label_ult_reunion">ÚLT. REUNIÓN</string>
-    <string name="home_section_recientes">REUNIONES RECIENTES</string>
+    <string name="home_section_recientes">REUNIONES GP</string>
+    <string name="home_section_sabado">CULTO DE SÁBADO</string>
+    <string name="home_btn_ver_actividades">Ver todas las actividades →</string>
     <string name="home_reunion_titulo">Reunión Semanal</string>
     <string name="home_btn_ver_todas">Ver todas las reuniones →</string>
     <string name="home_empty_titulo">Aún no hay reuniones registradas.</string>
     <string name="home_empty_subtitulo">¡Registra la primera!</string>
     <string name="home_nav_inicio">INICIO</string>
     <string name="home_nav_historial">HISTORIAL</string>
+    <string name="home_nav_actividades">ACTIVIDADES</string>
     <string name="home_nav_perfil">PERFIL</string>
     <string name="home_badge_enviada">Enviada</string>
     <string name="home_badge_aprobada">Aprobada</string>

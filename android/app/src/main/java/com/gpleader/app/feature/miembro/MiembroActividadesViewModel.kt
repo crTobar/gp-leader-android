@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.temporal.TemporalAdjusters
 import javax.inject.Inject
 
 sealed class ActividadMiembroUi {
@@ -25,6 +26,7 @@ sealed class ActividadMiembroUi {
     data class Diaria(
         override val tipo: ActividadTipoData,
         val marcadaHoy: Boolean,
+        val diasMarcadosSemana: Set<LocalDate> = emptySet(),
         val horaMarcada: LocalTime? = null,
         override val isToggling: Boolean = false,
     ) : ActividadMiembroUi()
@@ -61,22 +63,23 @@ class MiembroActividadesViewModel @Inject constructor(
 
             actividadRepo.getActividadesMiembro(iglesiaId, session.districtId, session.campoId, session.grupoId)
                 .onSuccess { tipos ->
-                    val hoy        = LocalDate.now()
-                    val lunes      = lunesDeSemana(hoy)
-                    val desde7dias = hoy.minusDays(6)
+                    val hoy     = LocalDate.now()
+                    val lunes   = lunesDeSemana(hoy)
+                    val domingo = hoy.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
 
                     val actividades = coroutineScope {
                         tipos.map { tipo ->
                             async {
                                 if (tipo.frecuencia == "diaria") {
                                     val fechas = actividadRepo
-                                        .getRegistrosMiembro(miembroId, tipo.id, desde7dias)
+                                        .getRegistrosMiembro(miembroId, tipo.id, domingo)
                                         .getOrElse { emptyList() }
                                         .toSet()
                                     ActividadMiembroUi.Diaria(
-                                        tipo        = tipo,
-                                        marcadaHoy  = fechas.contains(hoy),
-                                        horaMarcada = null,
+                                        tipo                = tipo,
+                                        marcadaHoy          = fechas.contains(hoy),
+                                        diasMarcadosSemana  = fechas,
+                                        horaMarcada         = null,
                                     )
                                 } else {
                                     val count = actividadRepo

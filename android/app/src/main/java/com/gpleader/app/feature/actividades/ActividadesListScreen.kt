@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.Scaffold
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -41,6 +42,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.gpleader.app.core.ui.components.AppBottomNavBar
+import com.gpleader.app.core.ui.components.NAV_TAB_ACTIVIDADES
 import com.gpleader.app.core.ui.components.NeuCard
 import com.gpleader.app.core.ui.components.OnResumeEffect
 import com.gpleader.app.core.ui.theme.Accent
@@ -62,20 +65,26 @@ import java.util.Locale
 
 @Composable
 fun ActividadesListScreen(
-    onNavigateBack:        () -> Unit,
-    onNavigateToHistorial: (actividadTipoId: String) -> Unit,
-    onNavigateToCrear:     () -> Unit = {},
+    onNavigateBack:          () -> Unit,
+    onNavigateToHistorial:   (actividadTipoId: String) -> Unit,
+    onNavigateToCrear:       () -> Unit = {},
+    onNavigateToHome:        () -> Unit = {},
+    onNavigateToHistScreen:  () -> Unit = {},
+    onNavigateToCampana:     (tipoId: String, nombre: String, desde: String, hasta: String) -> Unit = { _, _, _, _ -> },
     viewModel: ActividadesListViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
     OnResumeEffect { viewModel.cargar() }
     ActividadesListContent(
-        uiState               = uiState,
-        onNavigateBack        = onNavigateBack,
-        onNavigateToHistorial = onNavigateToHistorial,
-        onNavigateToCrear     = onNavigateToCrear,
-        onFiltroNivel         = viewModel::onFiltroNivel,
-        onFiltroEstado        = viewModel::onFiltroEstado,
+        uiState                = uiState,
+        onNavigateBack         = onNavigateBack,
+        onNavigateToHistorial  = onNavigateToHistorial,
+        onNavigateToCrear      = onNavigateToCrear,
+        onNavigateToHome       = onNavigateToHome,
+        onNavigateToHistScreen = onNavigateToHistScreen,
+        onNavigateToCampana    = onNavigateToCampana,
+        onFiltroNivel          = viewModel::onFiltroNivel,
+        onFiltroEstado         = viewModel::onFiltroEstado,
     )
 }
 
@@ -83,19 +92,33 @@ fun ActividadesListScreen(
 
 @Composable
 private fun ActividadesListContent(
-    uiState:               ActividadesListUiState,
-    onNavigateBack:        () -> Unit,
-    onNavigateToHistorial: (String) -> Unit,
-    onNavigateToCrear:     () -> Unit = {},
-    onFiltroNivel:         (FiltroNivel) -> Unit,
-    onFiltroEstado:        (FiltroEstado) -> Unit,
+    uiState:                ActividadesListUiState,
+    onNavigateBack:         () -> Unit,
+    onNavigateToHistorial:  (String) -> Unit,
+    onNavigateToCrear:      () -> Unit = {},
+    onNavigateToHome:       () -> Unit = {},
+    onNavigateToHistScreen: () -> Unit = {},
+    onNavigateToCampana:    (tipoId: String, nombre: String, desde: String, hasta: String) -> Unit = { _, _, _, _ -> },
+    onFiltroNivel:          (FiltroNivel) -> Unit,
+    onFiltroEstado:         (FiltroEstado) -> Unit,
 ) {
+    Scaffold(
+        containerColor = Background,
+        bottomBar = {
+            AppBottomNavBar(
+                selectedTab        = NAV_TAB_ACTIVIDADES,
+                onInicioClick      = onNavigateToHome,
+                onHistorialClick   = onNavigateToHistScreen,
+                onActividadesClick = {},
+            )
+        },
+    ) { innerPadding ->
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .padding(innerPadding)
             .background(Background)
-            .statusBarsPadding()
-            .navigationBarsPadding(),
+            .statusBarsPadding(),
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
 
@@ -218,9 +241,17 @@ private fun ActividadesListContent(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     items(uiState.visibles, key = { it.tipo.id }) { item ->
+                        val esCampana = item.tipo.frecuencia == "diaria" && item.tipo.startDate != null
                         ActividadCard(
                             item    = item,
-                            onClick = { onNavigateToHistorial(item.tipo.id) },
+                            onClick = {
+                                if (esCampana) {
+                                    val hasta = (item.tipo.endDate ?: java.time.LocalDate.now()).toString()
+                                    onNavigateToCampana(item.tipo.id, item.tipo.nombre, item.tipo.startDate!!.toString(), hasta)
+                                } else {
+                                    onNavigateToHistorial(item.tipo.id)
+                                }
+                            },
                         )
                     }
                 }
@@ -246,7 +277,8 @@ private fun ActividadesListContent(
                 modifier           = Modifier.size(24.dp),
             )
         }
-    }
+    }   // Box
+    }   // Scaffold
 }
 
 // ── Chip de filtro ────────────────────────────────────────────────────────────

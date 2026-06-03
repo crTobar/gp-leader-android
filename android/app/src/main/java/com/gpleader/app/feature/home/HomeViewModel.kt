@@ -48,8 +48,8 @@ data class HomeUiState(
     val totalAusentes:        Int                 = 0,
     val totalJustificados:    Int                 = 0,
     val totalMiembros:        Int                 = 0,
-    val reunionesRecientes:   List<ReunionResumen>      = emptyList(),
-    val sabbathMeeting:       SabbathMeetingResumen?   = null,
+    val reunionesRecientes:        List<ReunionResumen>         = emptyList(),
+    val reunionesSabadoRecientes:  List<SabbathMeetingResumen>  = emptyList(),
     val isLoading:            Boolean                  = false,
     val error:                String?                  = null,
     val navigateToRegistro:   Boolean                  = false,
@@ -96,7 +96,7 @@ class HomeViewModel @Inject constructor(
             )
         }
         observarReuniones()
-        cargarSabbath()
+        cargarSabadoRecientes()
         cargarGrupoDetalle()
         cargarSolicitudes()
     }
@@ -115,38 +115,18 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private fun cargarSabbath() {
+    private fun cargarSabadoRecientes() {
         viewModelScope.launch {
-            val today = LocalDate.now()
-
-            var resumen = runCatching {
-                reunionRepo.getSabbathMeeting(session.grupoId, today).getOrNull()
-            }.getOrNull()
-
-            // Si no existe para hoy, crear borrador (para pruebas funciona cualquier día)
-            if (resumen == null) {
-                runCatching {
-                    reunionRepo.saveReunion(
-                        grupoId       = session.grupoId,
-                        fecha         = today,
-                        noHuboReunion = false,
-                        asistencias   = emptyList(),
-                        tipoReunion   = "saturday_worship",
-                        status        = "draft",
-                    )
-                }
-                resumen = runCatching {
-                    reunionRepo.getSabbathMeeting(session.grupoId, today).getOrNull()
-                }.getOrNull()
-            }
-
-            _uiState.update { it.copy(sabbathMeeting = resumen) }
+            val lista = runCatching {
+                reunionRepo.getReunionesRecientesSabado(session.grupoId, limit = 3).getOrDefault(emptyList())
+            }.getOrDefault(emptyList())
+            _uiState.update { it.copy(reunionesSabadoRecientes = lista) }
         }
     }
 
     private fun observarReuniones() {
         viewModelScope.launch {
-            reunionRepo.getReuniones(grupoId = session.grupoId, limit = 2)
+            reunionRepo.getReuniones(grupoId = session.grupoId, limit = 3)
                 .collect { reuniones ->
                     val totalP = reuniones.sumOf { it.presentes }
                     val totalA = reuniones.sumOf { it.ausentes }
@@ -203,7 +183,7 @@ class HomeViewModel @Inject constructor(
     }
 
     fun reloadSabbath() {
-        cargarSabbath()
+        cargarSabadoRecientes()
     }
 
     fun onSabadoCultoClick() {

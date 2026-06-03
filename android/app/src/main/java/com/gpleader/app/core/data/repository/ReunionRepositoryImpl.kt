@@ -257,6 +257,35 @@ class ReunionRepositoryImpl @Inject constructor(
         )
     }
 
+    override suspend fun getReunionesRecientesSabado(grupoId: String, limit: Int): Result<List<SabbathMeetingResumen>> = runCatching {
+        val data = supabase.from("meeting").select(
+            columns = Columns.raw("id, meeting_date, status, attendance(status)")
+        ) {
+            filter {
+                eq("small_group_id", grupoId)
+                eq("registry_kind",  "saturday_worship")
+            }
+            order("meeting_date", io.github.jan.supabase.postgrest.query.Order.DESCENDING)
+            limit(limit.toLong())
+        }.data
+
+        val arr = Json.parseToJsonElement(data).jsonArray
+        arr.map { element ->
+            val obj        = element.jsonObject
+            val attendance = obj["attendance"]?.takeIf { it !is JsonNull }?.jsonArray ?: JsonArray(emptyList())
+            val presentes  = attendance.count {
+                it.jsonObject["status"]?.jsonPrimitive?.contentOrNull?.uppercase() == "PRESENT"
+            }
+            SabbathMeetingResumen(
+                id            = obj["id"]!!.jsonPrimitive.content,
+                fecha         = LocalDate.parse(obj["meeting_date"]!!.jsonPrimitive.content),
+                status        = obj["status"]?.jsonPrimitive?.contentOrNull ?: "draft",
+                presentes     = presentes,
+                totalMiembros = 0,
+            )
+        }
+    }
+
     override suspend fun saveDraftAttendance(
         meetingId: String,
         memberId:  String,

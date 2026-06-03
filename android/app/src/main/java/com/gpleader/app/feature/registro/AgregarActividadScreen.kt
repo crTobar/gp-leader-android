@@ -84,8 +84,8 @@ fun AgregarActividadScreen(
 ) {
     AgregarActividadContent(
         onNavigateBack = onNavigateBack,
-        onAgregar = { nombre, markerType, isMemberAccessible, startDate, endDate ->
-            viewModel.onAgregarActividadExtra(nombre, markerType, isMemberAccessible, startDate, endDate)
+        onAgregar = { nombre, markerType, isMemberAccessible, frecuencia, startDate, endDate ->
+            viewModel.onAgregarActividadExtra(nombre, markerType, isMemberAccessible, frecuencia, startDate, endDate)
             onNavigateBack()
         },
     )
@@ -108,11 +108,12 @@ fun AgregarActividadStandaloneScreen(
 
     AgregarActividadContent(
         onNavigateBack = onNavigateBack,
-        onAgregar = { nombre, markerType, isMemberAccessible, startDate, endDate ->
+        onAgregar = { nombre, markerType, isMemberAccessible, frecuencia, startDate, endDate ->
             viewModel.onNombreChange(nombre)
             viewModel.onMarkerTypeChange(markerType)
             viewModel.onLevelChange("my_group")
             viewModel.onMemberAccessibleChange(isMemberAccessible)
+            viewModel.onFrecuenciaChange(frecuencia)
             viewModel.onStartDateChange(startDate)
             viewModel.onEndDateChange(endDate)
             viewModel.onGuardar()
@@ -125,11 +126,12 @@ fun AgregarActividadStandaloneScreen(
 @Composable
 private fun AgregarActividadContent(
     onNavigateBack: () -> Unit,
-    onAgregar: (nombre: String, markerType: String, isMemberAccessible: Boolean, startDate: LocalDate?, endDate: LocalDate?) -> Unit,
+    onAgregar: (nombre: String, markerType: String, isMemberAccessible: Boolean, frecuencia: String, startDate: LocalDate?, endDate: LocalDate?) -> Unit,
 ) {
     var nombre              by remember { mutableStateOf("") }
     var tipoMarcador        by remember { mutableStateOf(TipoMarcador.CONTADOR) }
     var visibleParaMiembros by remember { mutableStateOf(false) }
+    var frecuencia          by remember { mutableStateOf("semanal") }
     var startDate           by remember { mutableStateOf<LocalDate?>(LocalDate.now()) }
     var endDate             by remember { mutableStateOf<LocalDate?>(null) }
 
@@ -237,12 +239,33 @@ private fun AgregarActividadContent(
 
                 item { Spacer(Modifier.height(10.dp)) }
 
-                // ── Visible para miembros ─────────────────────────────────────
+                // ── Visible para miembros + frecuencia ───────────────────────
                 item {
                     VisibleParaMiembrosToggle(
                         activo   = visibleParaMiembros,
-                        onToggle = { visibleParaMiembros = !visibleParaMiembros },
+                        onToggle = {
+                            visibleParaMiembros = !visibleParaMiembros
+                            if (!visibleParaMiembros) frecuencia = "semanal"
+                        },
                     )
+                    if (visibleParaMiembros) {
+                        HorizontalDivider(
+                            color    = BackgroundDeep,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        )
+                        SeccionLabel("FRECUENCIA")
+                        Spacer(Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("semanal" to "Semanal", "diaria" to "Diaria").forEach { (valor, label) ->
+                                TipoMarcadorChip(
+                                    texto   = label,
+                                    activo  = frecuencia == valor,
+                                    onClick = { frecuencia = valor },
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                    }
                 }
 
                 item { Spacer(Modifier.height(16.dp)) }
@@ -298,7 +321,7 @@ private fun AgregarActividadContent(
                             TipoMarcador.MONETARIO     -> "monetary"
                             TipoMarcador.PARTICIPANTES -> "participants"
                         }
-                        onAgregar(nombre, markerType, visibleParaMiembros, startDate, endDate)
+                        onAgregar(nombre, markerType, visibleParaMiembros, frecuencia, startDate, endDate)
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -756,7 +779,7 @@ private fun AgregarActividadPreview() {
     GpLeaderTheme {
         AgregarActividadContent(
             onNavigateBack = {},
-            onAgregar      = { _, _, _, _, _ -> },
+            onAgregar      = { _, _, _, _, _, _ -> },
         )
     }
 }

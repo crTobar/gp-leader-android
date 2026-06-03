@@ -4,6 +4,7 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -308,6 +309,7 @@ class ActividadRepositoryImpl @Inject constructor(
                     put("record_date", fecha.toString())
                     put("is_done", true)
                     put("status", "draft")
+                    put("marked_at", java.time.Instant.now().toString())
                 }
             ) {
                 onConflict = "member_id,activity_type_id,record_date"
@@ -496,5 +498,118 @@ class ActividadRepositoryImpl @Inject constructor(
             }
         )
     }
+
+    override suspend fun getRegistrosCampana(
+        miembroId: String,
+        actividadTipoId: String,
+        desde: LocalDate,
+        hasta: LocalDate,
+    ): Result<List<RegistroDiario>> = runCatching {
+        val data = supabase.from("member_activity_record").select(
+            Columns.raw("record_date, is_done, marked_at")
+        ) {
+            filter {
+                eq("member_id", miembroId)
+                eq("activity_type_id", actividadTipoId)
+                gte("record_date", desde.toString())
+                lte("record_date", hasta.toString())
+            }
+        }.data
+
+        val registros = Json.parseToJsonElement(data).jsonArray.mapNotNull { elem ->
+            val obj      = elem.jsonObject
+            val dateStr  = obj["record_date"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            val fecha    = runCatching { LocalDate.parse(dateStr) }.getOrNull() ?: return@mapNotNull null
+            val isDone   = obj["is_done"]?.jsonPrimitive?.booleanOrNull ?: false
+            val markedAt = obj["marked_at"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull?.let { parseTimestamp(it) }
+            dateStr to RegistroDiario(fecha = fecha, marcada = isDone, marcadaEn = markedAt)
+        }.toMap()
+
+        val dias = mutableListOf<RegistroDiario>()
+        var cursor = desde
+        while (!cursor.isAfter(hasta)) {
+            dias.add(registros[cursor.toString()] ?: RegistroDiario(cursor, false))
+            cursor = cursor.plusDays(1)
+        }
+        dias.sortedByDescending { it.fecha }
+    }
+
+    override suspend fun getDiasCompletionStats(
+        grupoId: String,
+        actividadTipoId: String,
+        desde: LocalDate,
+        hasta: LocalDate,
+    ): Result<List<DiaStat>> = runCatching {
+        // Query 1: miembros activos del grupo
+        val miembrosData = supabase.from("member").select(
+            Columns.raw("id, first_name, second_name, first_surname, second_surname")
+        ) {
+            filter {
+                eq("small_group_id", grupoId)
+                eq("is_visitor",     false)
+                eq("is_active",      true)
+            }
+        }.data
+
+        val todosLosMiembros = Json.parseToJsonElement(miembrosData).jsonArray.map { elem ->
+            val obj     = elem.jsonObject
+            val id      = obj["id"]?.jsonPrimitive?.contentOrNull ?: ""
+            val fn1     = obj["first_name"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull ?: ""
+            val fn2     = obj["second_name"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull?.let { " $it" } ?: ""
+            val ln1     = obj["first_surname"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull ?: ""
+            val ln2     = obj["second_surname"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull?.let { " $it" } ?: ""
+            MiembroMarcado(id = id, nombre = "$fn1$fn2 $ln1$ln2".trim(), marcado = false)
+        }.filter { it.id.isNotEmpty() }
+
+        val miembroIds = todosLosMiembros.map { it.id }.toSet()
+        if (miembroIds.isEmpty()) return@runCatching emptyList()
+
+        // Query 2: registros del rango (solo miembros del grupo)
+        val registrosData = supabase.from("member_activity_record").select(
+            Columns.raw("member_id, record_date")
+        ) {
+            filter {
+                eq("activity_type_id", actividadTipoId)
+                gte("record_date",     desde.toString())
+                lte("record_date",     hasta.toString())
+                eq("is_done",          true)
+            }
+        }.data
+
+        val marcadosPorFecha = mutableMapOf<LocalDate, MutableSet<String>>()
+        Json.parseToJsonElement(registrosData).jsonArray.forEach { elem ->
+            val obj      = elem.jsonObject
+            val membId   = obj["member_id"]?.jsonPrimitive?.contentOrNull ?: return@forEach
+            val dateStr  = obj["record_date"]?.jsonPrimitive?.contentOrNull ?: return@forEach
+            val fecha    = runCatching { LocalDate.parse(dateStr) }.getOrNull() ?: return@forEach
+            if (membId in miembroIds) {
+                marcadosPorFecha.getOrPut(fecha) { mutableSetOf() }.add(membId)
+            }
+        }
+
+        // Aggregación por día
+        val dias = mutableListOf<DiaStat>()
+        var cursor = desde
+        while (!cursor.isAfter(hasta)) {
+            val marcadosHoy = marcadosPorFecha[cursor] ?: emptySet()
+            dias.add(
+                DiaStat(
+                    fecha       = cursor,
+                    completados = marcadosHoy.size,
+                    total       = todosLosMiembros.size,
+                    miembros    = todosLosMiembros.map { m -> m.copy(marcado = m.id in marcadosHoy) },
+                )
+            )
+            cursor = cursor.plusDays(1)
+        }
+        dias.sortedByDescending { it.fecha }
+    }
+
+    private fun parseTimestamp(s: String): java.time.Instant? = runCatching {
+        val t = s.replace(" ", "T").let { v ->
+            if (Regex("[+-]\\d{2}$").containsMatchIn(v)) "${v}:00" else v
+        }
+        java.time.OffsetDateTime.parse(t).toInstant()
+    }.getOrNull()
 
 }

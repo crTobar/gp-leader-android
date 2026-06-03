@@ -73,7 +73,7 @@ import com.gpleader.app.core.data.repository.AsignadoPotencial
 import com.gpleader.app.core.ui.theme.Gold
 import com.gpleader.app.core.ui.theme.Shadow
 import com.gpleader.app.core.ui.components.AppBottomNavBar
-import com.gpleader.app.core.ui.components.NAV_TAB_PERFIL
+import com.gpleader.app.core.ui.components.NAV_TAB_ACTIVIDADES
 import com.gpleader.app.core.ui.theme.neuElevated
 import com.gpleader.app.core.ui.theme.neuElevatedSm
 
@@ -187,10 +187,10 @@ private fun PerfilContent(
             containerColor = Background,
             bottomBar = {
                 AppBottomNavBar(
-                    selectedTab      = NAV_TAB_PERFIL,
-                    onInicioClick    = onNavigateToHome,
-                    onHistorialClick = onNavigateToHistorial,
-                    onPerfilClick    = { },
+                    selectedTab        = NAV_TAB_ACTIVIDADES,
+                    onInicioClick      = onNavigateToHome,
+                    onHistorialClick   = onNavigateToHistorial,
+                    onActividadesClick = { },
                 )
             },
         ) { innerPadding ->
