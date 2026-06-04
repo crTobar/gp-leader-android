@@ -1,5 +1,10 @@
 package com.gpleader.app.feature.auth
 
+import com.gpleader.app.core.ui.components.NeuAvatar
+import com.gpleader.app.core.ui.components.NeuCard
+import com.gpleader.app.core.ui.components.NeuButtonSecondary
+import com.gpleader.app.core.ui.components.NeuButtonPrimary
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,9 +29,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.gpleader.app.core.ui.components.NeuButtonPrimary
-import com.gpleader.app.core.ui.components.NeuButtonSecondary
-import com.gpleader.app.core.ui.components.NeuCard
 import com.gpleader.app.core.ui.theme.Accent
 import com.gpleader.app.core.ui.theme.Background
 import com.gpleader.app.core.ui.theme.GpLeaderTheme
@@ -84,20 +86,7 @@ private fun ConfirmarIdentidadContent(
             }
         }
 
-        Box(
-            modifier = Modifier
-                .size(80.dp)
-                .neuElevated(cornerRadius = 40.dp)
-                .background(Background, RoundedCornerShape(40.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text       = iniciales,
-                style      = MaterialTheme.typography.titleLarge,
-                color      = Accent,
-                fontWeight = FontWeight.Bold,
-            )
-        }
+        NeuAvatar(iniciales = iniciales, size = 80.dp)
 
         Spacer(Modifier.height(24.dp))
 

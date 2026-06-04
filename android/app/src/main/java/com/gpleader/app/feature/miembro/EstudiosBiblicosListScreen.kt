@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -56,10 +58,12 @@ import com.gpleader.app.core.ui.theme.Mid
 import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.neuInsetSm
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EstudiosBiblicosListScreen(
     onNavigateBack:      () -> Unit,
     onNavigateToDetalle: (estudioId: String) -> Unit,
+    soloLectura:         Boolean = false,
     viewModel: EstudiosBiblicosListViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -69,6 +73,8 @@ fun EstudiosBiblicosListScreen(
         uiState              = uiState,
         onNavigateBack       = onNavigateBack,
         onNavigateToDetalle  = onNavigateToDetalle,
+        soloLectura          = soloLectura,
+        onRefresh            = viewModel::onRefresh,
         onShowAddDialog      = viewModel::onShowAddDialog,
         onDismissDialog      = viewModel::onDismissDialog,
         onNombreChange       = viewModel::onNombreChange,
@@ -76,11 +82,14 @@ fun EstudiosBiblicosListScreen(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EstudiosBiblicosListContent(
     uiState:             EstudiosBiblicosUiState,
     onNavigateBack:      () -> Unit = {},
     onNavigateToDetalle: (String) -> Unit = {},
+    soloLectura:         Boolean = false,
+    onRefresh:           () -> Unit = {},
     onShowAddDialog:     () -> Unit = {},
     onDismissDialog:     () -> Unit = {},
     onNombreChange:      (String) -> Unit = {},
@@ -111,13 +120,23 @@ private fun EstudiosBiblicosListContent(
                 fontWeight = FontWeight.SemiBold,
                 modifier   = Modifier.weight(1f),
             )
-            IconButton(onClick = onShowAddDialog) {
-                Icon(Icons.Default.Add, contentDescription = "Agregar alumno", tint = Accent)
+            if (!soloLectura) {
+                IconButton(onClick = onShowAddDialog) {
+                    Icon(Icons.Default.Add, contentDescription = "Agregar alumno", tint = Accent)
+                }
+            } else {
+                Box(Modifier.size(48.dp))
             }
         }
 
         HorizontalDivider(color = Muted.copy(alpha = 0.12f))
 
+        PullToRefreshBox(
+            isRefreshing = uiState.isRefreshing,
+            onRefresh    = onRefresh,
+            modifier     = Modifier.fillMaxSize(),
+        indicator = {},
+        ) {
         when {
             uiState.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Accent)
@@ -130,7 +149,7 @@ private fun EstudiosBiblicosListContent(
                 Text(uiState.error, style = MaterialTheme.typography.bodyLarge, color = Blush)
             }
 
-            uiState.estudios.isEmpty() -> EmptyEstudios(onAgregar = onShowAddDialog)
+            uiState.estudios.isEmpty() -> EmptyEstudios(onAgregar = if (soloLectura) null else onShowAddDialog)
 
             else -> LazyColumn(
                 modifier        = Modifier.fillMaxSize(),
@@ -145,6 +164,7 @@ private fun EstudiosBiblicosListContent(
                 }
             }
         }
+        } // PullToRefreshBox
     }
 
     // ── Diálogo agregar alumno ────────────────────────────────────────────────
@@ -209,7 +229,7 @@ private fun EstudiosBiblicosListContent(
 }
 
 @Composable
-private fun EmptyEstudios(onAgregar: () -> Unit) {
+private fun EmptyEstudios(onAgregar: (() -> Unit)?) {
     Column(
         modifier            = Modifier
             .fillMaxSize()
@@ -223,22 +243,26 @@ private fun EmptyEstudios(onAgregar: () -> Unit) {
         )
         Spacer(Modifier.height(16.dp))
         Text(
-            text  = "Aún no tienes estudios bíblicos",
+            text  = if (onAgregar != null) "Aún no tienes estudios bíblicos"
+                    else "Este miembro no tiene estudios bíblicos",
             style = MaterialTheme.typography.bodyLarge,
             color = Ink,
             fontWeight = FontWeight.Medium,
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            text  = "Agrega a las personas a quienes\nestás dando estudio bíblico.",
+            text  = if (onAgregar != null) "Agrega a las personas a quienes\nestás dando estudio bíblico."
+                    else "El miembro aún no ha registrado\nalumnos de estudio bíblico.",
             style = MaterialTheme.typography.bodyMedium,
             color = Muted,
         )
-        Spacer(Modifier.height(24.dp))
-        NeuButtonPrimary(
-            text    = "Agregar alumno",
-            onClick = onAgregar,
-        )
+        if (onAgregar != null) {
+            Spacer(Modifier.height(24.dp))
+            NeuButtonPrimary(
+                text    = "Agregar alumno",
+                onClick = onAgregar,
+            )
+        }
     }
 }
 

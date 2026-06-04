@@ -1,5 +1,6 @@
 package com.gpleader.app.feature.miembro
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gpleader.app.core.data.repository.BibleStudyRepository
@@ -15,6 +16,7 @@ import javax.inject.Inject
 
 data class EstudiosBiblicosUiState(
     val isLoading:     Boolean = true,
+    val isRefreshing:  Boolean = false,
     val estudios:      List<EstudioBiblico> = emptyList(),
     val error:         String? = null,
     val showAddDialog: Boolean = false,
@@ -24,17 +26,30 @@ data class EstudiosBiblicosUiState(
 
 @HiltViewModel
 class EstudiosBiblicosListViewModel @Inject constructor(
-    private val repo:    BibleStudyRepository,
-    private val session: SessionManager,
+    private val repo:              BibleStudyRepository,
+    private val session:           SessionManager,
+    private val savedStateHandle:  SavedStateHandle,
 ) : ViewModel() {
+
+    private val miembroId: String
+        get() = savedStateHandle.get<String>("miembroId") ?: session.miembroId
 
     private val _uiState = MutableStateFlow(EstudiosBiblicosUiState())
     val uiState: StateFlow<EstudiosBiblicosUiState> = _uiState.asStateFlow()
 
+    fun onRefresh() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRefreshing = true, error = null) }
+            repo.getEstudios(miembroId)
+                .onSuccess { list -> _uiState.update { it.copy(isRefreshing = false, estudios = list) } }
+                .onFailure { e -> _uiState.update { it.copy(isRefreshing = false, error = e.message) } }
+        }
+    }
+
     fun cargar() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
-            repo.getEstudios(session.miembroId)
+            repo.getEstudios(miembroId)
                 .onSuccess { list -> _uiState.update { it.copy(isLoading = false, estudios = list) } }
                 .onFailure { e -> _uiState.update { it.copy(isLoading = false, error = e.message) } }
         }
@@ -49,7 +64,7 @@ class EstudiosBiblicosListViewModel @Inject constructor(
         if (nombre.isBlank()) return
         viewModelScope.launch {
             _uiState.update { it.copy(isCreating = true) }
-            repo.createEstudio(session.miembroId, nombre)
+            repo.createEstudio(miembroId, nombre)
                 .onSuccess { nuevo ->
                     _uiState.update { s ->
                         s.copy(

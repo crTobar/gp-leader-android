@@ -24,16 +24,23 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.ui.draw.alpha
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,7 +64,10 @@ import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.Sage
 import com.gpleader.app.core.ui.theme.neuElevatedSm
 import com.gpleader.app.core.ui.theme.neuGlow
+import com.gpleader.app.core.ui.theme.neuInsetInner
 import com.gpleader.app.core.ui.theme.neuInsetSm
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.unit.sp
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -69,38 +79,41 @@ fun ActividadesListScreen(
     onNavigateToHistorial:   (actividadTipoId: String) -> Unit,
     onNavigateToCrear:       () -> Unit = {},
     onNavigateToHome:        () -> Unit = {},
-    onNavigateToHistScreen:  () -> Unit = {},
+    onNavigateToPerfil:      () -> Unit = {},
     onNavigateToCampana:     (tipoId: String, nombre: String, desde: String, hasta: String) -> Unit = { _, _, _, _ -> },
     viewModel: ActividadesListViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
     OnResumeEffect { viewModel.cargar() }
     ActividadesListContent(
-        uiState                = uiState,
-        onNavigateBack         = onNavigateBack,
-        onNavigateToHistorial  = onNavigateToHistorial,
-        onNavigateToCrear      = onNavigateToCrear,
-        onNavigateToHome       = onNavigateToHome,
-        onNavigateToHistScreen = onNavigateToHistScreen,
-        onNavigateToCampana    = onNavigateToCampana,
-        onFiltroNivel          = viewModel::onFiltroNivel,
-        onFiltroEstado         = viewModel::onFiltroEstado,
+        uiState               = uiState,
+        onNavigateBack        = onNavigateBack,
+        onNavigateToHistorial = onNavigateToHistorial,
+        onNavigateToCrear     = onNavigateToCrear,
+        onNavigateToHome      = onNavigateToHome,
+        onNavigateToPerfil    = onNavigateToPerfil,
+        onNavigateToCampana   = onNavigateToCampana,
+        onFiltroNivel         = viewModel::onFiltroNivel,
+        onFiltroEstado        = viewModel::onFiltroEstado,
+        onRefresh             = viewModel::onRefresh,
     )
 }
 
 // ── Content ───────────────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ActividadesListContent(
-    uiState:                ActividadesListUiState,
-    onNavigateBack:         () -> Unit,
-    onNavigateToHistorial:  (String) -> Unit,
-    onNavigateToCrear:      () -> Unit = {},
-    onNavigateToHome:       () -> Unit = {},
-    onNavigateToHistScreen: () -> Unit = {},
-    onNavigateToCampana:    (tipoId: String, nombre: String, desde: String, hasta: String) -> Unit = { _, _, _, _ -> },
-    onFiltroNivel:          (FiltroNivel) -> Unit,
-    onFiltroEstado:         (FiltroEstado) -> Unit,
+    uiState:               ActividadesListUiState,
+    onNavigateBack:        () -> Unit,
+    onNavigateToHistorial: (String) -> Unit,
+    onNavigateToCrear:     () -> Unit = {},
+    onNavigateToHome:      () -> Unit = {},
+    onNavigateToPerfil:    () -> Unit = {},
+    onNavigateToCampana:   (tipoId: String, nombre: String, desde: String, hasta: String) -> Unit = { _, _, _, _ -> },
+    onFiltroNivel:         (FiltroNivel) -> Unit,
+    onFiltroEstado:        (FiltroEstado) -> Unit,
+    onRefresh:             () -> Unit = {},
 ) {
     Scaffold(
         containerColor = Background,
@@ -108,8 +121,8 @@ private fun ActividadesListContent(
             AppBottomNavBar(
                 selectedTab        = NAV_TAB_ACTIVIDADES,
                 onInicioClick      = onNavigateToHome,
-                onHistorialClick   = onNavigateToHistScreen,
                 onActividadesClick = {},
+                onPerfilClick      = onNavigateToPerfil,
             )
         },
     ) { innerPadding ->
@@ -117,9 +130,10 @@ private fun ActividadesListContent(
         modifier = Modifier
             .fillMaxSize()
             .padding(innerPadding)
-            .background(Background)
-            .statusBarsPadding(),
+            .background(Background),
     ) {
+        var modoGP by remember { mutableStateOf(true) }
+
         Column(modifier = Modifier.fillMaxSize()) {
 
             // ── Top bar ───────────────────────────────────────────────────────
@@ -155,6 +169,16 @@ private fun ActividadesListContent(
                 Box(modifier = Modifier.size(40.dp))
             }
 
+            // ── Segmented control GP / Duos ───────────────────────────────────
+            ModoSegmentedControl(
+                modoGP   = modoGP,
+                onSelect = { modoGP = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 12.dp),
+            )
+
             if (uiState.isLoading) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
@@ -164,6 +188,21 @@ private fun ActividadesListContent(
             if (uiState.error != null) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(uiState.error, style = MaterialTheme.typography.bodyMedium, color = Blush)
+                }
+                return@Column
+            }
+
+            if (!modoGP) {
+                Box(
+                    modifier         = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text  = "Actividades de dúos misioneros\npróximamente",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Muted,
+                        textAlign = TextAlign.Center,
+                    )
                 }
                 return@Column
             }
@@ -231,6 +270,12 @@ private fun ActividadesListContent(
                     Text("Sin actividades", style = MaterialTheme.typography.bodyMedium, color = Muted)
                 }
             } else {
+                PullToRefreshBox(
+                    isRefreshing = uiState.isRefreshing,
+                    onRefresh    = onRefresh,
+                    modifier     = Modifier.fillMaxSize(),
+                indicator = {},
+                ) {
                 LazyColumn(
                     modifier            = Modifier.fillMaxSize(),
                     contentPadding      = androidx.compose.foundation.layout.PaddingValues(
@@ -241,13 +286,14 @@ private fun ActividadesListContent(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     items(uiState.visibles, key = { it.tipo.id }) { item ->
-                        val esCampana = item.tipo.frecuencia == "diaria" && item.tipo.startDate != null
                         ActividadCard(
                             item    = item,
                             onClick = {
-                                if (esCampana) {
-                                    val hasta = (item.tipo.endDate ?: java.time.LocalDate.now()).toString()
-                                    onNavigateToCampana(item.tipo.id, item.tipo.nombre, item.tipo.startDate!!.toString(), hasta)
+                                if (item.tipo.frecuencia == "diaria") {
+                                    val hoy   = java.time.LocalDate.now()
+                                    val desde = (item.tipo.startDate ?: hoy.minusDays(30)).toString()
+                                    val hasta = (item.tipo.endDate?.let { if (it.isBefore(hoy)) it else hoy } ?: hoy).toString()
+                                    onNavigateToCampana(item.tipo.id, item.tipo.nombre, desde, hasta)
                                 } else {
                                     onNavigateToHistorial(item.tipo.id)
                                 }
@@ -255,6 +301,7 @@ private fun ActividadesListContent(
                         )
                     }
                 }
+                } // PullToRefreshBox
             }
         }
 
@@ -397,6 +444,25 @@ private fun ActividadCard(
                 verticalAlignment     = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
+                if (item.tipo.markerType == "realizado" || item.tipo.markerType == "checkbox") {
+                    // Tipo realizado: ícono de check o circle vacío
+                    val hecho = item.totalCantidad > 0
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = if (hecho) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                            contentDescription = null,
+                            tint     = if (hecho) Sage else Muted,
+                            modifier = Modifier.size(28.dp),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text  = if (hecho) "Realizado" else "Pendiente",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = if (hecho) Sage else Muted,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                } else {
                 Column {
                     Text(
                         text  = "ACUMULADO",
@@ -410,6 +476,7 @@ private fun ActividadCard(
                         color      = levelColor,
                         fontWeight = FontWeight.Bold,
                     )
+                }
                 }
 
                 // Rango de fechas (compacto)
@@ -498,8 +565,72 @@ private fun levelColor(level: String): Color = when (level) {
 }
 
 private fun formatTotalValor(item: ActividadConResumen): String = when (item.tipo.markerType) {
-    "monetary"     -> "₡${item.montoTotal.toLong()}"
-    "checkbox"     -> "${item.totalCantidad} semanas"
-    "participants" -> "${item.totalCantidad} ${item.tipo.unitLabel}"
-    else           -> "${item.totalCantidad} ${item.tipo.unitLabel}"
+    "monetary"                  -> "₡${item.montoTotal.toLong()}"
+    "realizado", "checkbox"     -> ""
+    else                        -> "${item.totalCantidad} ${item.tipo.unitLabel}"
+}
+
+// ── Segmented control GP / Duos ───────────────────────────────────────────────
+
+@Composable
+private fun ModoSegmentedControl(
+    modoGP:   Boolean,
+    onSelect: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // Contenedor hundido (seg-tabs del HTML: neuInSm + border-radius pill)
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(50.dp))
+            .background(Background)
+            .neuInsetInner(shadowSize = 8.dp)
+            .padding(5.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        SegTab(
+            label    = "Grupo pequeño",
+            selected = modoGP,
+            onClick  = { onSelect(true) },
+            modifier = Modifier.weight(1f),
+        )
+        SegTab(
+            label    = "Dúo misionero",
+            selected = !modoGP,
+            onClick  = { onSelect(false) },
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun SegTab(
+    label:    String,
+    selected: Boolean,
+    onClick:  () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .then(
+                if (selected) Modifier
+                    .neuElevatedSm(cornerRadius = 50.dp)
+                    .clip(RoundedCornerShape(50.dp))
+                    .background(Background)
+                else Modifier.clip(RoundedCornerShape(50.dp))
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+    ) {
+        Text(
+            text       = label,
+            style      = MaterialTheme.typography.bodyMedium.copy(
+                fontWeight    = FontWeight.SemiBold,
+                fontSize      = 13.sp,
+                letterSpacing = 0.sp,
+            ),
+            color      = if (selected) Ink else Muted,
+            textAlign  = TextAlign.Center,
+        )
+    }
 }

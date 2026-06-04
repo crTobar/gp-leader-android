@@ -42,6 +42,7 @@ data class DetalleReunionUiState(
     val actividades:          List<ActividadDetalle>   = emptyList(),
     val tipoReunion:          String                   = "gp_meeting",
     val isLoading:            Boolean                  = false,
+    val isRefreshing:         Boolean                  = false,
     val error:                String?                  = null,
 )
 
@@ -62,10 +63,24 @@ class DetalleReunionViewModel @Inject constructor(
         cargarDetalle()
     }
 
+    fun onRefresh() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isRefreshing = true)
+            cargarDetalleInterno(isRefresh = true)
+        }
+    }
+
     private fun cargarDetalle() {
+        cargarDetalleInterno(isRefresh = false)
+    }
+
+    private fun cargarDetalleInterno(isRefresh: Boolean) {
         if (reunionId.isBlank()) {
             _uiState.value = DetalleReunionUiState(isLoading = false, error = "ID de reunión inválido")
             return
+        }
+        if (!isRefresh) {
+            _uiState.value = _uiState.value.copy(isLoading = true)
         }
         viewModelScope.launch {
             reunionRepo.getDetalleReunion(reunionId)
@@ -108,14 +123,16 @@ class DetalleReunionViewModel @Inject constructor(
                                 unidad   = act.unidad,
                             )
                         },
-                        isLoading = false,
+                        isLoading    = false,
+                        isRefreshing = false,
                     )
                 }
                 .onFailure { e ->
                     _uiState.value = DetalleReunionUiState(
-                        reunionId = reunionId,
-                        isLoading = false,
-                        error     = "Error: ${e.message}",
+                        reunionId    = reunionId,
+                        isLoading    = false,
+                        isRefreshing = false,
+                        error        = "Error: ${e.message}",
                     )
                 }
         }

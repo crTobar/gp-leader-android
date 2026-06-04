@@ -1,5 +1,9 @@
 package com.gpleader.app.feature.historial
 
+import com.gpleader.app.core.ui.components.NeuAvatar
+import com.gpleader.app.core.ui.components.NAV_TAB_INICIO
+import com.gpleader.app.core.ui.components.AppBottomNavBar
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,11 +31,13 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -55,8 +61,6 @@ import com.gpleader.app.core.ui.theme.Ink
 import com.gpleader.app.core.ui.theme.Mid
 import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.Sage
-import com.gpleader.app.core.ui.components.AppBottomNavBar
-import com.gpleader.app.core.ui.components.NAV_TAB_HISTORIAL
 import com.gpleader.app.core.ui.theme.neuElevated
 import com.gpleader.app.core.ui.theme.neuElevatedSm
 import java.time.DayOfWeek
@@ -101,8 +105,8 @@ private fun inicialesDet(nombre: String): String {
 fun DetalleReunionScreen(
     onNavigateBack:          () -> Unit,
     onNavigateToHome:        () -> Unit = {},
-    onNavigateToHistorial:   () -> Unit = {},
     onNavigateToActividades: () -> Unit = {},
+    onNavigateToPerfil:      () -> Unit = {},
     onEditarClick:           () -> Unit = {},
     viewModel: DetalleReunionViewModel = hiltViewModel(),
 ) {
@@ -111,22 +115,25 @@ fun DetalleReunionScreen(
         uiState                 = uiState,
         onNavigateBack          = onNavigateBack,
         onNavigateToHome        = onNavigateToHome,
-        onNavigateToHistorial   = onNavigateToHistorial,
         onNavigateToActividades = onNavigateToActividades,
+        onNavigateToPerfil      = onNavigateToPerfil,
         onEditarClick           = onEditarClick,
+        onRefresh               = viewModel::onRefresh,
     )
 }
 
 // ── Content (previewable) ─────────────────────────────────────────────────────
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DetalleReunionContent(
     uiState:                 DetalleReunionUiState,
     onNavigateBack:          () -> Unit,
     onNavigateToHome:        () -> Unit = {},
-    onNavigateToHistorial:   () -> Unit = {},
     onNavigateToActividades: () -> Unit = {},
+    onNavigateToPerfil:      () -> Unit = {},
     onEditarClick:           () -> Unit = {},
+    onRefresh:               () -> Unit = {},
 ) {
     Scaffold(
         containerColor = Background,
@@ -141,10 +148,10 @@ private fun DetalleReunionContent(
         },
         bottomBar = {
             AppBottomNavBar(
-                selectedTab        = NAV_TAB_HISTORIAL,
+                selectedTab        = NAV_TAB_INICIO,
                 onInicioClick      = onNavigateToHome,
-                onHistorialClick   = onNavigateToHistorial,
                 onActividadesClick = onNavigateToActividades,
+                onPerfilClick      = onNavigateToPerfil,
             )
         },
     ) { innerPadding ->
@@ -165,10 +172,15 @@ private fun DetalleReunionContent(
                     Text(uiState.error, style = MaterialTheme.typography.bodyLarge, color = Muted)
                 }
             }
-            else -> LazyColumn(
+            else -> PullToRefreshBox(
+                isRefreshing = uiState.isRefreshing,
+                onRefresh    = onRefresh,
+                modifier     = Modifier.fillMaxSize().padding(innerPadding),
+            indicator = {},
+            ) {
+            LazyColumn(
             modifier            = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
+                .fillMaxSize(),
             contentPadding      = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -255,6 +267,7 @@ private fun DetalleReunionContent(
                 }
             }
         } // LazyColumn
+            } // PullToRefreshBox
         } // else
     }
 }
@@ -460,21 +473,7 @@ private fun MiembroCard(asistencia: AsistenciaDetalle) {
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // Avatar con iniciales
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(BackgroundDeep),
-            ) {
-                Text(
-                    text       = inicialesDet(asistencia.nombre),
-                    style      = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color      = Mid,
-                )
-            }
+            NeuAvatar(iniciales = inicialesDet(asistencia.nombre), size = 38.dp)
 
             Spacer(Modifier.width(12.dp))
 

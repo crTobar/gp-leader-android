@@ -33,13 +33,14 @@ sealed class ActividadMiembroUi {
 
     data class Semanal(
         override val tipo: ActividadTipoData,
-        val contadorSemana: Int,
+        val totalHistorico: Int,
         override val isToggling: Boolean = false,
     ) : ActividadMiembroUi()
 }
 
 data class MiembroActividadesUiState(
-    val isLoading:   Boolean = true,
+    val isLoading:    Boolean = true,
+    val isRefreshing: Boolean = false,
     val actividades: List<ActividadMiembroUi> = emptyList(),
     val error:       String? = null,
 )
@@ -55,9 +56,24 @@ class MiembroActividadesViewModel @Inject constructor(
 
     init { cargar() }
 
+    fun onRefresh() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRefreshing = true, error = null) }
+            cargarInterno(isRefresh = true)
+        }
+    }
+
     fun cargar() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
+            cargarInterno(isRefresh = false)
+        }
+    }
+
+    private fun cargarInterno(isRefresh: Boolean) {
+        viewModelScope.launch {
+            if (!isRefresh) {
+                _uiState.update { it.copy(isLoading = true, error = null) }
+            }
             val iglesiaId = session.iglesiaId
             val miembroId = session.miembroId
 
@@ -82,21 +98,21 @@ class MiembroActividadesViewModel @Inject constructor(
                                         horaMarcada         = null,
                                     )
                                 } else {
-                                    val count = actividadRepo
-                                        .getContadorSemanalMiembro(miembroId, tipo.id, lunes)
+                                    val total = actividadRepo
+                                        .getMiembroActividadTotalHistorico(miembroId, tipo.id)
                                         .getOrElse { 0 }
                                     ActividadMiembroUi.Semanal(
-                                        tipo            = tipo,
-                                        contadorSemana  = count,
+                                        tipo           = tipo,
+                                        totalHistorico = total,
                                     )
                                 }
                             }
                         }.map { it.await() }
                     }
-                    _uiState.update { it.copy(isLoading = false, actividades = actividades) }
+                    _uiState.update { it.copy(isLoading = false, isRefreshing = false, actividades = actividades) }
                 }
                 .onFailure {
-                    _uiState.update { it.copy(isLoading = false, error = "No se pudieron cargar las actividades") }
+                    _uiState.update { it.copy(isLoading = false, isRefreshing = false, error = "No se pudieron cargar las actividades") }
                 }
         }
     }
@@ -110,46 +126,16 @@ class MiembroActividadesViewModel @Inject constructor(
         viewModelScope.launch {
             val hoy         = LocalDate.now()
             val nuevoEstado = !actual.marcadaHoy
-            actividadRepo.toggleMiembroActividad(session.miembroId, tipoId, hoy, nuevoEstado)
+            actividadRepo.toggleMiembroActividad(session.miembroId, tipoId, hoy, nuevoEstado, autoApprove = true)
                 .onSuccess {
                     _uiState.update { state ->
                         state.copy(actividades = state.actividades.map { item ->
                             if (item.tipo.id == tipoId && item is ActividadMiembroUi.Diaria)
-                                item.copy(marcadaHoy = nuevoEstado, isToggling = false)
-                            else item
-                        })
-                    }
-                }
-                .onFailure { setToggling(tipoId, false) }
-        }
-    }
-
-    fun onIncrementarSemanal(tipoId: String) {
-        val actual = _uiState.value.actividades.find { it.tipo.id == tipoId } as? ActividadMiembroUi.Semanal ?: return
-        if (actual.isToggling) return
-        actualizarContador(tipoId, actual.contadorSemana + 1)
-    }
-
-    fun onDecrementarSemanal(tipoId: String) {
-        val actual = _uiState.value.actividades.find { it.tipo.id == tipoId } as? ActividadMiembroUi.Semanal ?: return
-        if (actual.isToggling || actual.contadorSemana <= 0) return
-        actualizarContador(tipoId, actual.contadorSemana - 1)
-    }
-
-    fun onMontoSemanalChange(tipoId: String, nuevoMonto: Int) {
-        actualizarContador(tipoId, nuevoMonto.coerceAtLeast(0))
-    }
-
-    private fun actualizarContador(tipoId: String, nuevoCount: Int) {
-        setToggling(tipoId, true)
-        viewModelScope.launch {
-            val lunes = lunesDeSemana(LocalDate.now())
-            actividadRepo.upsertContadorSemanalMiembro(session.miembroId, tipoId, lunes, nuevoCount)
-                .onSuccess {
-                    _uiState.update { state ->
-                        state.copy(actividades = state.actividades.map { item ->
-                            if (item.tipo.id == tipoId && item is ActividadMiembroUi.Semanal)
-                                item.copy(contadorSemana = nuevoCount, isToggling = false)
+                                item.copy(
+                                    marcadaHoy         = nuevoEstado,
+                                    diasMarcadosSemana = if (nuevoEstado) item.diasMarcadosSemana + hoy else item.diasMarcadosSemana - hoy,
+                                    isToggling         = false,
+                                )
                             else item
                         })
                     }

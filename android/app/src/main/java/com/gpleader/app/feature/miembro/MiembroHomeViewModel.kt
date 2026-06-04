@@ -2,6 +2,7 @@ package com.gpleader.app.feature.miembro
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gpleader.app.core.data.repository.DuoRepository
 import com.gpleader.app.core.data.repository.MiembroRepository
 import com.gpleader.app.core.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,12 +31,16 @@ data class MiembroHomeUiState(
     val districtNombre:   String = "",
     val campoNombre:      String = "",
     val isValidandoPerfil: Boolean = true,
+    val isRefreshing:     Boolean = false,
 
     // Estadísticas del trimestre
     val cultosAsistidos:      Int     = 0,
     val totalCultosGP:        Int     = 0,
     val porcentajeAsistencia: Int     = 0,
     val isLoadingStats:       Boolean = false,
+
+    // Dúo misionero
+    val tieneDuo: Boolean = false,
 
     // Navegación
     val navigateToLogin: Boolean = false,
@@ -44,8 +49,9 @@ data class MiembroHomeUiState(
 @HiltViewModel
 class MiembroHomeViewModel @Inject constructor(
     private val miembroRepo: MiembroRepository,
-    private val session: SessionManager,
-    private val supabase: SupabaseClient,
+    private val duoRepo:     DuoRepository,
+    private val session:     SessionManager,
+    private val supabase:    SupabaseClient,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MiembroHomeUiState())
@@ -65,6 +71,14 @@ class MiembroHomeViewModel @Inject constructor(
         }
         validarPerfilEnServidor()
         cargarEstadisticasTrimestre()
+        verificarDuo()
+    }
+
+    private fun verificarDuo() {
+        viewModelScope.launch {
+            val duo = duoRepo.getDuoPorMiembro(session.miembroId).getOrNull()
+            _uiState.update { it.copy(tieneDuo = duo != null) }
+        }
     }
 
     private fun validarPerfilEnServidor() {
@@ -138,6 +152,15 @@ class MiembroHomeViewModel @Inject constructor(
             }.onFailure {
                 _uiState.update { it.copy(isLoadingStats = false) }
             }
+        }
+    }
+
+    fun onRefresh() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRefreshing = true) }
+            verificarDuo()
+            cargarEstadisticasTrimestre()
+            _uiState.update { it.copy(isRefreshing = false) }
         }
     }
 

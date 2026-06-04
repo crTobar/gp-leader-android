@@ -1,5 +1,10 @@
 package com.gpleader.app.feature.auth
 
+import com.gpleader.app.core.ui.components.NeuAvatar
+import com.gpleader.app.core.ui.components.NeuTextField
+import com.gpleader.app.core.ui.components.NeuButtonSecondary
+import com.gpleader.app.core.ui.components.NeuButtonPrimary
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -44,9 +49,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gpleader.app.R
-import com.gpleader.app.core.ui.components.NeuButtonPrimary
-import com.gpleader.app.core.ui.components.NeuButtonSecondary
-import com.gpleader.app.core.ui.components.NeuTextField
 import com.gpleader.app.core.ui.theme.Accent
 import com.gpleader.app.core.ui.theme.Background
 import com.gpleader.app.core.ui.theme.BackgroundDeep
@@ -351,19 +353,7 @@ private fun MiembroRow(
             modifier          = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier        = Modifier
-                    .size(40.dp)
-                    .background(BackgroundDeep, RoundedCornerShape(10.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text       = miembro.iniciales,
-                    style      = MaterialTheme.typography.labelSmall,
-                    color      = Accent,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
+            NeuAvatar(iniciales = miembro.iniciales, size = 40.dp)
             Spacer(Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(

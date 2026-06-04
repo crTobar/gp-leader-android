@@ -58,6 +58,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gpleader.app.R
+import com.gpleader.app.core.ui.components.NeuAvatar
 import com.gpleader.app.core.ui.components.NeuCard
 import com.gpleader.app.core.ui.components.NeuButtonPrimary
 import com.gpleader.app.core.ui.components.NeuButtonSecondary
@@ -74,6 +75,7 @@ import com.gpleader.app.core.ui.theme.Gold
 import com.gpleader.app.core.ui.theme.Shadow
 import com.gpleader.app.core.ui.components.AppBottomNavBar
 import com.gpleader.app.core.ui.components.NAV_TAB_ACTIVIDADES
+import com.gpleader.app.core.ui.components.NAV_TAB_PERFIL
 import com.gpleader.app.core.ui.theme.neuElevated
 import com.gpleader.app.core.ui.theme.neuElevatedSm
 
@@ -82,7 +84,7 @@ import com.gpleader.app.core.ui.theme.neuElevatedSm
 @Composable
 fun PerfilPrincipalScreen(
     onNavigateToHome:              () -> Unit,
-    onNavigateToHistorial:         () -> Unit,
+    onNavigateToActividades:       () -> Unit = {},
     onNavigateToDatosPersonales:   () -> Unit,
     onNavigateToCambiarContrasena: () -> Unit,
     onNavigateToDatosGrupo:        () -> Unit,
@@ -147,7 +149,7 @@ fun PerfilPrincipalScreen(
     PerfilContent(
         uiState                      = uiState,
         onNavigateToHome             = onNavigateToHome,
-        onNavigateToHistorial        = onNavigateToHistorial,
+        onNavigateToActividades      = onNavigateToActividades,
         onDatosGrupoClick            = viewModel::onDatosGrupoClick,
         onMiembrosClick              = viewModel::onMiembrosClick,
         onRegistroActividadClick     = viewModel::onRegistroActividadClick,
@@ -169,7 +171,7 @@ fun PerfilPrincipalScreen(
 private fun PerfilContent(
     uiState:                  PerfilUiState,
     onNavigateToHome:         () -> Unit,
-    onNavigateToHistorial:    () -> Unit,
+    onNavigateToActividades:  () -> Unit = {},
     onDatosGrupoClick:        () -> Unit,
     onMiembrosClick:          () -> Unit,
     onRegistroActividadClick: () -> Unit,
@@ -187,10 +189,10 @@ private fun PerfilContent(
             containerColor = Background,
             bottomBar = {
                 AppBottomNavBar(
-                    selectedTab        = NAV_TAB_ACTIVIDADES,
+                    selectedTab        = NAV_TAB_PERFIL,
                     onInicioClick      = onNavigateToHome,
-                    onHistorialClick   = onNavigateToHistorial,
-                    onActividadesClick = { },
+                    onActividadesClick = onNavigateToActividades,
+                    onPerfilClick      = { },
                 )
             },
         ) { innerPadding ->
@@ -346,20 +348,7 @@ private fun AvatarCard(
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                // Avatar cuadrado con iniciales
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Accent),
-                ) {
-                    Text(
-                        text  = iniciales,
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = Color.White,
-                    )
-                }
+                NeuAvatar(iniciales = iniciales, size = 80.dp)
 
                 Spacer(Modifier.height(16.dp))
 
@@ -732,7 +721,7 @@ private fun PerfilPreview() {
                 totalMiembros  = 8,
             ),
             onNavigateToHome          = {},
-            onNavigateToHistorial     = {},
+            onNavigateToActividades   = {},
             onDatosGrupoClick         = {},
             onMiembrosClick           = {},
             onRegistroActividadClick  = {},
@@ -759,7 +748,7 @@ private fun PerfilDialogPreview() {
                 showCerrarSesionDialog = true,
             ),
             onNavigateToHome          = {},
-            onNavigateToHistorial     = {},
+            onNavigateToActividades   = {},
             onDatosGrupoClick         = {},
             onMiembrosClick           = {},
             onRegistroActividadClick  = {},

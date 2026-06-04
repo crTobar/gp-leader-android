@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -47,6 +49,7 @@ import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.Sage
 import com.gpleader.app.core.ui.theme.neuElevated
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MiembroHomeScreen(
     onCerrarSesion:              () -> Unit,
@@ -70,9 +73,11 @@ fun MiembroHomeScreen(
         onNavigateToActividades       = onNavigateToActividades,
         onNavigateToDuoMisionero      = onNavigateToDuoMisionero,
         onNavigateToEstudiosBiblicos  = onNavigateToEstudiosBiblicos,
+        onRefresh                     = viewModel::onRefresh,
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MiembroHomeContent(
     uiState:                      MiembroHomeUiState,
@@ -80,6 +85,7 @@ private fun MiembroHomeContent(
     onNavigateToActividades:      () -> Unit = {},
     onNavigateToDuoMisionero:     () -> Unit = {},
     onNavigateToEstudiosBiblicos: () -> Unit = {},
+    onRefresh:                    () -> Unit = {},
 ) {
     if (uiState.isValidandoPerfil) {
         Box(
@@ -137,9 +143,15 @@ private fun MiembroHomeContent(
         HorizontalDivider(color = Muted.copy(alpha = 0.15f))
 
         // ── Contenido scrollable ──────────────────────────────────────────────
+        PullToRefreshBox(
+            isRefreshing = uiState.isRefreshing,
+            onRefresh    = onRefresh,
+            modifier     = Modifier.weight(1f).fillMaxWidth(),
+        indicator = {},
+        ) {
         Column(
             modifier = Modifier
-                .weight(1f)
+                .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 24.dp),
         ) {
@@ -190,12 +202,14 @@ private fun MiembroHomeContent(
             Spacer(Modifier.height(24.dp))
 
             // ── Botones de acción ─────────────────────────────────────────────
-            NeuButtonSecondary(
-                text     = "Mi Duo Misionero",
-                onClick  = onNavigateToDuoMisionero,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(8.dp))
+            if (uiState.tieneDuo) {
+                NeuButtonSecondary(
+                    text     = "Mi Dúo Misionero",
+                    onClick  = onNavigateToDuoMisionero,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(8.dp))
+            }
             NeuButtonSecondary(
                 text     = "Mis Estudios Bíblicos",
                 onClick  = onNavigateToEstudiosBiblicos,
@@ -271,6 +285,7 @@ private fun MiembroHomeContent(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+        } // PullToRefreshBox
 
     }
 }

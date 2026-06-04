@@ -15,8 +15,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Assignment
-import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -39,16 +39,16 @@ import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.neuElevated
 import com.gpleader.app.core.ui.theme.neuInset
 
-const val NAV_TAB_INICIO       = 0
-const val NAV_TAB_HISTORIAL    = 1
-const val NAV_TAB_ACTIVIDADES  = 2
+const val NAV_TAB_INICIO      = 0
+const val NAV_TAB_ACTIVIDADES = 1
+const val NAV_TAB_PERFIL      = 2
 
 @Composable
 fun AppBottomNavBar(
-    selectedTab: Int,
-    onInicioClick: () -> Unit,
-    onHistorialClick: () -> Unit,
+    selectedTab:       Int,
+    onInicioClick:     () -> Unit,
     onActividadesClick: () -> Unit,
+    onPerfilClick:     () -> Unit,
 ) {
     Box(
         modifier = Modifier
@@ -73,16 +73,16 @@ fun AppBottomNavBar(
                 onClick  = onInicioClick,
             )
             NavTabItem(
-                icon     = Icons.Default.DateRange,
-                label    = stringResource(R.string.home_nav_historial),
-                isActive = selectedTab == NAV_TAB_HISTORIAL,
-                onClick  = onHistorialClick,
-            )
-            NavTabItem(
                 icon     = Icons.AutoMirrored.Filled.Assignment,
                 label    = stringResource(R.string.home_nav_actividades),
                 isActive = selectedTab == NAV_TAB_ACTIVIDADES,
                 onClick  = onActividadesClick,
+            )
+            NavTabItem(
+                icon     = Icons.Default.Person,
+                label    = stringResource(R.string.home_nav_perfil),
+                isActive = selectedTab == NAV_TAB_PERFIL,
+                onClick  = onPerfilClick,
             )
         }
     }
@@ -130,8 +130,8 @@ private fun AppBottomNavBarPreview() {
         AppBottomNavBar(
             selectedTab        = NAV_TAB_INICIO,
             onInicioClick      = {},
-            onHistorialClick   = {},
             onActividadesClick = {},
+            onPerfilClick      = {},
         )
     }
 }

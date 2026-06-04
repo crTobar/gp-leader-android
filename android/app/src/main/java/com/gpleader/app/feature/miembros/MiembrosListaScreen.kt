@@ -1,5 +1,10 @@
 package com.gpleader.app.feature.miembros
 
+import com.gpleader.app.core.ui.components.NeuAvatar
+import com.gpleader.app.core.ui.components.SwipeableItem
+import com.gpleader.app.core.ui.components.SwipeAction
+import com.gpleader.app.core.ui.components.NeuTextField
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -9,6 +14,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -24,6 +31,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
@@ -53,9 +61,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gpleader.app.R
-import com.gpleader.app.core.ui.components.NeuTextField
-import com.gpleader.app.core.ui.components.SwipeAction
-import com.gpleader.app.core.ui.components.SwipeableItem
 import com.gpleader.app.core.ui.theme.Accent
 import com.gpleader.app.core.ui.theme.Background
 import com.gpleader.app.core.ui.theme.BackgroundDeep
@@ -73,13 +78,14 @@ import com.gpleader.app.core.ui.theme.neuInset
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MiembrosListaScreen(
-    onNavigateBack:      () -> Unit,
-    onNavigateToDetalle: () -> Unit,
-    onNavigateToAgregar: () -> Unit,
-    onNavigateToHome:    () -> Unit,
-    onNavigateToHistorial: () -> Unit,
+    onNavigateBack:         () -> Unit,
+    onNavigateToDetalle:    () -> Unit,
+    onNavigateToAgregar:    () -> Unit,
+    onNavigateToHome:       () -> Unit,
+    onNavigateToActividades: () -> Unit = {},
     viewModel: MiembrosViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -99,29 +105,32 @@ fun MiembrosListaScreen(
     }
 
     MiembrosListaContent(
-        uiState               = uiState,
-        onNavigateBack        = onNavigateBack,
-        onQueryChange         = viewModel::onQueryChange,
-        onMiembroClick        = viewModel::onMiembroClick,
-        onToggleEstado        = viewModel::onToggleEstadoDesdeListado,
-        onAgregarClick        = onNavigateToAgregar,
-        onNavigateToHome      = onNavigateToHome,
-        onNavigateToHistorial = onNavigateToHistorial,
+        uiState                 = uiState,
+        onNavigateBack          = onNavigateBack,
+        onQueryChange           = viewModel::onQueryChange,
+        onMiembroClick          = viewModel::onMiembroClick,
+        onToggleEstado          = viewModel::onToggleEstadoDesdeListado,
+        onAgregarClick          = onNavigateToAgregar,
+        onNavigateToHome        = onNavigateToHome,
+        onNavigateToActividades = onNavigateToActividades,
+        onRefresh               = viewModel::onRefresh,
     )
 }
 
 // ── Content (previewable) ─────────────────────────────────────────────────────
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MiembrosListaContent(
-    uiState:               MiembrosUiState,
-    onNavigateBack:        () -> Unit,
-    onQueryChange:         (String) -> Unit,
-    onMiembroClick:        (String) -> Unit,
-    onToggleEstado:        (String) -> Unit,
-    onAgregarClick:        () -> Unit,
-    onNavigateToHome:      () -> Unit,
-    onNavigateToHistorial: () -> Unit,
+    uiState:                 MiembrosUiState,
+    onNavigateBack:          () -> Unit,
+    onQueryChange:           (String) -> Unit,
+    onMiembroClick:          (String) -> Unit,
+    onToggleEstado:          (String) -> Unit,
+    onAgregarClick:          () -> Unit,
+    onNavigateToHome:        () -> Unit,
+    onNavigateToActividades: () -> Unit = {},
+    onRefresh:               () -> Unit = {},
 ) {
     // Clave del ítem actualmente deslizado — solo uno puede estar abierto a la vez
     var openItemId by remember { mutableStateOf<Any?>(null) }
@@ -147,15 +156,19 @@ private fun MiembrosListaContent(
         },
         bottomBar = {
             MiembrosBottomNavBar(
-                onHomeClick      = onNavigateToHome,
-                onHistorialClick = onNavigateToHistorial,
+                onHomeClick        = onNavigateToHome,
+                onActividadesClick = onNavigateToActividades,
             )
         },
     ) { innerPadding ->
+        PullToRefreshBox(
+            isRefreshing = uiState.isRefreshing,
+            onRefresh    = onRefresh,
+            modifier     = Modifier.fillMaxSize().padding(innerPadding),
+        indicator = {},
+        ) {
         LazyColumn(
-            modifier            = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
+            modifier            = Modifier.fillMaxSize(),
             contentPadding      = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -218,6 +231,7 @@ private fun MiembrosListaContent(
 
             item { Spacer(Modifier.height(8.dp)) }
         }
+        } // PullToRefreshBox
     }
 }
 
@@ -369,21 +383,7 @@ private fun MiembroCard(
                         .alpha(contentAlpha)
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                 ) {
-                    // Avatar
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(44.dp)
-                            .neuElevatedSm(cornerRadius = 10.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(BackgroundDeep),
-                    ) {
-                        Text(
-                            text  = miembro.iniciales,
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = Mid,
-                        )
-                    }
+                    NeuAvatar(iniciales = miembro.iniciales, size = 44.dp)
 
                     // Nombre + teléfono
                     Column(modifier = Modifier.weight(1f)) {
@@ -442,8 +442,8 @@ private fun MiembroCard(
 
 @Composable
 private fun MiembrosBottomNavBar(
-    onHomeClick:      () -> Unit,
-    onHistorialClick: () -> Unit,
+    onHomeClick:        () -> Unit,
+    onActividadesClick: () -> Unit,
 ) {
     Box(
         modifier = Modifier
@@ -468,10 +468,10 @@ private fun MiembrosBottomNavBar(
                 onClick = onHomeClick,
             )
             NavTab(
-                icon    = Icons.Filled.Search,
-                label   = stringResource(R.string.home_nav_historial),
+                icon    = Icons.AutoMirrored.Filled.Assignment,
+                label   = stringResource(R.string.home_nav_actividades),
                 active  = false,
-                onClick = onHistorialClick,
+                onClick = onActividadesClick,
             )
             NavTab(
                 icon    = Icons.Filled.Person,
@@ -518,7 +518,7 @@ private fun MiembrosListaPreview() {
             onToggleEstado        = {},
             onAgregarClick        = {},
             onNavigateToHome      = {},
-            onNavigateToHistorial = {},
+            onNavigateToActividades = {},
         )
     }
 }
@@ -535,7 +535,7 @@ private fun MiembrosListaSearchPreview() {
             onToggleEstado        = {},
             onAgregarClick        = {},
             onNavigateToHome      = {},
-            onNavigateToHistorial = {},
+            onNavigateToActividades = {},
         )
     }
 }

@@ -300,6 +300,7 @@ class ActividadRepositoryImpl @Inject constructor(
         actividadTipoId: String,
         fecha: LocalDate,
         isDone: Boolean,
+        autoApprove: Boolean,
     ): Result<Unit> = runCatching {
         if (isDone) {
             supabase.from("member_activity_record").upsert(
@@ -308,7 +309,7 @@ class ActividadRepositoryImpl @Inject constructor(
                     put("activity_type_id", actividadTipoId)
                     put("record_date", fecha.toString())
                     put("is_done", true)
-                    put("status", "draft")
+                    put("status", if (autoApprove) "approved" else "draft")
                     put("marked_at", java.time.Instant.now().toString())
                 }
             ) {
@@ -542,7 +543,7 @@ class ActividadRepositoryImpl @Inject constructor(
     ): Result<List<DiaStat>> = runCatching {
         // Query 1: miembros activos del grupo
         val miembrosData = supabase.from("member").select(
-            Columns.raw("id, first_name, second_name, first_surname, second_surname")
+            Columns.raw("id, first_name, middle_name, last_name, second_last_name")
         ) {
             filter {
                 eq("small_group_id", grupoId)
@@ -555,18 +556,18 @@ class ActividadRepositoryImpl @Inject constructor(
             val obj     = elem.jsonObject
             val id      = obj["id"]?.jsonPrimitive?.contentOrNull ?: ""
             val fn1     = obj["first_name"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull ?: ""
-            val fn2     = obj["second_name"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull?.let { " $it" } ?: ""
-            val ln1     = obj["first_surname"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull ?: ""
-            val ln2     = obj["second_surname"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull?.let { " $it" } ?: ""
+            val fn2     = obj["middle_name"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull?.let { " $it" } ?: ""
+            val ln1     = obj["last_name"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull ?: ""
+            val ln2     = obj["second_last_name"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull?.let { " $it" } ?: ""
             MiembroMarcado(id = id, nombre = "$fn1$fn2 $ln1$ln2".trim(), marcado = false)
         }.filter { it.id.isNotEmpty() }
 
         val miembroIds = todosLosMiembros.map { it.id }.toSet()
         if (miembroIds.isEmpty()) return@runCatching emptyList()
 
-        // Query 2: registros del rango (solo miembros del grupo)
+        // Query 2: registros del rango (solo miembros del grupo) + marked_at
         val registrosData = supabase.from("member_activity_record").select(
-            Columns.raw("member_id, record_date")
+            Columns.raw("member_id, record_date, marked_at")
         ) {
             filter {
                 eq("activity_type_id", actividadTipoId)
@@ -576,14 +577,16 @@ class ActividadRepositoryImpl @Inject constructor(
             }
         }.data
 
-        val marcadosPorFecha = mutableMapOf<LocalDate, MutableSet<String>>()
+        // fecha → (miembroId → marcadaEn)
+        val marcadosPorFecha = mutableMapOf<LocalDate, MutableMap<String, java.time.Instant?>>()
         Json.parseToJsonElement(registrosData).jsonArray.forEach { elem ->
             val obj      = elem.jsonObject
             val membId   = obj["member_id"]?.jsonPrimitive?.contentOrNull ?: return@forEach
             val dateStr  = obj["record_date"]?.jsonPrimitive?.contentOrNull ?: return@forEach
             val fecha    = runCatching { LocalDate.parse(dateStr) }.getOrNull() ?: return@forEach
+            val markedAt = obj["marked_at"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull?.let { parseTimestamp(it) }
             if (membId in miembroIds) {
-                marcadosPorFecha.getOrPut(fecha) { mutableSetOf() }.add(membId)
+                marcadosPorFecha.getOrPut(fecha) { mutableMapOf() }[membId] = markedAt
             }
         }
 
@@ -591,18 +594,202 @@ class ActividadRepositoryImpl @Inject constructor(
         val dias = mutableListOf<DiaStat>()
         var cursor = desde
         while (!cursor.isAfter(hasta)) {
-            val marcadosHoy = marcadosPorFecha[cursor] ?: emptySet()
+            val fechaMap = marcadosPorFecha[cursor] ?: emptyMap()
             dias.add(
                 DiaStat(
                     fecha       = cursor,
-                    completados = marcadosHoy.size,
+                    completados = fechaMap.size,
                     total       = todosLosMiembros.size,
-                    miembros    = todosLosMiembros.map { m -> m.copy(marcado = m.id in marcadosHoy) },
+                    miembros    = todosLosMiembros.map { m ->
+                        m.copy(
+                            marcado   = m.id in fechaMap,
+                            marcadaEn = fechaMap[m.id],
+                        )
+                    },
                 )
             )
             cursor = cursor.plusDays(1)
         }
         dias.sortedByDescending { it.fecha }
+    }
+
+    override suspend fun getLastMeetingDate(grupoId: String): Result<LocalDate?> = runCatching {
+        val data = supabase.from("meeting").select(Columns.raw("meeting_date")) {
+            filter {
+                eq("small_group_id", grupoId)
+                eq("registry_kind", "gp_meeting")
+                eq("status", "submitted")
+                eq("no_meeting", false)
+            }
+            limit(1000)
+        }.data
+        Json.parseToJsonElement(data).jsonArray
+            .mapNotNull { it.jsonObject["meeting_date"]?.jsonPrimitive?.contentOrNull }
+            .mapNotNull { runCatching { LocalDate.parse(it) }.getOrNull() }
+            .maxOrNull()
+    }
+
+    override suspend fun getMemberContributionsSinceDate(
+        grupoId: String,
+        desde: LocalDate,
+        hasta: LocalDate,
+    ): Result<Map<String, List<MemberContribution>>> = runCatching {
+        val mData = supabase.from("member").select(Columns.raw("id, first_name, last_name")) {
+            filter {
+                eq("small_group_id", grupoId)
+                eq("is_visitor", false)
+                eq("is_active", true)
+            }
+        }.data
+        val members = Json.parseToJsonElement(mData).jsonArray.associate { elem ->
+            val obj  = elem.jsonObject
+            val id   = obj["id"]?.jsonPrimitive?.contentOrNull ?: ""
+            val name = "${obj["first_name"]?.jsonPrimitive?.contentOrNull ?: ""} ${obj["last_name"]?.jsonPrimitive?.contentOrNull ?: ""}".trim()
+            id to name
+        }
+        if (members.isEmpty()) return@runCatching emptyMap()
+
+        val data = supabase.from("member_activity_record").select(
+            Columns.raw("id, member_id, activity_type_id, record_date, count, is_done, marked_at, status")
+        ) {
+            filter {
+                isIn("member_id", members.keys.toList())
+                gt("record_date", desde.toString())
+                lte("record_date", hasta.toString())
+            }
+        }.data
+
+        val result = mutableMapOf<String, MutableList<MemberContribution>>()
+        Json.parseToJsonElement(data).jsonArray.forEach { elem ->
+            val obj         = elem.jsonObject
+            val miembroId   = obj["member_id"]?.jsonPrimitive?.contentOrNull ?: return@forEach
+            val tipoId      = obj["activity_type_id"]?.jsonPrimitive?.contentOrNull ?: return@forEach
+            val dateStr     = obj["record_date"]?.jsonPrimitive?.contentOrNull ?: return@forEach
+            val recordDate  = runCatching { LocalDate.parse(dateStr) }.getOrNull() ?: return@forEach
+            val contrib = MemberContribution(
+                recordId      = obj["id"]?.jsonPrimitive?.contentOrNull ?: return@forEach,
+                miembroId     = miembroId,
+                miembroNombre = members[miembroId] ?: "Miembro",
+                recordDate    = recordDate,
+                count         = obj["count"]?.jsonPrimitive?.intOrNull,
+                isDone        = obj["is_done"]?.jsonPrimitive?.booleanOrNull ?: false,
+                markedAt      = obj["marked_at"]?.jsonPrimitive?.contentOrNull?.let { parseTimestamp(it) },
+                status        = obj["status"]?.jsonPrimitive?.contentOrNull ?: "draft",
+            )
+            result.getOrPut(tipoId) { mutableListOf() }.add(contrib)
+        }
+        result
+    }
+
+    override suspend fun getActividadSubmissions(
+        actividadTipoId: String,
+        grupoId: String,
+    ): Result<List<MemberActivitySubmission>> = runCatching {
+        val mData = supabase.from("member").select(Columns.raw("id, first_name, last_name")) {
+            filter {
+                eq("small_group_id", grupoId)
+                eq("is_visitor", false)
+            }
+        }.data
+        val members = Json.parseToJsonElement(mData).jsonArray.associate { elem ->
+            val obj  = elem.jsonObject
+            val id   = obj["id"]?.jsonPrimitive?.contentOrNull ?: ""
+            val name = "${obj["first_name"]?.jsonPrimitive?.contentOrNull ?: ""} ${obj["last_name"]?.jsonPrimitive?.contentOrNull ?: ""}".trim()
+            id to name
+        }
+        if (members.isEmpty()) return@runCatching emptyList()
+
+        val data = supabase.from("member_activity_record").select(
+            Columns.raw("id, member_id, activity_type_id, record_date, count, is_done, status, marked_at")
+        ) {
+            filter {
+                eq("activity_type_id", actividadTipoId)
+                isIn("member_id", members.keys.toList())
+            }
+        }.data
+
+        Json.parseToJsonElement(data).jsonArray.mapNotNull { elem ->
+            val obj       = elem.jsonObject
+            val miembroId = obj["member_id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            val dateStr   = obj["record_date"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            val recordDate = runCatching { LocalDate.parse(dateStr) }.getOrNull() ?: return@mapNotNull null
+            MemberActivitySubmission(
+                recordId      = obj["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
+                miembroId     = miembroId,
+                miembroNombre = members[miembroId] ?: "Miembro",
+                recordDate    = recordDate,
+                count         = obj["count"]?.jsonPrimitive?.intOrNull,
+                monto         = null,
+                isDone        = obj["is_done"]?.jsonPrimitive?.booleanOrNull ?: false,
+                status        = obj["status"]?.jsonPrimitive?.contentOrNull ?: "draft",
+                markedAt      = obj["marked_at"]?.jsonPrimitive?.contentOrNull?.let { parseTimestamp(it) },
+            )
+        }.sortedByDescending { it.recordDate }
+    }
+
+    override suspend fun getMiembroActividadHistorial(
+        miembroId: String,
+        actividadTipoId: String,
+    ): Result<List<RegistroHistorial>> = runCatching {
+        val data = supabase.from("member_activity_record").select(
+            Columns.raw("id, record_date, count, is_done, status")
+        ) {
+            filter {
+                eq("member_id", miembroId)
+                eq("activity_type_id", actividadTipoId)
+            }
+            limit(100)
+        }.data
+        Json.parseToJsonElement(data).jsonArray.mapNotNull { elem ->
+            val obj     = elem.jsonObject
+            val dateStr = obj["record_date"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            RegistroHistorial(
+                id         = obj["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
+                recordDate = runCatching { LocalDate.parse(dateStr) }.getOrNull() ?: return@mapNotNull null,
+                count      = obj["count"]?.jsonPrimitive?.intOrNull,
+                isDone     = obj["is_done"]?.jsonPrimitive?.booleanOrNull ?: false,
+                status     = obj["status"]?.jsonPrimitive?.contentOrNull ?: "draft",
+            )
+        }.sortedByDescending { it.recordDate }
+    }
+
+    override suspend fun getMiembroActividadTotalHistorico(
+        miembroId: String,
+        actividadTipoId: String,
+    ): Result<Int> = runCatching {
+        val data = supabase.from("member_activity_record").select(
+            Columns.raw("count")
+        ) {
+            filter {
+                eq("member_id", miembroId)
+                eq("activity_type_id", actividadTipoId)
+                isIn("status", listOf("approved", "pending_board"))
+            }
+        }.data
+        Json.parseToJsonElement(data).jsonArray.sumOf { elem ->
+            elem.jsonObject["count"]?.jsonPrimitive?.intOrNull ?: 0
+        }
+    }
+
+    override suspend fun agregarRegistroMiembro(
+        miembroId: String,
+        actividadTipoId: String,
+        fecha: LocalDate,
+        count: Int,
+        autoApprove: Boolean,
+    ): Result<Unit> = runCatching {
+        supabase.from("member_activity_record").upsert(
+            buildJsonObject {
+                put("member_id",         miembroId)
+                put("activity_type_id",  actividadTipoId)
+                put("record_date",       fecha.toString())
+                put("count",             count)
+                put("is_done",           count > 0)
+                put("status",            if (autoApprove) "approved" else "draft")
+            }
+        ) {
+            onConflict = "member_id,activity_type_id,record_date"
+        }
     }
 
     private fun parseTimestamp(s: String): java.time.Instant? = runCatching {

@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -25,6 +27,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,9 +56,12 @@ import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.Sage
 import com.gpleader.app.core.ui.theme.neuElevated
 import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CampanaDetalleScreen(
     onNavigateBack: () -> Unit,
@@ -88,6 +95,12 @@ fun CampanaDetalleScreen(
             )
         }
 
+        PullToRefreshBox(
+            isRefreshing = uiState.isRefreshing,
+            onRefresh    = viewModel::onRefresh,
+            modifier     = Modifier.fillMaxSize(),
+        indicator = {},
+        ) {
         when {
             uiState.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Accent)
@@ -149,22 +162,29 @@ fun CampanaDetalleScreen(
                     // ── Días ─────────────────────────────────────────────────
                     items(uiState.dias, key = { it.fecha.toString() }) { dia ->
                         DiaStatRow(
-                            dia      = dia,
-                            expanded = uiState.expandedFecha == dia.fecha,
-                            onClick  = { viewModel.onToggleDia(dia.fecha) },
+                            dia          = dia,
+                            expanded     = uiState.expandedFecha == dia.fecha,
+                            togglingKey  = uiState.togglingKey,
+                            onClick      = { viewModel.onToggleDia(dia.fecha) },
+                            onToggleMiembro = { miembroId, marcado ->
+                                viewModel.onToggleMiembro(miembroId, dia.fecha, marcado)
+                            },
                         )
                     }
                 }
             }
         }
+        } // PullToRefreshBox
     }
 }
 
 @Composable
 private fun DiaStatRow(
-    dia:      DiaStat,
-    expanded: Boolean,
-    onClick:  () -> Unit,
+    dia:             DiaStat,
+    expanded:        Boolean,
+    togglingKey:     String?,
+    onClick:         () -> Unit,
+    onToggleMiembro: (miembroId: String, marcadoActualmente: Boolean) -> Unit,
 ) {
     val mes       = dia.fecha.month.getDisplayName(TextStyle.SHORT, Locale("es")).uppercase()
     val diaN      = dia.fecha.dayOfMonth
@@ -243,7 +263,11 @@ private fun DiaStatRow(
                         modifier  = Modifier.padding(horizontal = 16.dp),
                     )
                     dia.miembros.forEach { miembro ->
-                        MiembroRow(miembro = miembro)
+                        MiembroRow(
+                            miembro     = miembro,
+                            isToggling  = togglingKey == "${miembro.id}_${dia.fecha}",
+                            onToggle    = { onToggleMiembro(miembro.id, miembro.marcado) },
+                        )
                     }
                     Spacer(Modifier.height(4.dp))
                 }
@@ -253,11 +277,16 @@ private fun DiaStatRow(
 }
 
 @Composable
-private fun MiembroRow(miembro: MiembroMarcado) {
+private fun MiembroRow(
+    miembro:    MiembroMarcado,
+    isToggling: Boolean,
+    onToggle:   () -> Unit,
+) {
     Row(
         modifier          = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 8.dp),
+            .clickable(enabled = !isToggling, onClick = onToggle)
+            .padding(horizontal = 20.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -267,17 +296,48 @@ private fun MiembroRow(miembro: MiembroMarcado) {
                 .background(if (miembro.marcado) Sage else BackgroundDeep),
         )
         Spacer(Modifier.width(12.dp))
-        Text(
-            text     = miembro.nombre,
-            style    = MaterialTheme.typography.bodyMedium,
-            color    = if (miembro.marcado) Ink else Muted,
-            modifier = Modifier.weight(1f),
-        )
-        Icon(
-            imageVector        = if (miembro.marcado) Icons.Default.Check else Icons.Default.Close,
-            contentDescription = null,
-            tint               = if (miembro.marcado) Sage else BackgroundDeep,
-            modifier           = Modifier.size(18.dp),
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text  = miembro.nombre,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (miembro.marcado) Ink else Muted,
+            )
+            if (miembro.marcado && miembro.marcadaEn != null) {
+                val hora = remember(miembro.marcadaEn) {
+                    DateTimeFormatter.ofPattern("HH:mm")
+                        .withZone(ZoneId.systemDefault())
+                        .format(miembro.marcadaEn)
+                }
+                Text(
+                    text  = hora,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Muted,
+                )
+            }
+        }
+        if (isToggling) {
+            CircularProgressIndicator(
+                modifier    = Modifier.size(18.dp),
+                color       = Accent,
+                strokeWidth = 2.dp,
+            )
+        } else {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (miembro.marcado) Sage else BackgroundDeep),
+            ) {
+                if (miembro.marcado) {
+                    Icon(
+                        imageVector        = Icons.Default.Check,
+                        contentDescription = null,
+                        tint               = Color.White,
+                        modifier           = Modifier.size(16.dp),
+                    )
+                }
+            }
+        }
     }
 }

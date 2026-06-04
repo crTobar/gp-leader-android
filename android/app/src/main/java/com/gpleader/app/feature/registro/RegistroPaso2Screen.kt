@@ -1,5 +1,10 @@
 package com.gpleader.app.feature.registro
 
+import com.gpleader.app.core.ui.components.NeuAvatar
+import com.gpleader.app.core.ui.components.OnResumeEffect
+import com.gpleader.app.core.ui.components.NeuCard
+import com.gpleader.app.core.ui.components.NeuButtonPrimary
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -66,9 +71,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gpleader.app.R
-import com.gpleader.app.core.ui.components.NeuButtonPrimary
-import com.gpleader.app.core.ui.components.NeuCard
-import com.gpleader.app.core.ui.components.OnResumeEffect
 import com.gpleader.app.core.ui.theme.Accent
 import com.gpleader.app.core.ui.theme.Background
 import com.gpleader.app.core.ui.theme.BackgroundDeep
@@ -619,20 +621,7 @@ internal fun MiembroDesgloseRow(
         modifier          = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier         = Modifier
-                .size(32.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(BackgroundDeep),
-        ) {
-            Text(
-                text  = miembro.iniciales,
-                style = MaterialTheme.typography.labelSmall,
-                color = Mid,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
+        NeuAvatar(iniciales = miembro.iniciales, size = 32.dp)
 
         Spacer(Modifier.width(10.dp))
 
@@ -669,20 +658,7 @@ internal fun MiembroDesgloseMonetarioRow(
         modifier          = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier         = Modifier
-                .size(32.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(BackgroundDeep),
-        ) {
-            Text(
-                text       = miembro.iniciales,
-                style      = MaterialTheme.typography.labelSmall,
-                color      = Mid,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
+        NeuAvatar(iniciales = miembro.iniciales, size = 32.dp)
 
         Spacer(Modifier.width(10.dp))
 
@@ -718,20 +694,7 @@ internal fun MiembroParticipacionRow(
         modifier          = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier         = Modifier
-                .size(32.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(BackgroundDeep),
-        ) {
-            Text(
-                text       = miembro.iniciales,
-                style      = MaterialTheme.typography.labelSmall,
-                color      = Mid,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
+        NeuAvatar(iniciales = miembro.iniciales, size = 32.dp)
 
         Spacer(Modifier.width(10.dp))
 

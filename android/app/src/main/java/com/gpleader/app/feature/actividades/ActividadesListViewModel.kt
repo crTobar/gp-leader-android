@@ -41,6 +41,7 @@ data class ActividadesListUiState(
     val filtroNivel:  FiltroNivel               = FiltroNivel.TODOS,
     val filtroEstado: FiltroEstado              = FiltroEstado.TODAS,
     val isLoading:    Boolean                   = true,
+    val isRefreshing: Boolean                   = false,
     val error:        String?                   = null,
 )
 
@@ -54,6 +55,30 @@ class ActividadesListViewModel @Inject constructor(
     val uiState: StateFlow<ActividadesListUiState> = _uiState.asStateFlow()
 
     init { cargar() }
+
+    fun onRefresh() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRefreshing = true, error = null) }
+            val tiposResult   = actividadRepo.getTodasActividadesTipo(session.iglesiaId, session.districtId, session.campoId, session.grupoId)
+            val totalesResult = actividadRepo.getActividadesConTotales(session.grupoId)
+
+            if (tiposResult.isFailure) {
+                _uiState.update { it.copy(isRefreshing = false, error = tiposResult.exceptionOrNull()?.message) }
+                return@launch
+            }
+            val hoy     = LocalDate.now()
+            val tipos   = tiposResult.getOrThrow()
+            val totales = totalesResult.getOrElse { emptyMap() }
+            val combined = tipos.map { tipo ->
+                val total      = totales[tipo.id]
+                val esProxima  = tipo.startDate != null && hoy.isBefore(tipo.startDate)
+                val esActiva   = !esProxima && (tipo.endDate == null || !hoy.isAfter(tipo.endDate))
+                ActividadConResumen(tipo, total?.totalCantidad ?: 0, total?.montoTotal ?: 0.0, esActiva, esProxima)
+            }
+            _uiState.update { it.copy(isRefreshing = false, actividades = combined) }
+            filtrar()
+        }
+    }
 
     fun cargar() {
         viewModelScope.launch {

@@ -48,10 +48,11 @@ data class MiembroUi(
 // ── UI State ──────────────────────────────────────────────────────────────────
 
 data class MiembrosUiState(
-    val miembros:  List<MiembroUi> = emptyList(),
-    val query:     String          = "",
-    val isLoading: Boolean         = false,
-    val error:     String?         = null,
+    val miembros:     List<MiembroUi> = emptyList(),
+    val query:        String          = "",
+    val isLoading:    Boolean         = false,
+    val isRefreshing: Boolean         = false,
+    val error:        String?         = null,
 
     val miembroId: String? = null,
 
@@ -136,6 +137,17 @@ class MiembrosViewModel @Inject constructor(
     val uiState: StateFlow<MiembrosUiState> = _uiState.asStateFlow()
 
     init { cargarMiembros() }
+
+    fun onRefresh() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRefreshing = true, error = null) }
+            miembroRepo.getMiembros(session.grupoId)
+                .catch { e -> _uiState.update { it.copy(isRefreshing = false, error = e.message) } }
+                .collect { lista ->
+                    _uiState.update { it.copy(isRefreshing = false, miembros = lista.map { m -> m.toUi() }) }
+                }
+        }
+    }
 
     private fun cargarMiembros() {
         viewModelScope.launch {

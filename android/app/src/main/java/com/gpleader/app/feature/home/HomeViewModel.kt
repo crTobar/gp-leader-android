@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.gpleader.app.core.data.repository.AsignadoPotencial
 import com.gpleader.app.core.data.repository.GroupLogRepository
 import com.gpleader.app.core.data.repository.GrupoRepository
+import com.gpleader.app.core.data.repository.MiembroRepository
 import com.gpleader.app.core.data.repository.ReunionRepository
 import com.gpleader.app.core.data.repository.SabbathMeetingResumen
 import com.gpleader.app.core.data.repository.Solicitud
@@ -16,7 +17,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.temporal.TemporalAdjusters
 import javax.inject.Inject
 
 // ── Display models ────────────────────────────────────────────────────────────
@@ -50,7 +53,10 @@ data class HomeUiState(
     val totalMiembros:        Int                 = 0,
     val reunionesRecientes:        List<ReunionResumen>         = emptyList(),
     val reunionesSabadoRecientes:  List<SabbathMeetingResumen>  = emptyList(),
+    val reunionGpHoy:        ReunionResumen?         = null,
+    val reunionSabadoSemana: SabbathMeetingResumen?  = null,
     val isLoading:            Boolean                  = false,
+    val isRefreshing:         Boolean                  = false,
     val error:                String?                  = null,
     val navigateToRegistro:   Boolean                  = false,
     val navigateToHistorial:  Boolean                  = false,
@@ -74,6 +80,7 @@ data class HomeUiState(
 class HomeViewModel @Inject constructor(
     private val reunionRepo:   ReunionRepository,
     private val grupoRepo:     GrupoRepository,
+    private val miembroRepo:   MiembroRepository,
     private val solicitudRepo: SolicitudRepository,
     private val groupLogRepo:  GroupLogRepository,
     private val session:       SessionManager,
@@ -98,7 +105,26 @@ class HomeViewModel @Inject constructor(
         observarReuniones()
         cargarSabadoRecientes()
         cargarGrupoDetalle()
+        cargarTotalMiembros()
         cargarSolicitudes()
+    }
+
+    fun onRefresh() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRefreshing = true) }
+            cargarSabadoRecientes()
+            cargarGrupoDetalle()
+            cargarSolicitudes()
+            _uiState.update { it.copy(isRefreshing = false) }
+        }
+    }
+
+    private fun cargarTotalMiembros() {
+        viewModelScope.launch {
+            miembroRepo.getMiembrosActivos(session.grupoId).collect { miembros ->
+                _uiState.update { it.copy(totalMiembros = miembros.size) }
+            }
+        }
     }
 
     private fun cargarGrupoDetalle() {
@@ -120,7 +146,12 @@ class HomeViewModel @Inject constructor(
             val lista = runCatching {
                 reunionRepo.getReunionesRecientesSabado(session.grupoId, limit = 3).getOrDefault(emptyList())
             }.getOrDefault(emptyList())
-            _uiState.update { it.copy(reunionesSabadoRecientes = lista) }
+            val hoy          = LocalDate.now()
+            val ultimoSabado = hoy.with(TemporalAdjusters.previousOrSame(DayOfWeek.SATURDAY))
+            val sabadoSemana = lista.firstOrNull {
+                !it.fecha.isBefore(ultimoSabado) && !it.fecha.isAfter(hoy)
+            }
+            _uiState.update { it.copy(reunionesSabadoRecientes = lista, reunionSabadoSemana = sabadoSemana) }
         }
     }
 
@@ -134,23 +165,25 @@ class HomeViewModel @Inject constructor(
                     val totalAsistentes = totalP + totalA + totalJ
                     val pct = if (totalAsistentes > 0) (totalP * 100) / totalAsistentes else 0
 
+                    val hoy = LocalDate.now()
+                    val mapped = reuniones.map { r ->
+                        ReunionResumen(
+                            id        = r.id,
+                            fecha     = r.fecha,
+                            estado    = runCatching { EstadoReunion.valueOf(r.estado) }
+                                .getOrElse { EstadoReunion.BORRADOR },
+                            presentes = r.presentes,
+                            ausentes  = r.ausentes,
+                        )
+                    }
                     _uiState.update {
                         it.copy(
                             isLoading            = false,
-                            reunionesRecientes   = reuniones.map { r ->
-                                ReunionResumen(
-                                    id        = r.id,
-                                    fecha     = r.fecha,
-                                    estado    = runCatching { EstadoReunion.valueOf(r.estado) }
-                                        .getOrElse { EstadoReunion.BORRADOR },
-                                    presentes = r.presentes,
-                                    ausentes  = r.ausentes,
-                                )
-                            },
+                            reunionesRecientes   = mapped,
+                            reunionGpHoy         = mapped.firstOrNull { r -> r.fecha == hoy },
                             totalPresentes       = totalP,
                             totalAusentes        = totalA,
                             totalJustificados    = totalJ,
-                            totalMiembros        = totalAsistentes,
                             porcentajeAsistencia = pct,
                         )
                     }

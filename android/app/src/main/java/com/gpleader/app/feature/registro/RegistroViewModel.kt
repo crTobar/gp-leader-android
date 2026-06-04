@@ -10,6 +10,7 @@ import com.gpleader.app.R
 import com.gpleader.app.core.data.repository.ActividadRepository
 import com.gpleader.app.core.data.repository.ActividadTipoData
 import com.gpleader.app.core.data.repository.ActividadTotalData
+import com.gpleader.app.core.data.repository.MemberContribution
 import com.gpleader.app.core.data.repository.AsistenciaParaGuardar
 import com.gpleader.app.core.data.repository.ChurchHit
 import com.gpleader.app.core.data.repository.GroupLogRepository
@@ -213,8 +214,24 @@ class RegistroViewModel @Inject constructor(
                     val filtrados = filteredActivityTypes(tipos)
                     val totales = actividadRepo.getActividadesConTotales(session.grupoId)
                         .getOrElse { emptyMap() }
+
+                    // Cargar contribuciones de miembros desde la última reunión
+                    val lastMeeting = actividadRepo.getLastMeetingDate(session.grupoId)
+                        .getOrNull() ?: java.time.LocalDate.of(2000, 1, 1)
+                    val memberContribs = actividadRepo.getMemberContributionsSinceDate(
+                        grupoId = session.grupoId,
+                        desde   = lastMeeting,
+                        hasta   = java.time.LocalDate.now(),
+                    ).getOrElse { emptyMap() }
+
                     _uiState.update { s ->
-                        s.copy(actividades = filtrados.map { it.toActividadRegistro(desgloseVacio, totales[it.id]) })
+                        s.copy(actividades = filtrados.map { tipo ->
+                            tipo.toActividadRegistro(
+                                desgloseVacio = desgloseVacio,
+                                total         = totales[tipo.id],
+                                contribs      = memberContribs[tipo.id] ?: emptyList(),
+                            )
+                        })
                     }
                 },
                 onFailure = { /* mantener lista vacía */ },
@@ -244,6 +261,7 @@ class RegistroViewModel @Inject constructor(
     private fun ActividadTipoData.toActividadRegistro(
         desgloseVacio: List<MiembroDesglose>,
         total: ActividadTotalData? = null,
+        contribs: List<MemberContribution> = emptyList(),
     ): ActividadRegistro {
         val nivel = when (level) {
             "union"  -> NivelActividad.UNION
@@ -253,12 +271,27 @@ class RegistroViewModel @Inject constructor(
         val tipo = when (markerType) {
             "monetary"     -> TipoMarcador.MONETARIO
             "checkbox"     -> TipoMarcador.CHECKBOX
-            "participants" -> TipoMarcador.PARTICIPANTES
+            "realizado"    -> TipoMarcador.CHECKBOX
             else           -> TipoMarcador.CONTADOR
         }
         val bloqueada     = false
         val esObligatoria = nivel == NivelActividad.PASTOR && tipo == TipoMarcador.CONTADOR
         val tieneDesglose = !bloqueada && tipo != TipoMarcador.CHECKBOX
+
+        // Pre-poblar desglose con contribuciones de miembros desde última reunión
+        val desgloseConContribs = if (tieneDesglose && contribs.isNotEmpty()) {
+            val contribPorMiembro = contribs.groupBy { it.miembroId }
+            desgloseVacio.map { m ->
+                val suma = contribPorMiembro[m.miembroId]?.sumOf { it.count ?: 0 } ?: 0
+                m.copy(cantidad = suma)
+            }
+        } else if (tieneDesglose) desgloseVacio else emptyList()
+
+        val cantidadPreCargada = if (tipo == TipoMarcador.CONTADOR && contribs.isNotEmpty()) {
+            val suma = contribs.sumOf { it.count ?: 0 }
+            if (suma > 0) suma else null
+        } else null
+
         return ActividadRegistro(
             id               = id,
             nombre           = nombre,
@@ -271,7 +304,8 @@ class RegistroViewModel @Inject constructor(
             bloqueada        = bloqueada,
             tieneDesglose    = tieneDesglose,
             desgloseExpandido = true,
-            desgloseMiembros = if (tieneDesglose) desgloseVacio else emptyList(),
+            desgloseMiembros = desgloseConContribs,
+            cantidad         = cantidadPreCargada,
             totalAcumulado   = total?.totalCantidad,
             montoAcumulado   = total?.montoTotal,
         )

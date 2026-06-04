@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -74,10 +76,12 @@ private val TITULOS_LECCIONES = listOf(
     "Dios Nos Llama",
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EstudioDetalleScreen(
     estudioId:      String,
     onNavigateBack: () -> Unit,
+    soloLectura:    Boolean = false,
     viewModel: EstudioDetalleViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -86,15 +90,19 @@ fun EstudioDetalleScreen(
     EstudioDetalleContent(
         uiState        = uiState,
         onNavigateBack = onNavigateBack,
-        onToggleLesson = { lessonNumber -> viewModel.onToggleLesson(estudioId, lessonNumber) },
+        onRefresh      = { viewModel.onRefresh(estudioId) },
+        onToggleLesson = if (soloLectura) null
+                         else { lessonNumber -> viewModel.onToggleLesson(estudioId, lessonNumber) },
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EstudioDetalleContent(
     uiState:        EstudioDetalleUiState,
     onNavigateBack: () -> Unit = {},
-    onToggleLesson: (Int) -> Unit = {},
+    onRefresh:      () -> Unit = {},
+    onToggleLesson: ((Int) -> Unit)? = {},
 ) {
     Column(
         modifier = Modifier
@@ -122,6 +130,12 @@ private fun EstudioDetalleContent(
             )
         }
 
+        PullToRefreshBox(
+            isRefreshing = uiState.isRefreshing,
+            onRefresh    = onRefresh,
+            modifier     = Modifier.fillMaxSize(),
+        indicator = {},
+        ) {
         when {
             uiState.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Accent)
@@ -207,12 +221,13 @@ private fun EstudioDetalleContent(
                             completada = completada,
                             esActual   = esActual && !completada,
                             toggling   = toggling,
-                            onClick    = { onToggleLesson(leccionNum) },
+                            onClick    = onToggleLesson?.let { fn -> { fn(leccionNum) } },
                         )
                     }
                 }
             }
         }
+        } // PullToRefreshBox
     }
 }
 
@@ -223,7 +238,7 @@ private fun LeccionRow(
     completada: Boolean,
     esActual:   Boolean,
     toggling:   Boolean,
-    onClick:    () -> Unit,
+    onClick:    (() -> Unit)?,
 ) {
     NeuCard(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -266,7 +281,7 @@ private fun LeccionRow(
                             .padding(horizontal = 6.dp, vertical = 2.dp),
                     ) {
                         Text(
-                            text  = "ACTUAL",
+                            text  = "PRÓXIMO",
                             style = MaterialTheme.typography.labelSmall,
                             color = Accent,
                         )
@@ -284,7 +299,7 @@ private fun LeccionRow(
 private fun LeccionCheckbox(
     checked:   Boolean,
     isLoading: Boolean,
-    onClick:   () -> Unit,
+    onClick:   (() -> Unit)?,
 ) {
     Box(
         modifier = Modifier
@@ -298,7 +313,7 @@ private fun LeccionCheckbox(
                 shape = RoundedCornerShape(10.dp),
             )
             .clip(RoundedCornerShape(10.dp))
-            .clickable(enabled = !isLoading, onClick = onClick),
+            .then(if (onClick != null) Modifier.clickable(enabled = !isLoading, onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center,
     ) {
         when {

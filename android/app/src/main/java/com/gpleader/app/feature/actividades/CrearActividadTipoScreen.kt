@@ -209,10 +209,9 @@ private fun CrearActividadTipoContent(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             listOf(
-                                "counter"      to "Contador",
-                                "checkbox"     to "Checkbox",
-                                "monetary"     to "Monetario",
-                                "participants" to "Participantes",
+                                "counter"  to "Contador",
+                                "realizado" to "Realizado",
+                                "monetary" to "Monetario",
                             ).forEach { (valor, label) ->
                                 SeleccionChip(
                                     label    = label,
@@ -222,7 +221,7 @@ private fun CrearActividadTipoContent(
                             }
                         }
 
-                        if (uiState.markerType in listOf("counter", "participants")) {
+                        if (uiState.markerType == "counter") {
                             HorizontalDivider(color = BackgroundDeep, modifier = Modifier.padding(vertical = 10.dp))
                             SeccionLabel("UNIDAD")
                             Spacer(Modifier.height(6.dp))
@@ -252,10 +251,32 @@ private fun CrearActividadTipoContent(
                 }
             }
 
-            // ── Visible para miembros ─────────────────────────────────────────
+            // ── Opciones de tarea ─────────────────────────────────────────────
             item {
                 NeuCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(14.dp)) {
+                        // Marcar diario
+                        Row(
+                            modifier          = Modifier
+                                .fillMaxWidth()
+                                .clickable { onFrecuenciaChange(if (uiState.frecuencia == "diaria") "semanal" else "diaria") },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Marcar diario", style = MaterialTheme.typography.bodyLarge, color = Ink)
+                                Text(
+                                    "Cada miembro puede marcarla como hecha cada día",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Mid,
+                                )
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            ToggleBox(checked = uiState.frecuencia == "diaria")
+                        }
+
+                        HorizontalDivider(color = BackgroundDeep, modifier = Modifier.padding(vertical = 10.dp))
+
+                        // Visible para miembros
                         Row(
                             modifier          = Modifier
                                 .fillMaxWidth()
@@ -265,30 +286,13 @@ private fun CrearActividadTipoContent(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text("Visible para miembros", style = MaterialTheme.typography.bodyLarge, color = Ink)
                                 Text(
-                                    "Los miembros del grupo pueden marcar esta actividad",
+                                    "Los miembros del grupo pueden ver y marcar esta tarea",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = Mid,
                                 )
                             }
                             Spacer(Modifier.width(12.dp))
                             ToggleBox(checked = uiState.isMemberAccessible)
-                        }
-
-                        AnimatedVisibility(visible = uiState.isMemberAccessible) {
-                            Column {
-                                HorizontalDivider(color = BackgroundDeep, modifier = Modifier.padding(vertical = 10.dp))
-                                SeccionLabel("FRECUENCIA")
-                                Spacer(Modifier.height(8.dp))
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    listOf("semanal" to "Semanal", "diaria" to "Diaria").forEach { (valor, label) ->
-                                        SeleccionChip(
-                                            label    = label,
-                                            selected = uiState.frecuencia == valor,
-                                            onClick  = { onFrecuenciaChange(valor) },
-                                        )
-                                    }
-                                }
-                            }
                         }
                     }
                 }

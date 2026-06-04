@@ -12,6 +12,7 @@ data class EstudioBiblico(
 
 interface BibleStudyRepository {
     suspend fun getEstudios(miembroId: String): Result<List<EstudioBiblico>>
+    suspend fun getEstudioById(estudioId: String): Result<EstudioBiblico?>
     suspend fun createEstudio(miembroId: String, studentName: String): Result<EstudioBiblico>
     suspend fun toggleLesson(estudioId: String, lessonNumber: Int, completed: Boolean): Result<Unit>
 }

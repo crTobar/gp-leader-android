@@ -15,6 +15,7 @@ import javax.inject.Inject
 
 data class EstudioDetalleUiState(
     val isLoading:      Boolean = true,
+    val isRefreshing:   Boolean = false,
     val estudio:        EstudioBiblico? = null,
     val togglingLesson: Int? = null,
     val error:          String? = null,
@@ -29,12 +30,24 @@ class EstudioDetalleViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(EstudioDetalleUiState())
     val uiState: StateFlow<EstudioDetalleUiState> = _uiState.asStateFlow()
 
+    fun onRefresh(estudioId: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRefreshing = true, error = null) }
+            repo.getEstudioById(estudioId)
+                .onSuccess { estudio ->
+                    _uiState.update { it.copy(isRefreshing = false, estudio = estudio) }
+                }
+                .onFailure { e ->
+                    _uiState.update { it.copy(isRefreshing = false, error = e.message) }
+                }
+        }
+    }
+
     fun cargar(estudioId: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
-            repo.getEstudios(session.miembroId)
-                .onSuccess { list ->
-                    val estudio = list.find { it.id == estudioId }
+            repo.getEstudioById(estudioId)
+                .onSuccess { estudio ->
                     _uiState.update { it.copy(isLoading = false, estudio = estudio) }
                 }
                 .onFailure { e ->

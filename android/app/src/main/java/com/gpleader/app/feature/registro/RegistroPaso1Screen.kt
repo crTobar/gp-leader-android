@@ -1,5 +1,10 @@
 package com.gpleader.app.feature.registro
 
+import com.gpleader.app.core.ui.components.NeuAvatar
+import com.gpleader.app.core.ui.components.NeuButtonPrimary
+import com.gpleader.app.core.ui.components.NeuButtonSecondary
+import com.gpleader.app.core.ui.components.NeuCard
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -79,9 +84,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gpleader.app.R
-import com.gpleader.app.core.ui.components.NeuButtonPrimary
-import com.gpleader.app.core.ui.components.NeuButtonSecondary
-import com.gpleader.app.core.ui.components.NeuCard
 import com.gpleader.app.core.ui.theme.Accent
 import com.gpleader.app.core.ui.theme.Background
 import com.gpleader.app.core.ui.theme.BackgroundDeep
@@ -662,21 +664,7 @@ private fun SabadoAsistenciaCard(
                 modifier          = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Avatar circular neuElevatedSm
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .neuElevatedSm(cornerRadius = 20.dp)
-                        .clip(CircleShape)
-                        .background(BackgroundDeep),
-                ) {
-                    Text(
-                        text  = miembro.iniciales,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Mid,
-                    )
-                }
+                NeuAvatar(iniciales = miembro.iniciales, size = 40.dp)
 
                 Spacer(Modifier.width(12.dp))
 
@@ -1399,20 +1387,7 @@ private fun AsistenciaCheckbox(
 
 @Composable
 private fun InitialsAvatar(iniciales: String, modifier: Modifier = Modifier) {
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = modifier
-            .size(40.dp)
-            .neuElevatedSm(cornerRadius = 20.dp)
-            .clip(CircleShape)
-            .background(BackgroundDeep),
-    ) {
-        Text(
-            text  = iniciales,
-            style = MaterialTheme.typography.labelSmall,
-            color = Mid,
-        )
-    }
+    NeuAvatar(iniciales = iniciales, modifier = modifier, size = 40.dp)
 }
 
 // ── Toggle P/A/J ─────────────────────────────────────────────────────────────

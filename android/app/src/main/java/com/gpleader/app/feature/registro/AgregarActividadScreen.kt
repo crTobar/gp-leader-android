@@ -181,7 +181,7 @@ private fun AgregarActividadContent(
                                     onClick = { tipoMarcador = TipoMarcador.CONTADOR },
                                 )
                                 TipoMarcadorChip(
-                                    texto   = stringResource(R.string.tipo_marcador_checkbox),
+                                    texto   = "Realizado",
                                     activo  = tipoMarcador == TipoMarcador.CHECKBOX,
                                     onClick = { tipoMarcador = TipoMarcador.CHECKBOX },
                                 )
@@ -190,19 +190,14 @@ private fun AgregarActividadContent(
                                     activo  = tipoMarcador == TipoMarcador.MONETARIO,
                                     onClick = { tipoMarcador = TipoMarcador.MONETARIO },
                                 )
-                                TipoMarcadorChip(
-                                    texto   = stringResource(R.string.tipo_marcador_participantes),
-                                    activo  = tipoMarcador == TipoMarcador.PARTICIPANTES,
-                                    onClick = { tipoMarcador = TipoMarcador.PARTICIPANTES },
-                                )
                             }
                             Spacer(Modifier.height(8.dp))
                             Text(
                                 text  = when (tipoMarcador) {
                                     TipoMarcador.CONTADOR      -> stringResource(R.string.tipo_marcador_contador_desc)
-                                    TipoMarcador.CHECKBOX      -> stringResource(R.string.tipo_marcador_checkbox_desc)
+                                    TipoMarcador.CHECKBOX      -> "Actividad de tipo sí/no. Los miembros marcan si la realizaron."
                                     TipoMarcador.MONETARIO     -> stringResource(R.string.tipo_marcador_monetario_desc)
-                                    TipoMarcador.PARTICIPANTES -> stringResource(R.string.tipo_marcador_participantes_desc)
+                                    else                       -> stringResource(R.string.tipo_marcador_contador_desc)
                                 },
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = Muted,
@@ -215,7 +210,7 @@ private fun AgregarActividadContent(
 
                             // Vista previa según tipo
                             when (tipoMarcador) {
-                                TipoMarcador.CONTADOR, TipoMarcador.PARTICIPANTES -> {
+                                TipoMarcador.CONTADOR, TipoMarcador.PARTICIPANTES, TipoMarcador.MONETARIO -> {
                                     ContadorPreviewRow(
                                         nombre = nombre.ifBlank { stringResource(R.string.agregar_actividad_hint_nombre) },
                                     )
@@ -239,32 +234,31 @@ private fun AgregarActividadContent(
 
                 item { Spacer(Modifier.height(10.dp)) }
 
-                // ── Visible para miembros + frecuencia ───────────────────────
+                // ── Opciones de tarea ─────────────────────────────────────────
                 item {
-                    VisibleParaMiembrosToggle(
-                        activo   = visibleParaMiembros,
-                        onToggle = {
-                            visibleParaMiembros = !visibleParaMiembros
-                            if (!visibleParaMiembros) frecuencia = "semanal"
-                        },
-                    )
-                    if (visibleParaMiembros) {
-                        HorizontalDivider(
-                            color    = BackgroundDeep,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                        )
-                        SeccionLabel("FRECUENCIA")
-                        Spacer(Modifier.height(6.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf("semanal" to "Semanal", "diaria" to "Diaria").forEach { (valor, label) ->
-                                TipoMarcadorChip(
-                                    texto   = label,
-                                    activo  = frecuencia == valor,
-                                    onClick = { frecuencia = valor },
-                                )
-                            }
+                    NeuCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                            // Marcar diario
+                            ToggleRow(
+                                titulo   = "Marcar diario",
+                                desc     = "Se puede marcar como hecha cada día",
+                                activo   = frecuencia == "diaria",
+                                onToggle = { frecuencia = if (frecuencia == "diaria") "semanal" else "diaria" },
+                            )
+
+                            HorizontalDivider(
+                                color    = BackgroundDeep,
+                                modifier = Modifier.padding(vertical = 10.dp),
+                            )
+
+                            // Visible para miembros
+                            ToggleRow(
+                                titulo   = "Visible para miembros",
+                                desc     = "Los miembros pueden ver y marcar esta tarea",
+                                activo   = visibleParaMiembros,
+                                onToggle = { visibleParaMiembros = !visibleParaMiembros },
+                            )
                         }
-                        Spacer(Modifier.height(4.dp))
                     }
                 }
 
@@ -317,9 +311,9 @@ private fun AgregarActividadContent(
                     if (nombre.isNotBlank()) {
                         val markerType = when (tipoMarcador) {
                             TipoMarcador.CONTADOR      -> "counter"
-                            TipoMarcador.CHECKBOX      -> "checkbox"
+                            TipoMarcador.CHECKBOX      -> "realizado"
                             TipoMarcador.MONETARIO     -> "monetary"
-                            TipoMarcador.PARTICIPANTES -> "participants"
+                            TipoMarcador.PARTICIPANTES -> "counter"
                         }
                         onAgregar(nombre, markerType, visibleParaMiembros, frecuencia, startDate, endDate)
                     }
@@ -768,6 +762,48 @@ private fun TipoMarcadorChip(texto: String, activo: Boolean, onClick: () -> Unit
             color      = if (activo) Color.White else Ink,
             fontWeight = if (activo) FontWeight.Bold else FontWeight.Normal,
         )
+    }
+}
+
+// ── Toggle row reutilizable ───────────────────────────────────────────────────
+
+@Composable
+private fun ToggleRow(
+    titulo:   String,
+    desc:     String,
+    activo:   Boolean,
+    onToggle: () -> Unit,
+) {
+    Row(
+        modifier          = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = titulo, style = MaterialTheme.typography.bodyLarge, color = Ink, fontWeight = FontWeight.Medium)
+            Text(text = desc,   style = MaterialTheme.typography.bodyMedium, color = Mid)
+        }
+        Spacer(Modifier.width(12.dp))
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(22.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .then(
+                    if (activo) Modifier.background(Accent)
+                    else Modifier.background(Background).border(1.5.dp, Muted.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                ),
+        ) {
+            if (activo) {
+                Icon(
+                    imageVector        = Icons.Default.Check,
+                    contentDescription = null,
+                    tint               = Color.White,
+                    modifier           = Modifier.size(14.dp),
+                )
+            }
+        }
     }
 }
 

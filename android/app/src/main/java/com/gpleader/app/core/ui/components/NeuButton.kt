@@ -38,6 +38,7 @@ private fun NeuButtonBase(
     textColor: Color,
     shadowModifier: Modifier,
     cornerRadius: Dp,
+    enabled: Boolean = true,
 ) {
     val shape = RoundedCornerShape(cornerRadius)
     Box(
@@ -45,14 +46,14 @@ private fun NeuButtonBase(
         modifier = modifier
             .then(shadowModifier)
             .clip(shape)
-            .background(color = background, shape = shape)
-            .clickable(onClick = onClick)
+            .background(color = if (enabled) background else background.copy(alpha = 0.5f), shape = shape)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(ButtonPadding),
     ) {
         Text(
             text      = text,
             style     = MaterialTheme.typography.titleLarge,
-            color     = textColor,
+            color     = if (enabled) textColor else textColor.copy(alpha = 0.5f),
             textAlign = TextAlign.Center,
         )
     }
@@ -69,6 +70,7 @@ fun NeuButtonPrimary(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     cornerRadius: Dp = 14.dp,
+    enabled: Boolean = true,
 ) {
     NeuButtonBase(
         text           = text,
@@ -78,6 +80,7 @@ fun NeuButtonPrimary(
         textColor      = Color.White,
         shadowModifier = Modifier.neuGlow(cornerRadius = cornerRadius),
         cornerRadius   = cornerRadius,
+        enabled        = enabled,
     )
 }
 

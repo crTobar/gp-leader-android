@@ -19,11 +19,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.AssignmentTurnedIn
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Leaderboard
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -32,6 +37,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -80,11 +86,10 @@ import com.gpleader.app.core.ui.theme.Mid
 import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.Sage
 import com.gpleader.app.core.ui.theme.Violet
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.gpleader.app.core.ui.components.AppBottomNavBar
 import com.gpleader.app.core.ui.components.NAV_TAB_ACTIVIDADES
-import com.gpleader.app.core.ui.components.NAV_TAB_HISTORIAL
 import com.gpleader.app.core.ui.components.NAV_TAB_INICIO
+import com.gpleader.app.core.ui.components.NAV_TAB_PERFIL
 import com.gpleader.app.core.ui.theme.neuElevated
 import com.gpleader.app.core.ui.theme.neuElevatedSm
 import com.gpleader.app.core.data.repository.AsignadoPotencial
@@ -92,6 +97,7 @@ import com.gpleader.app.core.data.repository.SabbathMeetingResumen
 import com.gpleader.app.core.data.repository.Solicitud
 import com.gpleader.app.core.ui.theme.neuGlow
 import com.gpleader.app.core.ui.theme.neuInset
+import com.gpleader.app.core.ui.theme.neuInsetInner
 import com.gpleader.app.core.ui.theme.neuInsetSm
 import java.time.LocalDate
 import java.time.format.TextStyle
@@ -113,6 +119,7 @@ fun HomeScreen(
     onNavigateToPerfil: () -> Unit = {},
     onNavigateToActividades: () -> Unit = {},
     onNavigateToSabadoCulto: () -> Unit = {},
+    onNavigateToActividadesMisioneras: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -146,20 +153,22 @@ fun HomeScreen(
     }
 
     HomeScreenContent(
-        uiState                = uiState,
-        onNavigateToRegistro   = onNavigateToRegistro,
-        onVerTodasClick        = viewModel::onVerTodasClick,
-        onReunionClick         = viewModel::onReunionClick,
-        onHistorialTabClick    = onNavigateToHistorial,
-        onPerfilClick          = onNavigateToPerfil,
-        onActividadesTabClick  = onNavigateToActividades,
-        onSabadoCultoClick     = viewModel::onSabadoCultoClick,
-        onDelegarClick         = viewModel::onDelegarClick,
-        onCancelarSolicitud    = viewModel::onCancelarSolicitud,
-        onCrearSolicitud       = viewModel::onCrearSolicitud,
-        onDismissDelegarSheet  = viewModel::onDismissDelegarSheet,
-        onActivarSolicitud     = viewModel::onActivarSolicitud,
-        onDismissActivarDialog = viewModel::onDismissActivarDialog,
+        uiState                        = uiState,
+        onNavigateToRegistro           = onNavigateToRegistro,
+        onVerTodasClick                = viewModel::onVerTodasClick,
+        onReunionClick                 = viewModel::onReunionClick,
+        onHistorialTabClick            = onNavigateToHistorial,
+        onPerfilClick                  = onNavigateToPerfil,
+        onActividadesTabClick          = onNavigateToActividades,
+        onSabadoCultoClick             = viewModel::onSabadoCultoClick,
+        onDelegarClick                 = viewModel::onDelegarClick,
+        onCancelarSolicitud            = viewModel::onCancelarSolicitud,
+        onCrearSolicitud               = viewModel::onCrearSolicitud,
+        onDismissDelegarSheet          = viewModel::onDismissDelegarSheet,
+        onActivarSolicitud             = viewModel::onActivarSolicitud,
+        onDismissActivarDialog         = viewModel::onDismissActivarDialog,
+        onActividadesMisionerasClick   = onNavigateToActividadesMisioneras,
+        onRefresh                      = viewModel::onRefresh,
     )
 }
 
@@ -182,6 +191,8 @@ private fun HomeScreenContent(
     onDismissDelegarSheet: () -> Unit = {},
     onActivarSolicitud: (String) -> Unit = {},
     onDismissActivarDialog: () -> Unit = {},
+    onActividadesMisionerasClick: () -> Unit = {},
+    onRefresh: () -> Unit = {},
 ) {
     var selectedTab        by remember { mutableIntStateOf(NAV_TAB_INICIO) }
     var showRegistrarSheet by remember { mutableStateOf(false) }
@@ -192,53 +203,68 @@ private fun HomeScreenContent(
             AppBottomNavBar(
                 selectedTab        = selectedTab,
                 onInicioClick      = { selectedTab = NAV_TAB_INICIO },
-                onHistorialClick   = {
-                    selectedTab = NAV_TAB_HISTORIAL
-                    onHistorialTabClick()
-                },
                 onActividadesClick = {
                     selectedTab = NAV_TAB_ACTIVIDADES
                     onActividadesTabClick()
                 },
+                onPerfilClick      = {
+                    selectedTab = NAV_TAB_PERFIL
+                    onPerfilClick()
+                },
             )
         },
     ) { innerPadding ->
+        PullToRefreshBox(
+            isRefreshing = uiState.isRefreshing,
+            onRefresh    = onRefresh,
+            modifier     = Modifier.fillMaxSize().padding(innerPadding),
+        indicator = {},
+        ) {
         if (uiState.isLoading) {
-            HomeSkeletonContent(modifier = Modifier.padding(innerPadding))
+            HomeSkeletonContent(modifier = Modifier.fillMaxSize())
         } else {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(innerPadding)
                     .padding(horizontal = 20.dp),
             ) {
-                Spacer(Modifier.height(20.dp))
-
-                TopBar(
-                    nombreLider      = uiState.nombreLider,
-                    onRegistrarClick = { showRegistrarSheet = true },
-                    onAvatarClick    = onPerfilClick,
-                )
-
-                Spacer(Modifier.height(20.dp))
-
-                uiState.grupo?.let { grupo ->
-                    GrupoCard(
-                        grupo                = grupo,
-                        porcentajeAsistencia = uiState.porcentajeAsistencia,
-                    )
-                }
-
                 Spacer(Modifier.height(24.dp))
 
-                NeuButtonSecondary(
-                    text     = stringResource(R.string.home_btn_ver_actividades),
-                    onClick  = onActividadesTabClick,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                HomeHeader(
+                    grupoNombre   = uiState.grupo?.nombre ?: uiState.nombreLider,
+                    totalMiembros = uiState.totalMiembros,
+                    diaSemana     = uiState.grupo?.diaSemana ?: "",
                 )
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(20.dp))
+
+                if (uiState.reunionGpHoy != null) {
+                    val gp = uiState.reunionGpHoy
+                    YaRegistrasteBadge(
+                        titulo   = "Ya registraste hoy tu grupo pequeño",
+                        subtitulo = "${gp.presentes} presentes · ${gp.ausentes} ausentes",
+                    )
+                } else {
+                    RegistrarCard(onClick = { showRegistrarSheet = true })
+                    if (uiState.reunionSabadoSemana != null) {
+                        Spacer(Modifier.height(10.dp))
+                        YaRegistrasteBadge(
+                            titulo    = "Ya registraste hoy culto de sábado",
+                            subtitulo = "${uiState.reunionSabadoSemana.presentes} presentes",
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                ActividadesMisionerasCard(onClick = onActividadesMisionerasClick)
+
+                Spacer(Modifier.height(12.dp))
+
+                VerHistorialCard(onClick = onHistorialTabClick)
+
+                Spacer(Modifier.height(24.dp))
 
                 // ── Solicitudes activas ───────────────────────────────────────
                 if (uiState.solicitudesActivas.isNotEmpty()) {
@@ -259,14 +285,17 @@ private fun HomeScreenContent(
                 Spacer(Modifier.height(16.dp))
             }
         }
+        } // PullToRefreshBox
     }
 
     // ── Sheet: elegir tipo de registro ────────────────────────────────────────
     if (showRegistrarSheet) {
         TipoRegistroSheet(
-            onDismiss    = { showRegistrarSheet = false },
-            onGpMeeting  = { showRegistrarSheet = false; onNavigateToRegistro("gp_meeting") },
-            onSabado     = { showRegistrarSheet = false; onNavigateToRegistro("saturday_worship") },
+            onDismiss            = { showRegistrarSheet = false },
+            onGpMeeting          = { showRegistrarSheet = false; onNavigateToRegistro("gp_meeting") },
+            onSabado             = { showRegistrarSheet = false; onNavigateToRegistro("saturday_worship") },
+            reunionGpHoy         = uiState.reunionGpHoy,
+            reunionSabadoSemana  = uiState.reunionSabadoSemana,
         )
     }
 
@@ -371,6 +400,211 @@ private fun EmptyStateSabado() {
 
 // ── Skeleton loading ──────────────────────────────────────────────────────────
 
+// ── Badge: ya registrado ──────────────────────────────────────────────────────
+
+@Composable
+private fun YaRegistrasteBadge(titulo: String, subtitulo: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(Background)
+            .neuInsetInner(cornerRadius = 24.dp)
+            .padding(horizontal = 24.dp, vertical = 26.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(44.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(Color(0xFF2EA86A)),
+        ) {
+            Icon(
+                imageVector        = Icons.Default.Check,
+                contentDescription = null,
+                tint               = Color.White,
+                modifier           = Modifier.size(24.dp),
+            )
+        }
+        Spacer(Modifier.width(16.dp))
+        Column {
+            Text(
+                text       = titulo,
+                style      = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp),
+                color      = Ink,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text  = subtitulo,
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                color = Mid,
+            )
+        }
+    }
+}
+
+// ── Carta de registro ─────────────────────────────────────────────────────────
+
+@Composable
+private fun RegistrarCard(onClick: () -> Unit) {
+    NeuCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(horizontal = 26.dp, vertical = 30.dp)) {
+            Text(
+                text  = "HOY",
+                style = MaterialTheme.typography.labelSmall,
+                color = Accent,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text  = "Aún no has tomado asistencia",
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontStyle  = FontStyle.Italic,
+                    fontWeight = FontWeight.Medium,
+                    fontSize   = 24.sp,
+                    lineHeight = 28.sp,
+                ),
+                color = Ink,
+            )
+            Spacer(Modifier.height(22.dp))
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .neuGlow(cornerRadius = 14.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Accent)
+                    .clickable(onClick = onClick)
+                    .padding(vertical = 16.dp),
+            ) {
+                Row(
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    Icon(
+                        imageVector        = Icons.Default.AssignmentTurnedIn,
+                        contentDescription = null,
+                        tint               = Color.White,
+                        modifier           = Modifier.size(20.dp),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text       = "Tomar Asistencia",
+                        style      = MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp),
+                        color      = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActividadesMisionerasCard(onClick: () -> Unit) {
+    NeuCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+    ) {
+        Row(
+            modifier          = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Background)
+                    .neuInsetInner(shadowSize = 10.dp),
+            ) {
+                Icon(
+                    imageVector        = Icons.Default.Public,
+                    contentDescription = null,
+                    tint               = Sage,
+                    modifier           = Modifier.size(22.dp),
+                )
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text       = "Actividades misioneras",
+                    style      = MaterialTheme.typography.bodyLarge,
+                    color      = Ink,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text  = "Administrador de campañas del grupo",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Mid,
+                )
+            }
+            Icon(
+                imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint               = Muted,
+                modifier           = Modifier.size(20.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun VerHistorialCard(onClick: () -> Unit) {
+    NeuCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+    ) {
+        Row(
+            modifier          = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Background)
+                    .neuInsetInner(shadowSize = 10.dp),
+            ) {
+                Icon(
+                    imageVector        = Icons.Default.Leaderboard,
+                    contentDescription = null,
+                    tint               = Gold,
+                    modifier           = Modifier.size(22.dp),
+                )
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text       = "Ver historial",
+                    style      = MaterialTheme.typography.bodyLarge,
+                    color      = Ink,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text  = "Asistencia de las últimas 6 semanas",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Mid,
+                )
+            }
+            Icon(
+                imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint               = Muted,
+                modifier           = Modifier.size(20.dp),
+            )
+        }
+    }
+}
+
 @Composable
 private fun HomeSkeletonContent(modifier: Modifier = Modifier) {
     Column(
@@ -379,42 +613,33 @@ private fun HomeSkeletonContent(modifier: Modifier = Modifier) {
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp),
     ) {
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(24.dp))
 
-        // TopBar skeleton
-        Row(
-            modifier          = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            SkeletonBox(modifier = Modifier.size(40.dp), cornerRadius = 20.dp)
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                SkeletonText(width = 80.dp, height = 10.dp)
-                Spacer(Modifier.height(6.dp))
-                SkeletonText(width = 140.dp, height = 18.dp)
-            }
-            SkeletonBox(modifier = Modifier.width(80.dp).height(36.dp), cornerRadius = 10.dp)
+        // Header skeleton
+        Column {
+            SkeletonText(width = 160.dp, height = 10.dp)
+            Spacer(Modifier.height(8.dp))
+            SkeletonText(width = 60.dp, height = 22.dp)
+            Spacer(Modifier.height(2.dp))
+            SkeletonText(width = 200.dp, height = 22.dp)
+            Spacer(Modifier.height(6.dp))
+            SkeletonText(width = 140.dp, height = 12.dp)
         }
 
         Spacer(Modifier.height(20.dp))
 
-        // GrupoCard skeleton
-        NeuCard(modifier = Modifier.fillMaxWidth().padding(4.dp)) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                SkeletonText(width = 70.dp, height = 10.dp)
-                Spacer(Modifier.height(8.dp))
-                SkeletonText(width = 180.dp, height = 22.dp)
-                Spacer(Modifier.height(8.dp))
-                SkeletonText(width = 140.dp, height = 14.dp)
+        // RegistrarCard skeleton
+        NeuCard(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp)) {
+                SkeletonText(width = 32.dp, height = 10.dp)
+                Spacer(Modifier.height(10.dp))
+                SkeletonText(width = 220.dp, height = 18.dp)
                 Spacer(Modifier.height(16.dp))
-                SkeletonBox(
-                    modifier     = Modifier.fillMaxWidth().height(8.dp),
-                    cornerRadius = 4.dp,
-                )
+                SkeletonBox(modifier = Modifier.fillMaxWidth().height(48.dp), cornerRadius = 12.dp)
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(24.dp))
 
         // StatsRow skeleton
         Row(
@@ -505,73 +730,46 @@ private fun HomeSkeletonContent(modifier: Modifier = Modifier) {
 // ── Top bar ───────────────────────────────────────────────────────────────────
 
 @Composable
-private fun TopBar(
-    nombreLider: String,
-    onRegistrarClick: () -> Unit,
-    onAvatarClick: () -> Unit = {},
+private fun HomeHeader(
+    grupoNombre:   String,
+    totalMiembros: Int,
+    diaSemana:     String,
 ) {
-    Row(
-        modifier          = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // Avatar con iniciales → navega a Perfil
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .neuElevatedSm(cornerRadius = 14.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(Accent)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication        = null,
-                    onClick           = onAvatarClick,
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text  = iniciales(nombreLider),
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize   = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.5.sp,
-                ),
-                color = androidx.compose.ui.graphics.Color.White,
-            )
-        }
+    val today      = LocalDate.now()
+    val diaSemanaLabel = today.dayOfWeek.getDisplayName(TextStyle.FULL, Locale("es")).uppercase()
+    val diaN       = today.dayOfMonth
+    val mes        = today.month.getDisplayName(TextStyle.FULL, Locale("es")).uppercase()
+    val fechaLabel = "$diaSemanaLabel, $diaN DE $mes"
 
-        Spacer(Modifier.width(12.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text  = fechaLabel,
+            style = MaterialTheme.typography.labelSmall,
+            color = Muted,
+        )
+        Spacer(Modifier.height(6.dp))
+        val groupNameStyle = MaterialTheme.typography.displayLarge.copy(
+            fontSize   = 38.sp,
+            fontWeight = FontWeight.Bold,
+            lineHeight = 40.sp,
+        )
+        Text(text = "Grupo",    style = groupNameStyle, color = Ink)
+        Text(text = grupoNombre, style = groupNameStyle, color = Ink)
+        if (totalMiembros > 0 || diaSemana.isNotBlank()) {
+            Spacer(Modifier.height(8.dp))
+            val partes = buildList {
+                if (totalMiembros > 0) add("$totalMiembros miembros")
+                if (diaSemana.isNotBlank()) add("reunión semanal")
+            }
             Text(
-                text  = stringResource(R.string.home_label_bienvenida),
-                style = MaterialTheme.typography.bodyMedium,
+                text  = partes.joinToString(" · "),
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
                 color = Mid,
             )
-            Text(
-                text  = nombreLider,
-                style = MaterialTheme.typography.titleLarge,
-                color = Ink,
-                fontWeight = FontWeight.Bold,
-            )
         }
-
-        Spacer(Modifier.width(8.dp))
-
-        SmallButtonPrimary(
-            text    = stringResource(R.string.home_btn_registrar),
-            onClick = onRegistrarClick,
-        )
     }
 }
 
-private fun iniciales(nombre: String): String {
-    val partes = nombre.trim().split(" ").filter { it.isNotEmpty() }
-    return when {
-        partes.size >= 2 -> "${partes[0].first()}${partes[1].first()}"
-        partes.size == 1 -> "${partes[0].first()}"
-        else             -> "?"
-    }.uppercase()
-}
 
 // ── Botones pequeños (variante compacta del design system) ────────────────────
 
@@ -615,72 +813,6 @@ private fun SmallButtonSecondary(text: String, onClick: () -> Unit) {
     }
 }
 
-// ── Card del grupo ────────────────────────────────────────────────────────────
-
-@Composable
-private fun GrupoCard(
-    grupo: GrupoInfo,
-    porcentajeAsistencia: Int,
-) {
-    NeuCard(modifier = Modifier.fillMaxWidth().padding(4.dp)) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Text(
-                text  = stringResource(R.string.home_label_tu_grupo),
-                style = MaterialTheme.typography.labelSmall,
-                color = Muted,
-            )
-
-            Spacer(Modifier.height(4.dp))
-
-            Text(
-                text  = grupo.nombre,
-                style = MaterialTheme.typography.headlineMedium,
-                color = Ink,
-            )
-
-            Spacer(Modifier.height(4.dp))
-
-            Text(
-                text  = "${grupo.diaSemana} · ${grupo.horaInicio}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Mid,
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            Row(
-                modifier          = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text     = stringResource(R.string.home_label_asistencia_periodo),
-                    style    = MaterialTheme.typography.labelSmall,
-                    color    = Muted,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text  = "$porcentajeAsistencia%",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Accent,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-
-            Spacer(Modifier.height(6.dp))
-
-            LinearProgressIndicator(
-                progress   = { porcentajeAsistencia / 100f },
-                modifier   = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp)
-                    .clip(RoundedCornerShape(4.dp)),
-                color      = Accent,
-                trackColor = BackgroundDeep,
-                strokeCap  = StrokeCap.Round,
-            )
-        }
-    }
-}
 
 // ── Fila de estadísticas ──────────────────────────────────────────────────────
 
@@ -1243,9 +1375,11 @@ private fun DelegarReunionSheet(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TipoRegistroSheet(
-    onDismiss:   () -> Unit,
-    onGpMeeting: () -> Unit,
-    onSabado:    () -> Unit,
+    onDismiss:           () -> Unit,
+    onGpMeeting:         () -> Unit,
+    onSabado:            () -> Unit,
+    reunionGpHoy:        ReunionResumen?         = null,
+    reunionSabadoSemana: SabbathMeetingResumen?  = null,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
@@ -1298,21 +1432,35 @@ private fun TipoRegistroSheet(
             Spacer(Modifier.height(4.dp))
 
             // ── Opciones ──────────────────────────────────────────────────────
-            RegistrarOpcion(
-                icon      = Icons.Filled.Groups,
-                titulo    = "Reunión de GP",
-                subtitulo = "Registro semanal del grupo pequeño",
-                color     = Accent,
-                onClick   = onGpMeeting,
-            )
+            if (reunionGpHoy != null) {
+                YaRegistrasteBadge(
+                    titulo    = "Ya registraste hoy tu grupo pequeño",
+                    subtitulo = "${reunionGpHoy.presentes} presentes · ${reunionGpHoy.ausentes} ausentes",
+                )
+            } else {
+                RegistrarOpcion(
+                    icon      = Icons.Filled.Groups,
+                    titulo    = "Reunión de GP",
+                    subtitulo = "Registro semanal del grupo pequeño",
+                    color     = Accent,
+                    onClick   = onGpMeeting,
+                )
+            }
 
-            RegistrarOpcion(
-                icon      = Icons.Filled.AutoAwesome,
-                titulo    = "Culto de Sábado",
-                subtitulo = "Asistencia al culto del sábado",
-                color     = Violet,
-                onClick   = onSabado,
-            )
+            if (reunionSabadoSemana != null) {
+                YaRegistrasteBadge(
+                    titulo    = "Ya registraste hoy culto de sábado",
+                    subtitulo = "${reunionSabadoSemana.presentes} presentes",
+                )
+            } else {
+                RegistrarOpcion(
+                    icon      = Icons.Filled.AutoAwesome,
+                    titulo    = "Culto de Sábado",
+                    subtitulo = "Asistencia al culto del sábado",
+                    color     = Violet,
+                    onClick   = onSabado,
+                )
+            }
         }
     }
 }

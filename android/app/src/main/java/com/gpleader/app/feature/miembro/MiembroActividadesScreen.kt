@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -27,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -71,35 +74,36 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MiembroActividadesScreen(
-    onNavigateBack:      () -> Unit,
-    onNavigateToCampana: (tipoId: String, nombre: String, desde: String, hasta: String) -> Unit = { _, _, _, _ -> },
+    onNavigateBack:        () -> Unit,
+    onNavigateToCampana:   (tipoId: String, nombre: String, desde: String, hasta: String) -> Unit = { _, _, _, _ -> },
+    onNavigateToHistorial: (tipoId: String) -> Unit = {},
     viewModel: MiembroActividadesViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
     OnResumeEffect { viewModel.cargar() }
 
     MiembroActividadesContent(
-        uiState             = uiState,
-        onNavigateBack      = onNavigateBack,
-        onNavigateToCampana = onNavigateToCampana,
-        onToggleDiaria      = viewModel::onToggleDiaria,
-        onIncrementar       = viewModel::onIncrementarSemanal,
-        onDecrementar       = viewModel::onDecrementarSemanal,
-        onMontoChange       = viewModel::onMontoSemanalChange,
+        uiState               = uiState,
+        onNavigateBack        = onNavigateBack,
+        onNavigateToCampana   = onNavigateToCampana,
+        onNavigateToHistorial = onNavigateToHistorial,
+        onRefresh             = viewModel::onRefresh,
+        onToggleDiaria        = viewModel::onToggleDiaria,
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MiembroActividadesContent(
     uiState: MiembroActividadesUiState,
-    onNavigateBack:      () -> Unit = {},
-    onNavigateToCampana: (tipoId: String, nombre: String, desde: String, hasta: String) -> Unit = { _, _, _, _ -> },
+    onNavigateBack:        () -> Unit = {},
+    onNavigateToCampana:   (tipoId: String, nombre: String, desde: String, hasta: String) -> Unit = { _, _, _, _ -> },
+    onNavigateToHistorial: (tipoId: String) -> Unit = {},
+    onRefresh:      () -> Unit = {},
     onToggleDiaria: (String) -> Unit = {},
-    onIncrementar: (String) -> Unit = {},
-    onDecrementar: (String) -> Unit = {},
-    onMontoChange: (String, Int) -> Unit = { _, _ -> },
 ) {
     Column(
         modifier = Modifier
@@ -131,6 +135,12 @@ private fun MiembroActividadesContent(
             )
         }
 
+        PullToRefreshBox(
+            isRefreshing = uiState.isRefreshing,
+            onRefresh    = onRefresh,
+            modifier     = Modifier.fillMaxSize(),
+        indicator = {},
+        ) {
         when {
             uiState.isLoading -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -204,16 +214,15 @@ private fun MiembroActividadesContent(
                         }
                         items(semanales, key = { it.tipo.id }) { item ->
                             ActividadSemanalCard(
-                                item          = item,
-                                onIncrementar = { onIncrementar(item.tipo.id) },
-                                onDecrementar = { onDecrementar(item.tipo.id) },
-                                onMontoChange = { monto -> onMontoChange(item.tipo.id, monto) },
+                                item    = item,
+                                onClick = { onNavigateToHistorial(item.tipo.id) },
                             )
                         }
                     }
                 }
             }
         }
+        } // PullToRefreshBox
     }
 }
 
@@ -226,7 +235,7 @@ private fun ResumenCard(
     rangoSemana: String,
 ) {
     val diariasMarcadas      = diarias.count { it.marcadaHoy }
-    val semanalesConRegistro = semanales.count { it.contadorSemana > 0 }
+    val semanalesConRegistro = semanales.count { it.totalHistorico > 0 }
     val total                = diarias.size + semanales.size
     val completadas          = diariasMarcadas + semanalesConRegistro
     val hayAvance            = completadas > 0
@@ -334,32 +343,9 @@ private fun ActividadDiariaCard(
     onToggle: () -> Unit,
     onTap:    (() -> Unit)? = null,
 ) {
-    val hoy     = LocalDate.now()
-    val domingo = hoy.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
-    val ayer    = hoy.minusDays(1)
-
+    val hoy       = LocalDate.now()
+    val domingo   = hoy.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
     val diasSemana = (0..6).map { domingo.plusDays(it.toLong()) }
-
-    val fmtDia    = DateTimeFormatter.ofPattern("EEEE", Locale("es"))
-    val nombreHoy = hoy.format(fmtDia).replaceFirstChar { it.uppercase() }
-    val nombreAyer = ayer.format(fmtDia).replaceFirstChar { it.uppercase() }
-
-    val etiqueta: String
-    val etiquetaColor: androidx.compose.ui.graphics.Color
-    when {
-        item.marcadaHoy -> {
-            etiqueta = "✓ Completado $nombreHoy"
-            etiquetaColor = Sage
-        }
-        !item.diasMarcadosSemana.contains(ayer) && ayer >= (item.tipo.startDate ?: ayer) -> {
-            etiqueta = "Sin marcar $nombreAyer"
-            etiquetaColor = Blush
-        }
-        else -> {
-            etiqueta = "Pendiente $nombreHoy"
-            etiquetaColor = Muted
-        }
-    }
 
     NeuCard(
         modifier = Modifier
@@ -367,95 +353,109 @@ private fun ActividadDiariaCard(
             .then(if (onTap != null) Modifier.clickable(onClick = onTap) else Modifier),
     ) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-            // Fila: nivel + nombre + chevron
-            Row(
-                modifier          = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                NivelChip(item.tipo.level)
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text       = item.tipo.nombre,
-                    style      = MaterialTheme.typography.bodyLarge,
-                    color      = Ink,
-                    fontWeight = FontWeight.Medium,
-                    modifier   = Modifier.weight(1f),
-                )
-                if (onTap != null) {
-                    Icon(
-                        imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = "Ver días",
-                        tint               = Muted,
-                        modifier           = Modifier.size(20.dp),
-                    )
-                }
-            }
 
-            Spacer(Modifier.height(10.dp))
+            // Nombre de la actividad
+            Text(
+                text       = item.tipo.nombre,
+                style      = MaterialTheme.typography.bodyLarge,
+                color      = Ink,
+                fontWeight = FontWeight.SemiBold,
+            )
 
-            // Fila D L M M J V S
+            Spacer(Modifier.height(12.dp))
+
+            // Cuadros D L M M J V S
             Row(
                 modifier              = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 diasSemana.forEachIndexed { idx, dia ->
-                    val esFuturo   = dia.isAfter(hoy)
-                    val esHoy      = dia == hoy
-                    val marcado    = item.diasMarcadosSemana.contains(dia)
-                    val esPasado   = dia.isBefore(hoy)
+                    val esHoy       = dia == hoy
+                    val marcado     = item.diasMarcadosSemana.contains(dia)
+                    val esPasado    = dia.isBefore(hoy)
                     val dentroRango = item.tipo.startDate?.let { !dia.isBefore(it) } ?: true
 
                     val bgColor = when {
-                        esHoy && marcado    -> Sage.copy(alpha = 0.20f)
-                        esHoy && !marcado   -> Accent.copy(alpha = 0.15f)
-                        esPasado && marcado && dentroRango  -> Sage.copy(alpha = 0.15f)
-                        esPasado && !marcado && dentroRango -> Blush.copy(alpha = 0.15f)
-                        else -> BackgroundDeep
+                        esHoy && marcado                           -> Sage.copy(alpha = 0.20f)
+                        esHoy && !marcado                          -> Accent.copy(alpha = 0.15f)
+                        esPasado && marcado && dentroRango         -> Sage.copy(alpha = 0.15f)
+                        esPasado && !marcado && dentroRango        -> Blush.copy(alpha = 0.15f)
+                        else                                       -> BackgroundDeep
                     }
                     val txtColor = when {
-                        esHoy && marcado    -> Sage
-                        esHoy && !marcado   -> Accent
-                        esPasado && marcado && dentroRango  -> Sage
-                        esPasado && !marcado && dentroRango -> Blush
-                        else -> Muted
+                        esHoy && marcado                           -> Sage
+                        esHoy && !marcado                          -> Accent
+                        esPasado && marcado && dentroRango         -> Sage
+                        esPasado && !marcado && dentroRango        -> Blush
+                        else                                       -> Muted
                     }
 
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
-                            .size(28.dp)
-                            .clip(RoundedCornerShape(6.dp))
+                            .size(32.dp)
+                            .clip(RoundedCornerShape(8.dp))
                             .background(bgColor),
                     ) {
                         Text(
-                            text      = DIAS_SEMANA_LABELS[idx],
-                            style     = MaterialTheme.typography.labelSmall,
-                            color     = txtColor,
+                            text       = DIAS_SEMANA_LABELS[idx],
+                            style      = MaterialTheme.typography.labelSmall,
+                            color      = txtColor,
                             fontWeight = FontWeight.SemiBold,
                         )
                     }
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(12.dp))
 
-            // Etiqueta de estado + checkbox para actividades sin campaña
-            Row(
-                modifier          = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text      = etiqueta,
-                    style     = MaterialTheme.typography.labelSmall,
-                    color     = etiquetaColor,
-                    modifier  = Modifier.weight(1f),
-                )
-                if (onTap == null) {
-                    CheckboxNeu(
-                        checked   = item.marcadaHoy,
-                        isLoading = item.isToggling,
-                        onClick   = onToggle,
+            // Botón "Realizado hoy"
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(
+                        if (item.marcadaHoy) Sage.copy(alpha = 0.15f)
+                        else Accent.copy(alpha = 0.12f)
                     )
+                    .clickable(enabled = !item.isToggling, onClick = onToggle)
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (item.isToggling) {
+                    CircularProgressIndicator(
+                        modifier    = Modifier.size(18.dp),
+                        color       = if (item.marcadaHoy) Sage else Accent,
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Row(
+                        verticalAlignment     = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        if (item.marcadaHoy) {
+                            Icon(
+                                imageVector        = Icons.Default.Check,
+                                contentDescription = null,
+                                tint               = Sage,
+                                modifier           = Modifier.size(16.dp),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text       = "Realizado hoy",
+                                style      = MaterialTheme.typography.labelSmall,
+                                color      = Sage,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        } else {
+                            Text(
+                                text       = "Realizado hoy",
+                                style      = MaterialTheme.typography.labelSmall,
+                                color      = Accent,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -466,136 +466,50 @@ private fun ActividadDiariaCard(
 
 @Composable
 private fun ActividadSemanalCard(
-    item: ActividadMiembroUi.Semanal,
-    onIncrementar: () -> Unit,
-    onDecrementar: () -> Unit,
-    onMontoChange: (Int) -> Unit = {},
+    item:    ActividadMiembroUi.Semanal,
+    onClick: () -> Unit,
 ) {
-    NeuCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-            // ── Encabezado: nombre + badge ────────────────────────────────────
-            Row(
-                modifier          = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+    NeuCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+    ) {
+        Row(
+            modifier          = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text       = item.tipo.nombre,
                     style      = MaterialTheme.typography.bodyLarge,
                     color      = Ink,
                     fontWeight = FontWeight.Medium,
-                    modifier   = Modifier.weight(1f),
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.height(4.dp))
                 NivelChip(item.tipo.level)
             }
-
-            Spacer(Modifier.height(12.dp))
-            HorizontalDivider(color = BackgroundDeep, thickness = 1.dp)
-            Spacer(Modifier.height(12.dp))
-
-            if (item.tipo.markerType == "monetary") {
-                // ── Monetary input ────────────────────────────────────────────
-                var textoMonto by remember(item.tipo.id) {
-                    mutableStateOf(if (item.contadorSemana > 0) item.contadorSemana.toString() else "")
-                }
-                val montoValor = textoMonto.toIntOrNull() ?: 0
-
-                Row(
-                    modifier              = Modifier.fillMaxWidth(),
-                    verticalAlignment     = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    Text(
-                        text       = "₡",
-                        style      = MaterialTheme.typography.headlineMedium,
-                        color      = Gold,
+            Spacer(Modifier.width(12.dp))
+            Column(horizontalAlignment = Alignment.End) {
+                when (item.tipo.markerType) {
+                    "realizado", "checkbox" -> Icon(
+                        imageVector        = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint               = if (item.totalHistorico > 0) Sage else Muted,
+                        modifier           = Modifier.size(24.dp),
+                    )
+                    "monetary" -> Text(
+                        text       = "₡${item.totalHistorico}",
+                        style      = MaterialTheme.typography.titleLarge,
+                        color      = if (item.totalHistorico > 0) Accent else Muted,
                         fontWeight = FontWeight.Bold,
                     )
-                    Spacer(Modifier.width(4.dp))
-                    BasicTextField(
-                        value         = textoMonto,
-                        onValueChange = { nuevo ->
-                            textoMonto = nuevo.filter { it.isDigit() }
-                        },
-                        enabled       = !item.isToggling,
-                        textStyle     = MaterialTheme.typography.headlineMedium.copy(
-                            color      = if (montoValor > 0) Accent else Muted,
-                            fontWeight = FontWeight.Bold,
-                            textAlign  = TextAlign.Start,
-                        ),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Number,
-                            imeAction    = ImeAction.Done,
-                        ),
-                        singleLine    = true,
-                        decorationBox = { inner ->
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.widthIn(min = 48.dp)) {
-                                if (textoMonto.isEmpty()) {
-                                    Text(
-                                        text       = "0",
-                                        style      = MaterialTheme.typography.headlineMedium,
-                                        color      = Muted,
-                                        fontWeight = FontWeight.Bold,
-                                    )
-                                }
-                                inner()
-                            }
-                        },
-                        modifier = Modifier.onFocusChanged { focus ->
-                            if (!focus.isFocused) onMontoChange(textoMonto.toIntOrNull() ?: 0)
-                        },
-                    )
-                    if (item.isToggling) {
-                        Spacer(Modifier.width(8.dp))
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Accent, strokeWidth = 2.dp)
-                    }
-                }
-
-                if (item.tipo.unitLabel.isNotBlank()) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text      = item.tipo.unitLabel,
-                        style     = MaterialTheme.typography.labelSmall,
-                        color     = Muted,
-                        modifier  = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center,
-                    )
-                }
-            } else {
-                // ── Counter ───────────────────────────────────────────────────
-                Row(
-                    modifier              = Modifier.fillMaxWidth(),
-                    verticalAlignment     = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .neuElevatedSm(cornerRadius = 10.dp)
-                            .background(Background, RoundedCornerShape(10.dp))
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable(enabled = !item.isToggling && item.contadorSemana > 0, onClick = onDecrementar),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (item.isToggling) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Accent, strokeWidth = 2.dp)
-                        } else {
-                            Icon(
-                                imageVector        = Icons.Default.Remove,
-                                contentDescription = "Restar",
-                                tint               = if (item.contadorSemana > 0) Mid else Muted,
-                                modifier           = Modifier.size(20.dp),
-                            )
-                        }
-                    }
-
-                    Spacer(Modifier.width(24.dp))
-
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    else -> {
                         Text(
-                            text       = item.contadorSemana.toString(),
-                            style      = MaterialTheme.typography.headlineMedium,
-                            color      = if (item.contadorSemana > 0) Accent else Muted,
+                            text       = item.totalHistorico.toString(),
+                            style      = MaterialTheme.typography.titleLarge,
+                            color      = if (item.totalHistorico > 0) Accent else Muted,
                             fontWeight = FontWeight.Bold,
                         )
                         if (item.tipo.unitLabel.isNotBlank()) {
@@ -606,27 +520,15 @@ private fun ActividadSemanalCard(
                             )
                         }
                     }
-
-                    Spacer(Modifier.width(24.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .neuElevatedSm(cornerRadius = 10.dp)
-                            .background(Background, RoundedCornerShape(10.dp))
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable(enabled = !item.isToggling, onClick = onIncrementar),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector        = Icons.Default.Add,
-                            contentDescription = "Sumar",
-                            tint               = Accent,
-                            modifier           = Modifier.size(20.dp),
-                        )
-                    }
                 }
             }
+            Spacer(Modifier.width(8.dp))
+            Icon(
+                imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint               = Muted,
+                modifier           = Modifier.size(20.dp),
+            )
         }
     }
 }
@@ -695,7 +597,7 @@ private fun MiembroActividadesPreview() {
                             frecuencia = "semanal", isMemberAccessible = true,
                             districtId = null, campoId = null, grupoId = null,
                         ),
-                        contadorSemana = 3,
+                        totalHistorico = 3,
                     ),
                     ActividadMiembroUi.Semanal(
                         tipo = com.gpleader.app.core.data.repository.ActividadTipoData(
@@ -705,7 +607,7 @@ private fun MiembroActividadesPreview() {
                             frecuencia = "semanal", isMemberAccessible = true,
                             districtId = null, campoId = null, grupoId = null,
                         ),
-                        contadorSemana = 5200,
+                        totalHistorico = 5200,
                     ),
                 ),
             ),

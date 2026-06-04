@@ -61,6 +61,7 @@ data class HistorialUiState(
     val grupos:               List<GrupoMes>    = emptyList(),
     val stats:                HistorialStats    = HistorialStats(0, 0, 0, 0),
     val isLoading:            Boolean           = false,
+    val isRefreshing:         Boolean           = false,
     val error:                String?           = null,
     val debugInfo:            String            = "",
     val busquedaActiva:       Boolean           = false,
@@ -110,6 +111,41 @@ class HistorialViewModel @Inject constructor(
         val idActual = trimestreActualId
         _uiState.update { it.copy(trimestres = trimestresOrdenados, trimestreSeleccionado = idActual, isLoading = true, error = null) }
         cargarReuniones()
+    }
+
+    fun onRefresh() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRefreshing = true) }
+            val gId = session.grupoId
+            runCatching {
+                reunionRepo.getReuniones(gId)
+                    .catch { e ->
+                        _uiState.update { it.copy(isRefreshing = false, error = "Error al cargar reuniones: ${e.message}") }
+                    }
+                    .collect { reuniones ->
+                        todasLasReuniones = reuniones.map { r ->
+                            val total = r.presentes + r.ausentes + r.justificados
+                            val pct   = if (total > 0) (r.presentes * 100 / total) else 0
+                            val estado = when (r.estado.uppercase()) {
+                                "ENVIADA", "SENT", "SUBMITTED", "APPROVED", "APROBADA" -> EstadoReunionHistorial.ENVIADA
+                                else -> EstadoReunionHistorial.PENDIENTE_SYNC
+                            }
+                            ReunionResumen(
+                                id                    = r.id,
+                                fecha                 = r.fecha,
+                                estado                = estado,
+                                presentes             = r.presentes,
+                                ausentes              = r.ausentes,
+                                justificados          = r.justificados,
+                                porcentajeAsistencia  = pct,
+                                permitirEdicion       = estado != EstadoReunionHistorial.ENVIADA,
+                            )
+                        }
+                        aplicarFiltro(_uiState.value.trimestreSeleccionado)
+                        _uiState.update { it.copy(isRefreshing = false, error = null) }
+                    }
+            }
+        }
     }
 
     fun cargarReuniones() {

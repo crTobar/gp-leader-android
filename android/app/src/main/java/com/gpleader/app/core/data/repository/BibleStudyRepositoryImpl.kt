@@ -30,6 +30,15 @@ class BibleStudyRepositoryImpl @Inject constructor(
         }.sortedBy { it.studentName }
     }
 
+    override suspend fun getEstudioById(estudioId: String): Result<EstudioBiblico?> = runCatching {
+        val data = supabase.from("bible_study").select(
+            Columns.raw("id, member_id, student_name, completed_lessons")
+        ) {
+            filter { eq("id", estudioId) }
+        }.data
+        Json.parseToJsonElement(data).jsonArray.firstOrNull()?.jsonObject?.let { parseEstudio(it) }
+    }
+
     override suspend fun createEstudio(miembroId: String, studentName: String): Result<EstudioBiblico> = runCatching {
         val payload = buildJsonObject {
             put("member_id", miembroId)
