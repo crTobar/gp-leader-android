@@ -157,19 +157,17 @@ class HomeViewModel @Inject constructor(
             val lista = runCatching {
                 reunionRepo.getReunionesRecientesSabado(session.grupoId, limit = 3).getOrDefault(emptyList())
             }.getOrDefault(emptyList())
-            // El sábado litúrgico empieza el viernes al atardecer (~18:00):
-            //   viernes noche → el "sábado vigente" es el sábado de mañana
-            //   sábado        → es hoy
-            //   dom–jueves    → el sábado que acaba de pasar
-            val ahora         = java.time.LocalDateTime.now()
-            val hoy           = ahora.toLocalDate()
-            val sabadoVigente = when {
-                ahora.dayOfWeek == DayOfWeek.SATURDAY                     -> hoy
-                ahora.dayOfWeek == DayOfWeek.FRIDAY && ahora.hour >= 18   -> hoy.plusDays(1)
-                else -> hoy.with(TemporalAdjusters.previousOrSame(DayOfWeek.SATURDAY))
+            // Ventana de la semana litúrgica actual: del domingo al sábado.
+            // El registro del culto de sábado se considera "de esta semana" si su
+            // fecha cae en esa ventana — robusto si se registró el viernes (víspera)
+            // o el sábado mismo. Se renueva al pasar al domingo siguiente.
+            val hoy           = LocalDate.now()
+            val sabadoSemana  = hoy.with(TemporalAdjusters.nextOrSame(DayOfWeek.SATURDAY))
+            val inicioSemana  = sabadoSemana.minusDays(6)   // domingo de la misma semana
+            val registroSab   = lista.firstOrNull {
+                !it.fecha.isBefore(inicioSemana) && !it.fecha.isAfter(sabadoSemana)
             }
-            val sabadoSemana = lista.firstOrNull { it.fecha == sabadoVigente }
-            _uiState.update { it.copy(reunionesSabadoRecientes = lista, reunionSabadoSemana = sabadoSemana) }
+            _uiState.update { it.copy(reunionesSabadoRecientes = lista, reunionSabadoSemana = registroSab) }
         }
     }
 
