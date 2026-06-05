@@ -157,15 +157,15 @@ class HomeViewModel @Inject constructor(
             val lista = runCatching {
                 reunionRepo.getReunionesRecientesSabado(session.grupoId, limit = 3).getOrDefault(emptyList())
             }.getOrDefault(emptyList())
-            // Ventana de la semana litúrgica actual: del domingo al sábado.
-            // El registro del culto de sábado se considera "de esta semana" si su
-            // fecha cae en esa ventana — robusto si se registró el viernes (víspera)
-            // o el sábado mismo. Se renueva al pasar al domingo siguiente.
-            val hoy           = LocalDate.now()
-            val sabadoSemana  = hoy.with(TemporalAdjusters.nextOrSame(DayOfWeek.SATURDAY))
-            val inicioSemana  = sabadoSemana.minusDays(6)   // domingo de la misma semana
-            val registroSab   = lista.firstOrNull {
-                !it.fecha.isBefore(inicioSemana) && !it.fecha.isAfter(sabadoSemana)
+            // Ventana de la semana litúrgica: del sábado al viernes siguiente.
+            // El culto de sábado vale desde ese sábado hasta el viernes a medianoche.
+            // Se renueva al pasar a un nuevo sábado (medianoche viernes→sábado),
+            // permitiendo registrar el culto de la semana siguiente.
+            val hoy          = LocalDate.now()
+            val inicioSemana = hoy.with(TemporalAdjusters.previousOrSame(DayOfWeek.SATURDAY))
+            val finSemana    = inicioSemana.plusDays(6)   // viernes siguiente
+            val registroSab  = lista.firstOrNull {
+                !it.fecha.isBefore(inicioSemana) && !it.fecha.isAfter(finSemana)
             }
             _uiState.update { it.copy(reunionesSabadoRecientes = lista, reunionSabadoSemana = registroSab) }
         }
