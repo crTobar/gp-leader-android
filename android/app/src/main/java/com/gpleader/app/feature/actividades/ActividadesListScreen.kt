@@ -19,14 +19,19 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.draw.alpha
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -276,6 +281,11 @@ private fun ActividadesListContent(
                     modifier     = Modifier.fillMaxSize(),
                 indicator = {},
                 ) {
+                val ordenNiveles = listOf("union", "pastor", "my_group")
+                val porNivel     = uiState.visibles.groupBy { it.tipo.level }
+                val nivelesOrdenados = (ordenNiveles + porNivel.keys).distinct()
+                    .filter { !porNivel[it].isNullOrEmpty() }
+
                 LazyColumn(
                     modifier            = Modifier.fillMaxSize(),
                     contentPadding      = androidx.compose.foundation.layout.PaddingValues(
@@ -285,20 +295,36 @@ private fun ActividadesListContent(
                     ),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    items(uiState.visibles, key = { it.tipo.id }) { item ->
-                        ActividadCard(
-                            item    = item,
-                            onClick = {
-                                if (item.tipo.frecuencia == "diaria") {
-                                    val hoy   = java.time.LocalDate.now()
-                                    val desde = (item.tipo.startDate ?: hoy.minusDays(30)).toString()
-                                    val hasta = (item.tipo.endDate?.let { if (it.isBefore(hoy)) it else hoy } ?: hoy).toString()
-                                    onNavigateToCampana(item.tipo.id, item.tipo.nombre, desde, hasta)
-                                } else {
-                                    onNavigateToHistorial(item.tipo.id)
-                                }
-                            },
-                        )
+                    nivelesOrdenados.forEachIndexed { idx, nivel ->
+                        val actividadesNivel = porNivel[nivel].orEmpty()
+
+                        // ── Marcador de nivel (una vez por grupo) ─────────────
+                        item(key = "nivel-$nivel") {
+                            NivelBadge(
+                                level    = nivel,
+                                modifier = Modifier.padding(
+                                    top    = if (idx == 0) 0.dp else 8.dp,
+                                    start  = 4.dp,
+                                    bottom = 2.dp,
+                                ),
+                            )
+                        }
+
+                        items(actividadesNivel, key = { it.tipo.id }) { item ->
+                            ActividadCard(
+                                item    = item,
+                                onClick = {
+                                    if (item.tipo.frecuencia == "diaria") {
+                                        val hoy   = java.time.LocalDate.now()
+                                        val desde = (item.tipo.startDate ?: hoy.minusDays(30)).toString()
+                                        val hasta = (item.tipo.endDate?.let { if (it.isBefore(hoy)) it else hoy } ?: hoy).toString()
+                                        onNavigateToCampana(item.tipo.id, item.tipo.nombre, desde, hasta)
+                                    } else {
+                                        onNavigateToHistorial(item.tipo.id)
+                                    }
+                                },
+                            )
+                        }
                     }
                 }
                 } // PullToRefreshBox
@@ -370,6 +396,11 @@ private fun ActividadCard(
 ) {
     val fmt        = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.forLanguageTag("es"))
     val levelColor = levelColor(item.tipo.level)
+    val estadoBadge = when {
+        item.esProxima -> EstadoActividad.PROXIMA
+        item.esActiva  -> EstadoActividad.ACTIVA
+        else           -> EstadoActividad.VENCIDA
+    }
 
     NeuCard(
         modifier = Modifier
@@ -378,29 +409,7 @@ private fun ActividadCard(
         onClick  = if (item.esProxima) null else onClick,
     ) {
         Column {
-            // ── Franja de nivel ───────────────────────────────────────────────
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(levelColor.copy(alpha = 0.08f))
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-            ) {
-                Row(
-                    modifier              = Modifier.fillMaxWidth(),
-                    verticalAlignment     = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    NivelBadge(level = item.tipo.level)
-                    val estadoBadge = when {
-                        item.esProxima  -> EstadoActividad.PROXIMA
-                        item.esActiva   -> EstadoActividad.ACTIVA
-                        else            -> EstadoActividad.VENCIDA
-                    }
-                    EstadoBadge(estado = estadoBadge)
-                }
-            }
-
-            // ── Nombre + flecha ───────────────────────────────────────────────
+            // ── Nombre + estado + flecha ──────────────────────────────────────
             Row(
                 modifier          = Modifier
                     .fillMaxWidth()
@@ -414,6 +423,8 @@ private fun ActividadCard(
                     fontWeight = FontWeight.SemiBold,
                     modifier   = Modifier.weight(1f),
                 )
+                EstadoBadge(estado = estadoBadge)
+                Spacer(Modifier.width(8.dp))
                 if (item.esProxima) {
                     Icon(
                         imageVector        = Icons.Default.Schedule,
@@ -445,16 +456,25 @@ private fun ActividadCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 if (item.tipo.markerType == "realizado" || item.tipo.markerType == "checkbox") {
-                    // Tipo realizado: ícono de check o circle vacío
+                    // Tipo realizado: ícono en pozo neumórfico hundido
                     val hecho = item.totalCantidad > 0
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = if (hecho) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                            contentDescription = null,
-                            tint     = if (hecho) Sage else Muted,
-                            modifier = Modifier.size(28.dp),
-                        )
-                        Spacer(Modifier.width(8.dp))
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(36.dp)
+                                .neuInsetSm(cornerRadius = 18.dp)
+                                .clip(CircleShape)
+                                .background(Background),
+                        ) {
+                            Icon(
+                                imageVector = if (hecho) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                                contentDescription = null,
+                                tint     = if (hecho) Sage else Muted,
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
+                        Spacer(Modifier.width(10.dp))
                         Text(
                             text  = if (hecho) "Realizado" else "Pendiente",
                             style = MaterialTheme.typography.bodyLarge,
@@ -469,13 +489,21 @@ private fun ActividadCard(
                         style = MaterialTheme.typography.labelSmall,
                         color = Muted,
                     )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text       = formatTotalValor(item),
-                        style      = MaterialTheme.typography.titleLarge,
-                        color      = levelColor,
-                        fontWeight = FontWeight.Bold,
-                    )
+                    Spacer(Modifier.height(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .neuInsetSm(cornerRadius = 10.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Background)
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    ) {
+                        Text(
+                            text       = formatTotalValor(item),
+                            style      = MaterialTheme.typography.titleLarge,
+                            color      = levelColor,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
                 }
                 }
 
@@ -506,26 +534,43 @@ private fun ActividadCard(
                 }
             }
         }
-    }
+    }   // NeuCard
 }
 
 // ── Badges ────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun NivelBadge(level: String) {
-    val bg    = levelColor(level)
-    val label = when (level) { "union" -> "UNIÓN"; "pastor" -> "PASTOR"; else -> "MI GP" }
-    Box(
-        modifier = Modifier
-            .neuElevatedSm(cornerRadius = 8.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(bg)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+private fun NivelBadge(level: String, modifier: Modifier = Modifier) {
+    val label = when (level) { "union" -> "NIVEL UNIÓN"; "pastor" -> "NIVEL PASTOR"; else -> "NIVEL MI GP" }
+    val icon: ImageVector = when (level) {
+        "union"  -> Icons.Filled.AccountBalance
+        "pastor" -> Icons.Filled.Star
+        else     -> Icons.Filled.Group
+    }
+    Row(
+        modifier              = modifier,
+        verticalAlignment     = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(28.dp)
+                .neuInsetSm(cornerRadius = 8.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Background),
+        ) {
+            Icon(
+                imageVector        = icon,
+                contentDescription = null,
+                tint               = Mid,
+                modifier           = Modifier.size(15.dp),
+            )
+        }
         Text(
             text       = label,
             style      = MaterialTheme.typography.labelSmall,
-            color      = Color.White,
+            color      = Mid,
             fontWeight = FontWeight.Bold,
         )
     }
