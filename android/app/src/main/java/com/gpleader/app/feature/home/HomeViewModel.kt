@@ -16,6 +16,7 @@ import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -111,7 +112,7 @@ class HomeViewModel @Inject constructor(
                 isLoading = true,
             )
         }
-        observarReuniones()
+        cargarReuniones()
         cargarSabadoRecientes()
         cargarGrupoDetalle()
         cargarTotalMiembros()
@@ -121,6 +122,7 @@ class HomeViewModel @Inject constructor(
     fun onRefresh() {
         viewModelScope.launch {
             _uiState.update { it.copy(isRefreshing = true) }
+            cargarReuniones()
             cargarSabadoRecientes()
             cargarGrupoDetalle()
             cargarSolicitudes()
@@ -155,48 +157,58 @@ class HomeViewModel @Inject constructor(
             val lista = runCatching {
                 reunionRepo.getReunionesRecientesSabado(session.grupoId, limit = 3).getOrDefault(emptyList())
             }.getOrDefault(emptyList())
-            val hoy          = LocalDate.now()
-            val ultimoSabado = hoy.with(TemporalAdjusters.previousOrSame(DayOfWeek.SATURDAY))
-            val sabadoSemana = lista.firstOrNull {
-                !it.fecha.isBefore(ultimoSabado) && !it.fecha.isAfter(hoy)
+            // El sábado litúrgico empieza el viernes al atardecer (~18:00):
+            //   viernes noche → el "sábado vigente" es el sábado de mañana
+            //   sábado        → es hoy
+            //   dom–jueves    → el sábado que acaba de pasar
+            val ahora         = java.time.LocalDateTime.now()
+            val hoy           = ahora.toLocalDate()
+            val sabadoVigente = when {
+                ahora.dayOfWeek == DayOfWeek.SATURDAY                     -> hoy
+                ahora.dayOfWeek == DayOfWeek.FRIDAY && ahora.hour >= 18   -> hoy.plusDays(1)
+                else -> hoy.with(TemporalAdjusters.previousOrSame(DayOfWeek.SATURDAY))
             }
+            val sabadoSemana = lista.firstOrNull { it.fecha == sabadoVigente }
             _uiState.update { it.copy(reunionesSabadoRecientes = lista, reunionSabadoSemana = sabadoSemana) }
         }
     }
 
-    private fun observarReuniones() {
+    private fun cargarReuniones() {
         viewModelScope.launch {
-            reunionRepo.getReuniones(grupoId = session.grupoId, limit = 3)
-                .collect { reuniones ->
-                    val totalP = reuniones.sumOf { it.presentes }
-                    val totalA = reuniones.sumOf { it.ausentes }
-                    val totalJ = reuniones.sumOf { it.justificados }
-                    val totalAsistentes = totalP + totalA + totalJ
-                    val pct = if (totalAsistentes > 0) (totalP * 100) / totalAsistentes else 0
+            // getReuniones es un flow de una sola emisión (consulta puntual a Supabase);
+            // tomamos firstOrNull y lo recargamos manualmente al volver al Home.
+            val reuniones = runCatching {
+                reunionRepo.getReuniones(grupoId = session.grupoId, limit = 3).firstOrNull()
+            }.getOrNull() ?: emptyList()
 
-                    val hoy = LocalDate.now()
-                    val mapped = reuniones.map { r ->
-                        ReunionResumen(
-                            id        = r.id,
-                            fecha     = r.fecha,
-                            estado    = runCatching { EstadoReunion.valueOf(r.estado) }
-                                .getOrElse { EstadoReunion.BORRADOR },
-                            presentes = r.presentes,
-                            ausentes  = r.ausentes,
-                        )
-                    }
-                    _uiState.update {
-                        it.copy(
-                            isLoading            = false,
-                            reunionesRecientes   = mapped,
-                            reunionGpHoy         = mapped.firstOrNull { r -> r.fecha == hoy },
-                            totalPresentes       = totalP,
-                            totalAusentes        = totalA,
-                            totalJustificados    = totalJ,
-                            porcentajeAsistencia = pct,
-                        )
-                    }
-                }
+            val totalP = reuniones.sumOf { it.presentes }
+            val totalA = reuniones.sumOf { it.ausentes }
+            val totalJ = reuniones.sumOf { it.justificados }
+            val totalAsistentes = totalP + totalA + totalJ
+            val pct = if (totalAsistentes > 0) (totalP * 100) / totalAsistentes else 0
+
+            val hoy = LocalDate.now()
+            val mapped = reuniones.map { r ->
+                ReunionResumen(
+                    id        = r.id,
+                    fecha     = r.fecha,
+                    estado    = runCatching { EstadoReunion.valueOf(r.estado) }
+                        .getOrElse { EstadoReunion.BORRADOR },
+                    presentes = r.presentes,
+                    ausentes  = r.ausentes,
+                )
+            }
+            _uiState.update {
+                it.copy(
+                    isLoading            = false,
+                    reunionesRecientes   = mapped,
+                    reunionGpHoy         = mapped.firstOrNull { r -> r.fecha == hoy },
+                    totalPresentes       = totalP,
+                    totalAusentes        = totalA,
+                    totalJustificados    = totalJ,
+                    porcentajeAsistencia = pct,
+                )
+            }
         }
     }
 
@@ -224,7 +236,9 @@ class HomeViewModel @Inject constructor(
         _uiState.update { it.copy(navigateToDetalle = null) }
     }
 
-    fun reloadSabbath() {
+    /** Recarga GP de hoy + culto de sábado al volver al Home. */
+    fun reloadHome() {
+        cargarReuniones()
         cargarSabadoRecientes()
     }
 

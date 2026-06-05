@@ -123,11 +123,11 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // Recargar datos del sábado cada vez que el HomeScreen vuelve al frente
+    // Recargar GP de hoy + culto de sábado cada vez que el HomeScreen vuelve al frente
     val lifecycleOwner = LocalLifecycleOwner.current
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            viewModel.reloadSabbath()
+            viewModel.reloadHome()
         }
     }
 
@@ -228,21 +228,30 @@ private fun HomeScreenContent(
 
                 Spacer(Modifier.height(20.dp))
 
-                if (uiState.reunionGpHoy != null) {
+                val gpRegistrado     = uiState.reunionGpHoy != null
+                val sabadoRegistrado = uiState.reunionSabadoSemana != null
+                val faltaRegistrar   = !gpRegistrado || !sabadoRegistrado
+
+                // Tarjeta "Tomar Asistencia" — siempre arriba mientras falte algo
+                if (faltaRegistrar) {
+                    RegistrarCard(onClick = { showRegistrarSheet = true })
+                }
+
+                // Confirmaciones debajo
+                if (gpRegistrado) {
+                    if (faltaRegistrar) Spacer(Modifier.height(10.dp))
                     val gp = uiState.reunionGpHoy
                     YaRegistrasteBadge(
-                        titulo   = "Ya registraste hoy tu grupo pequeño",
+                        titulo    = "Ya registraste hoy tu grupo pequeño",
                         subtitulo = "${gp.presentes} presentes · ${gp.ausentes} ausentes",
                     )
-                } else {
-                    RegistrarCard(onClick = { showRegistrarSheet = true })
-                    if (uiState.reunionSabadoSemana != null) {
-                        Spacer(Modifier.height(10.dp))
-                        YaRegistrasteBadge(
-                            titulo    = "Ya registraste hoy culto de sábado",
-                            subtitulo = "${uiState.reunionSabadoSemana.presentes} presentes",
-                        )
-                    }
+                }
+                if (sabadoRegistrado) {
+                    if (faltaRegistrar || gpRegistrado) Spacer(Modifier.height(10.dp))
+                    YaRegistrasteBadge(
+                        titulo    = "Ya registraste el culto de sábado",
+                        subtitulo = "${uiState.reunionSabadoSemana.presentes} presentes",
+                    )
                 }
 
                 Spacer(Modifier.height(12.dp))
@@ -1427,7 +1436,7 @@ private fun TipoRegistroSheet(
 
             if (reunionSabadoSemana != null) {
                 YaRegistrasteBadge(
-                    titulo    = "Ya registraste hoy culto de sábado",
+                    titulo    = "Ya registraste el culto de sábado",
                     subtitulo = "${reunionSabadoSemana.presentes} presentes",
                 )
             } else {

@@ -360,6 +360,7 @@ private fun ResumenCard(
     nombreGrupo: String,
     modifier:    Modifier = Modifier,
 ) {
+    val esSabado             = uiState.registryKind == RegistryKind.SATURDAY_WORSHIP
     val miembrosPresentes    = uiState.miembros.count { it.estado == EstadoAsistencia.PRESENTE }
     val miembrosJustificados = uiState.miembros.count { it.estado == EstadoAsistencia.JUSTIFICADO }
     val miembrosAusentes     = uiState.miembros.size - miembrosPresentes - miembrosJustificados
@@ -430,10 +431,13 @@ private fun ResumenCard(
                     text       = chipAusente,
                     textColor  = if (miembrosAusentes > 0) Blush else Muted,
                 )
-                AsistenciaChip(
-                    text       = chipJust,
-                    textColor  = if (miembrosJustificados > 0) Gold else Muted,
-                )
+                // En culto de sábado no existe "justificado"
+                if (!esSabado) {
+                    AsistenciaChip(
+                        text       = chipJust,
+                        textColor  = if (miembrosJustificados > 0) Gold else Muted,
+                    )
+                }
             }
 
             Spacer(Modifier.height(16.dp))
