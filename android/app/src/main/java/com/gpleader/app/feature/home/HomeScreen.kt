@@ -94,7 +94,6 @@ import com.gpleader.app.core.ui.theme.neuElevated
 import com.gpleader.app.core.ui.theme.neuElevatedSm
 import com.gpleader.app.core.data.repository.AsignadoPotencial
 import com.gpleader.app.core.data.repository.SabbathMeetingResumen
-import com.gpleader.app.core.data.repository.Solicitud
 import com.gpleader.app.core.ui.theme.neuGlow
 import com.gpleader.app.core.ui.theme.neuInset
 import com.gpleader.app.core.ui.theme.neuInsetInner
@@ -161,12 +160,7 @@ fun HomeScreen(
         onPerfilClick                  = onNavigateToPerfil,
         onActividadesTabClick          = onNavigateToActividades,
         onSabadoCultoClick             = viewModel::onSabadoCultoClick,
-        onDelegarClick                 = viewModel::onDelegarClick,
         onCancelarSolicitud            = viewModel::onCancelarSolicitud,
-        onCrearSolicitud               = viewModel::onCrearSolicitud,
-        onDismissDelegarSheet          = viewModel::onDismissDelegarSheet,
-        onActivarSolicitud             = viewModel::onActivarSolicitud,
-        onDismissActivarDialog         = viewModel::onDismissActivarDialog,
         onActividadesMisionerasClick   = onNavigateToActividadesMisioneras,
         onRefresh                      = viewModel::onRefresh,
     )
@@ -185,12 +179,7 @@ private fun HomeScreenContent(
     onPerfilClick: () -> Unit = {},
     onActividadesTabClick: () -> Unit = {},
     onSabadoCultoClick: () -> Unit = {},
-    onDelegarClick: () -> Unit = {},
     onCancelarSolicitud: (String) -> Unit = {},
-    onCrearSolicitud: (String, String?) -> Unit = { _, _ -> },
-    onDismissDelegarSheet: () -> Unit = {},
-    onActivarSolicitud: (String) -> Unit = {},
-    onDismissActivarDialog: () -> Unit = {},
     onActividadesMisionerasClick: () -> Unit = {},
     onRefresh: () -> Unit = {},
 ) {
@@ -266,16 +255,25 @@ private fun HomeScreenContent(
 
                 Spacer(Modifier.height(24.dp))
 
-                // ── Solicitudes activas ───────────────────────────────────────
-                if (uiState.solicitudesActivas.isNotEmpty()) {
+                // ── Delegaciones activas ─────────────────────────────────────
+                if (uiState.delegaciones.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
                     SectionSeparator(label = "DELEGACIONES")
                     Spacer(Modifier.height(12.dp))
-                    uiState.solicitudesActivas.forEach { solicitud ->
+                    uiState.delegaciones.forEach { delegacion ->
                         SolicitudActivaCard(
-                            solicitud = solicitud,
-                            onCancelar = { onCancelarSolicitud(solicitud.id) },
-                            modifier  = Modifier.padding(vertical = 4.dp),
+                            delegacion   = delegacion,
+                            onCancelar   = { onCancelarSolicitud(delegacion.codeId) },
+                            isCancelando = uiState.cancelandoCodeId == delegacion.codeId,
+                            modifier     = Modifier.padding(vertical = 4.dp),
+                        )
+                    }
+                    if (uiState.delegacionError != null) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text  = uiState.delegacionError!!,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Blush,
                         )
                     }
                     Spacer(Modifier.height(8.dp))
@@ -297,18 +295,6 @@ private fun HomeScreenContent(
             reunionGpHoy         = uiState.reunionGpHoy,
             reunionSabadoSemana  = uiState.reunionSabadoSemana,
         )
-    }
-
-    // ── Dialogo: solicitud asignada pendiente de activar ─────────────────────
-    if (uiState.showActivarDialog) {
-        val sol = uiState.solicitudAsignada
-        if (sol != null) {
-            ActivarSolicitudDialog(
-                solicitud  = sol,
-                onActivar  = { onActivarSolicitud(sol.id) },
-                onDismiss  = onDismissActivarDialog,
-            )
-        }
     }
 
 }
@@ -1097,72 +1083,72 @@ private fun EmptyStateReuniones() {
 
 
 
-// ── Solicitud: tarjeta activa ─────────────────────────────────────────────────
+// ── Delegación: tarjeta activa ────────────────────────────────────────────────
 
 @Composable
 private fun SolicitudActivaCard(
-    solicitud: Solicitud,
-    onCancelar: () -> Unit,
-    modifier: Modifier = Modifier,
+    delegacion:   DelegacionActiva,
+    onCancelar:   () -> Unit,
+    isCancelando: Boolean = false,
+    modifier:     Modifier = Modifier,
 ) {
-    val (badgeColor, badgeLabel) = when (solicitud.status) {
-        "active"  -> Sage to "Activa"
-        "pending" -> Gold to "Pendiente"
-        else      -> Muted to solicitud.status
+    val tiempoRestante = remember(delegacion.expiresAt) {
+        delegacion.expiresAt?.let { iso ->
+            runCatching {
+                val diff = java.time.Duration.between(java.time.Instant.now(), java.time.Instant.parse(iso))
+                when {
+                    diff.isNegative      -> "Vencida"
+                    diff.toHours() >= 1  -> "Vence en ${diff.toHours()}h ${diff.toMinutes() % 60}m"
+                    diff.toMinutes() > 0 -> "Vence en ${diff.toMinutes()}m"
+                    else                 -> "Vence pronto"
+                }
+            }.getOrNull()
+        }
     }
+
     NeuCard(modifier = modifier.fillMaxWidth()) {
         Row(
-            modifier          = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier          = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(badgeColor.copy(alpha = 0.15f))
-                            .padding(horizontal = 8.dp, vertical = 2.dp),
-                    ) {
-                        Text(
-                            text  = badgeLabel,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = badgeColor,
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
+                Text(
+                    text       = "Delegación activa",
+                    style      = MaterialTheme.typography.labelSmall,
+                    color      = Muted,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text       = delegacion.nombreAsignado.ifBlank { "Suplente asignado" },
+                    style      = MaterialTheme.typography.bodyLarge,
+                    color      = Ink,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                if (tiempoRestante != null) {
                     Text(
-                        text     = "Delegación activa",
-                        style    = MaterialTheme.typography.bodyMedium,
-                        color    = Ink,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                if (solicitud.assignedToNombre.isNotBlank()) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text  = "Para: ${solicitud.assignedToNombre}",
+                        text  = tiempoRestante,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Mid,
+                        color = if (tiempoRestante == "Vencida") Blush else Mid,
                     )
                 }
             }
-            if (solicitud.status == "pending") {
-                Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(8.dp))
+            if (isCancelando) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Blush)
+            } else {
                 TextButton(onClick = onCancelar) {
-                    Text("Cancelar", color = Blush, style = MaterialTheme.typography.bodyMedium)
+                    Text("Cancelar", color = Blush, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
     }
 }
 
-// ── Solicitud: diálogo activar ────────────────────────────────────────────────
-
+// ── (obsoleto) ActivarSolicitudDialog ────────────────────────────────────────
+// Mantenido para evitar romper referencias de compilación
+@Suppress("unused")
 @Composable
-private fun ActivarSolicitudDialog(
-    solicitud: Solicitud,
+private fun ActivarSolicitudDialog_unused(
     onActivar: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -1183,14 +1169,6 @@ private fun ActivarSolicitudDialog(
                     style = MaterialTheme.typography.bodyMedium,
                     color = Mid,
                 )
-                if (!solicitud.note.isNullOrBlank()) {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text  = "Nota: ${solicitud.note}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Mid,
-                    )
-                }
             }
         },
         confirmButton = {

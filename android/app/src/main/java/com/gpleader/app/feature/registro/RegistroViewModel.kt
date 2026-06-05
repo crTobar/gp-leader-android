@@ -276,14 +276,20 @@ class RegistroViewModel @Inject constructor(
         }
         val bloqueada     = false
         val esObligatoria = nivel == NivelActividad.PASTOR && tipo == TipoMarcador.CONTADOR
-        val tieneDesglose = !bloqueada && tipo != TipoMarcador.CHECKBOX
+        val tieneDesglose = !bloqueada
 
         // Pre-poblar desglose con contribuciones de miembros desde última reunión
         val desgloseConContribs = if (tieneDesglose && contribs.isNotEmpty()) {
             val contribPorMiembro = contribs.groupBy { it.miembroId }
             desgloseVacio.map { m ->
-                val suma = contribPorMiembro[m.miembroId]?.sumOf { it.count ?: 0 } ?: 0
-                m.copy(cantidad = suma)
+                val contrib = contribPorMiembro[m.miembroId]
+                if (tipo == TipoMarcador.CHECKBOX) {
+                    val hizo = contrib?.any { it.isDone } ?: false
+                    m.copy(participo = hizo)
+                } else {
+                    val suma = contrib?.sumOf { it.count ?: 0 } ?: 0
+                    m.copy(cantidad = suma)
+                }
             }
         } else if (tieneDesglose) desgloseVacio else emptyList()
 
@@ -291,6 +297,7 @@ class RegistroViewModel @Inject constructor(
             val suma = contribs.sumOf { it.count ?: 0 }
             if (suma > 0) suma else null
         } else null
+        val realizadoPreCargado = if (tipo == TipoMarcador.CHECKBOX && desgloseConContribs.any { it.participo }) true else null
 
         return ActividadRegistro(
             id               = id,
@@ -306,6 +313,7 @@ class RegistroViewModel @Inject constructor(
             desgloseExpandido = true,
             desgloseMiembros = desgloseConContribs,
             cantidad         = cantidadPreCargada,
+            realizado        = realizadoPreCargado,
             totalAcumulado   = total?.totalCantidad,
             montoAcumulado   = total?.montoTotal,
         )
@@ -584,9 +592,11 @@ class RegistroViewModel @Inject constructor(
                     if (m.miembroId == miembroId) m.copy(participo = checked) else m
                 }
                 val count = newDesglose.count { it.participo }
+                val anyChecked = count > 0
                 a.copy(
                     desgloseMiembros = newDesglose,
-                    cantidad = count.takeIf { count > 0 },
+                    cantidad         = count.takeIf { count > 0 },
+                    realizado        = if (a.tipoMarcador == TipoMarcador.CHECKBOX) anyChecked else a.realizado,
                 )
             })
         }
@@ -691,13 +701,14 @@ class RegistroViewModel @Inject constructor(
     }
 
     fun onSiguienteClick() {
+        // Bloquear si alguna actividad editable (no bloqueada) de CONTADOR o MONETARIO sigue en null
         val hayVacia = _uiState.value.actividades.any { a ->
-            if (!a.esObligatoria) return@any false
+            if (a.bloqueada) return@any false   // Union: read-only, no validar
             when (a.tipoMarcador) {
-                TipoMarcador.CHECKBOX      -> a.realizado == null
                 TipoMarcador.CONTADOR      -> a.cantidad == null
-                TipoMarcador.MONETARIO     -> a.monto == null
-                TipoMarcador.PARTICIPANTES -> a.cantidad == null
+                TipoMarcador.MONETARIO     -> a.monto    == null
+                TipoMarcador.CHECKBOX      -> false       // checkbox: null = sin tocar, válido
+                TipoMarcador.PARTICIPANTES -> false       // participantes: opcional
             }
         }
         if (hayVacia) {

@@ -49,6 +49,12 @@ interface SolicitudRepository {
     /** Finaliza una solicitud activa vinculando la reunión registrada. */
     suspend fun finishSolicitud(solicitudId: String, meetingId: String, miembroId: String): Solicitud
 
+    /** Cancela todas las solicitudes pending/active del miembro en el grupo (para reasignación). */
+    suspend fun cancelSolicitudesByAssignee(assignedToId: String, grupoId: String)
+
+    /** Invalida todos los códigos de suplente activos del grupo. */
+    suspend fun revokeDeputyCode(grupoId: String)
+
     /** Devuelve miembros del grupo con rol assignable (co_leader, anciano, leader). */
     suspend fun getAsignadosPotenciales(grupoId: String): List<AsignadoPotencial>
 }

@@ -78,6 +78,7 @@ import com.gpleader.app.core.ui.components.NAV_TAB_ACTIVIDADES
 import com.gpleader.app.core.ui.components.NAV_TAB_PERFIL
 import com.gpleader.app.core.ui.theme.neuElevated
 import com.gpleader.app.core.ui.theme.neuElevatedSm
+import com.gpleader.app.core.ui.theme.Sage
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
@@ -161,7 +162,8 @@ fun PerfilPrincipalScreen(
         onAsignarSuplenteClick       = viewModel::onAsignarSuplenteClick,
         onDismissDelegarSheet        = viewModel::onDismissDelegarSheet,
         onSeleccionarMiembro         = viewModel::onSeleccionarMiembroSuplente,
-        onCrearSolicitud             = viewModel::onCrearSolicitud,
+        onCrearSolicitud             = viewModel::onGuardarAsignacion,
+        onDismissConfirmacion        = viewModel::onDismissConfirmacion,
     )
 }
 
@@ -185,6 +187,7 @@ private fun PerfilContent(
     onDismissDelegarSheet:       () -> Unit = {},
     onSeleccionarMiembro:        (String) -> Unit = {},
     onCrearSolicitud:            () -> Unit = {},
+    onDismissConfirmacion:       () -> Unit = {},
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -300,9 +303,12 @@ private fun PerfilContent(
                 isLoading            = uiState.isLoadingAsignados,
                 isGenerando          = uiState.isGenerandoCodigo,
                 error                = uiState.solicitudError,
+                showConfirmacion     = uiState.showConfirmacion,
+                confirmacionNombre   = uiState.confirmacionNombre,
                 onSeleccionarMiembro = onSeleccionarMiembro,
                 onCrear              = onCrearSolicitud,
                 onDismiss            = onDismissDelegarSheet,
+                onDismissConfirmacion = onDismissConfirmacion,
             )
         }
 
@@ -534,10 +540,12 @@ private fun CerrarSesionDialog(
     onConfirmar: () -> Unit,
     onCancelar:  () -> Unit,
 ) {
-    NeuCard(
+    Box(
         modifier = Modifier
             .padding(horizontal = 32.dp)
-            .fillMaxWidth(),
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(Background),
     ) {
         Column(
             modifier            = Modifier.padding(24.dp),
@@ -563,7 +571,6 @@ private fun CerrarSesionDialog(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .neuElevated(cornerRadius = 14.dp)
                     .clip(RoundedCornerShape(14.dp))
                     .background(Blush)
                     .clickable(onClick = onConfirmar)
@@ -594,24 +601,130 @@ private fun CerrarSesionDialog(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AsignarSuplenteSheet(
-    asignados:            List<AsignadoPotencial>,
-    selectedId:           String,
-    codigo:               String,
-    isLoading:            Boolean,
-    isGenerando:          Boolean,
-    error:                String?,
-    onSeleccionarMiembro: (String) -> Unit,
-    onCrear:              () -> Unit,
-    onDismiss:            () -> Unit,
+    asignados:             List<AsignadoPotencial>,
+    selectedId:            String,
+    codigo:                String,
+    isLoading:             Boolean,
+    isGenerando:           Boolean,
+    error:                 String?,
+    showConfirmacion:      Boolean,
+    confirmacionNombre:    String,
+    onSeleccionarMiembro:  (String) -> Unit,
+    onCrear:               () -> Unit,
+    onDismiss:             () -> Unit,
+    onDismissConfirmacion: () -> Unit,
 ) {
-    val sheetState    = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val clipManager   = androidx.compose.ui.platform.LocalClipboardManager.current
+    val sheetState  = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val clipManager = androidx.compose.ui.platform.LocalClipboardManager.current
+    val context     = androidx.compose.ui.platform.LocalContext.current
 
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = if (showConfirmacion) onDismissConfirmacion else onDismiss,
         sheetState       = sheetState,
         containerColor   = Background,
     ) {
+
+    // ── Pantalla de confirmación ──────────────────────────────────────────────
+    if (showConfirmacion) {
+        Column(
+            modifier            = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 40.dp),
+            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+        ) {
+            Spacer(Modifier.height(8.dp))
+            Box(
+                contentAlignment = androidx.compose.ui.Alignment.Center,
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(Sage.copy(alpha = 0.15f)),
+            ) {
+                androidx.compose.material3.Icon(
+                    imageVector        = Icons.Default.Person,
+                    contentDescription = null,
+                    tint               = Sage,
+                    modifier           = Modifier.size(28.dp),
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text       = "Delegación asignada",
+                style      = MaterialTheme.typography.titleLarge,
+                color      = Ink,
+                fontWeight = FontWeight.Bold,
+            )
+            if (confirmacionNombre.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text  = confirmacionNombre,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Mid,
+                )
+            }
+            Spacer(Modifier.height(20.dp))
+            NeuCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier            = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
+                    horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        text  = "CÓDIGO DE ACCESO",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Muted,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        codigo.forEach { digit ->
+                            Box(
+                                contentAlignment = androidx.compose.ui.Alignment.Center,
+                                modifier = Modifier
+                                    .neuElevatedSm(cornerRadius = 8.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Background)
+                                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                            ) {
+                                Text(
+                                    text       = digit.toString(),
+                                    style      = MaterialTheme.typography.headlineMedium,
+                                    color      = Ink,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text  = "Válido por 24 horas",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Muted,
+                    )
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            NeuButtonPrimary(
+                text     = "Compartir código",
+                onClick  = {
+                    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(android.content.Intent.EXTRA_TEXT, "Tu código de suplente para GP Los Olivos es: $codigo (válido 24h)")
+                    }
+                    context.startActivity(android.content.Intent.createChooser(intent, "Compartir código"))
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(8.dp))
+            NeuButtonSecondary(
+                text     = "Listo",
+                onClick  = onDismissConfirmacion,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        return@ModalBottomSheet
+    }
+
+    // ── Selección de miembro ──────────────────────────────────────────────────
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -626,7 +739,7 @@ private fun AsignarSuplenteSheet(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text  = "Seleccioná a un miembro para que pueda registrar la reunión en las próximas 24 horas. Compartile el código que aparece.",
+                text  = "Seleccioná a un miembro para que pueda registrar la reunión en las próximas 24 horas. Al guardar recibirá acceso en su app.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Mid,
             )
@@ -773,14 +886,14 @@ private fun AsignarSuplenteSheet(
                 }
             } else {
                 NeuButtonPrimary(
-                    text     = if (codigo.isNotBlank()) "Listo" else "Guardar",
-                    enabled  = selectedId.isNotBlank(),
+                    text     = "Guardar",
+                    enabled  = selectedId.isNotBlank() && codigo.isNotBlank(),
                     onClick  = onCrear,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
         }
-    }
+    } // ModalBottomSheet
 }
 
 // ── Preview ───────────────────────────────────────────────────────────────────

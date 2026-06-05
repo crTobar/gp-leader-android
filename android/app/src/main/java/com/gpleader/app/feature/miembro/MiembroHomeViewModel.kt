@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -82,17 +83,29 @@ class MiembroHomeViewModel @Inject constructor(
     }
 
     private fun verificarSolicitudSuplente() {
+        val grupoId   = session.grupoId
+        val miembroId = session.miembroId
+        if (grupoId.isBlank() || miembroId.isBlank()) return
         viewModelScope.launch {
-            runCatching { solicitudRepo.getSolicitudesAsignadas(session.miembroId) }
-                .onSuccess { lista ->
-                    val pendiente = lista.firstOrNull { it.status == "pending" }
-                    _uiState.update {
-                        it.copy(
-                            tieneSolicitudPendiente = pendiente != null,
-                            solicitudPendienteId    = pendiente?.id ?: "",
-                        )
+            runCatching {
+                val resp = supabase.postgrest.from("deputy_code")
+                    .select(Columns.raw("id, used_at")) {
+                        filter {
+                            eq("small_group_id",     grupoId)
+                            eq("assigned_member_id", miembroId)
+                            gt("expires_at", java.time.Instant.now().toString())
+                        }
                     }
-                }
+                kotlinx.serialization.json.Json
+                    .parseToJsonElement(resp.data).jsonArray
+                    .any { el ->
+                        el.jsonObject["used_at"]?.jsonPrimitive?.contentOrNull.isNullOrBlank()
+                    }
+            }.onSuccess { tieneAcceso ->
+                _uiState.update { it.copy(tieneSolicitudPendiente = tieneAcceso) }
+            }.onFailure { e ->
+                android.util.Log.e("MiembroHomeVM", "verificarSolicitudSuplente error: ${e.message}")
+            }
         }
     }
 

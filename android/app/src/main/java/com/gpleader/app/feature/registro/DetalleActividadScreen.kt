@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,6 +50,7 @@ import com.gpleader.app.R
 import com.gpleader.app.core.ui.components.NeuButtonPrimary
 import com.gpleader.app.core.ui.components.NeuCard
 import com.gpleader.app.core.ui.theme.Accent
+import com.gpleader.app.core.ui.theme.Sage
 import com.gpleader.app.core.ui.theme.Background
 import com.gpleader.app.core.ui.theme.BackgroundDeep
 import com.gpleader.app.core.ui.theme.Gold
@@ -141,12 +143,6 @@ private fun DetalleActividadContent(
                             style = MaterialTheme.typography.labelSmall,
                             color = if (actividad.nivel == NivelActividad.PASTOR) Color.White else Ink,
                         )
-                        if (actividad.esOficial) {
-                            ActividadBadge(
-                                texto = stringResource(R.string.registro_badge_oficial),
-                                color = Gold,
-                            )
-                        }
                     }
                 }
 
@@ -250,7 +246,8 @@ private fun DetalleActividadContent(
                                                 onChange  = { monto -> onDesgloseMontoChange(miembro.miembroId, monto) },
                                                 modifier  = Modifier.padding(vertical = 6.dp),
                                             )
-                                            TipoMarcador.PARTICIPANTES -> MiembroParticipacionRow(
+                                            TipoMarcador.PARTICIPANTES,
+                                            TipoMarcador.CHECKBOX -> MiembroParticipacionRow(
                                                 miembro   = miembro,
                                                 bloqueado = false,
                                                 onChange  = { checked -> onDesgloseParticipacionChange(miembro.miembroId, checked) },
@@ -342,28 +339,47 @@ private fun TotalReadOnly(actividad: ActividadRegistro) {
                 .padding(horizontal = 24.dp, vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            val totalText = when (actividad.tipoMarcador) {
-                TipoMarcador.MONETARIO    -> actividad.monto?.let { "₡${it.toLong()}" } ?: "—"
-                TipoMarcador.PARTICIPANTES -> actividad.desgloseMiembros
-                    .count { it.participo }
-                    .takeIf { it > 0 }?.toString() ?: "—"
-                else                       -> actividad.cantidad?.toString() ?: "—"
+            if (actividad.tipoMarcador == TipoMarcador.CHECKBOX) {
+                val realizado = actividad.realizado == true ||
+                    actividad.desgloseMiembros.any { it.participo }
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (realizado) Sage else BackgroundDeep),
+                ) {
+                    if (realizado) Icon(
+                        imageVector        = Icons.Default.Check,
+                        contentDescription = null,
+                        tint               = Color.White,
+                        modifier           = Modifier.size(28.dp),
+                    )
+                }
+            } else {
+                val totalText = when (actividad.tipoMarcador) {
+                    TipoMarcador.MONETARIO     -> actividad.monto?.let { "₡${it.toLong()}" } ?: "—"
+                    TipoMarcador.PARTICIPANTES -> actividad.desgloseMiembros
+                        .count { it.participo }
+                        .takeIf { it > 0 }?.toString() ?: "—"
+                    else                       -> actividad.cantidad?.toString() ?: "—"
+                }
+                val sublabelText = when (actividad.tipoMarcador) {
+                    TipoMarcador.MONETARIO     -> "total recaudado"
+                    TipoMarcador.PARTICIPANTES -> "participantes"
+                    else                       -> actividad.unidad
+                }
+                Text(
+                    text  = totalText,
+                    style = MaterialTheme.typography.displayLarge,
+                    color = if (totalText == "—") Muted else Ink,
+                )
+                Text(
+                    text  = sublabelText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Muted,
+                )
             }
-            val sublabelText = when (actividad.tipoMarcador) {
-                TipoMarcador.MONETARIO     -> "total recaudado"
-                TipoMarcador.PARTICIPANTES -> "participantes"
-                else                        -> actividad.unidad
-            }
-            Text(
-                text  = totalText,
-                style = MaterialTheme.typography.displayLarge,
-                color = if (totalText == "—") Muted else Ink,
-            )
-            Text(
-                text  = sublabelText,
-                style = MaterialTheme.typography.labelSmall,
-                color = Muted,
-            )
         }
     }
 }
@@ -376,14 +392,23 @@ private fun DetalleTopBar(onNavigateBack: () -> Unit) {
         modifier          = Modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .padding(horizontal = 4.dp, vertical = 4.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onNavigateBack) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .neuElevatedSm(cornerRadius = 12.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Background)
+                .clickable(onClick = onNavigateBack)
+                .padding(10.dp),
+        ) {
             Icon(
                 imageVector        = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = stringResource(R.string.detalle_actividad_titulo),
+                contentDescription = null,
                 tint               = Ink,
+                modifier           = Modifier.size(20.dp),
             )
         }
         Text(

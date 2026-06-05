@@ -21,7 +21,7 @@ class SolicitudRepositoryImpl @Inject constructor(
 
     override suspend fun getSolicitudesCreadas(grupoId: String): List<Solicitud> {
         val data = supabase.from("solicitude").select(
-            columns = Columns.raw("*, profile!solicitude_assigned_to_fkey(first_name, last_name)")
+            columns = Columns.raw("*, member!solicitude_assigned_to_fkey(first_name, last_name)")
         ) {
             filter {
                 eq("small_group_id", grupoId)
@@ -84,6 +84,25 @@ class SolicitudRepositoryImpl @Inject constructor(
         return parseSolicitud(arr.first().jsonObject)
     }
 
+    override suspend fun cancelSolicitudesByAssignee(assignedToId: String, grupoId: String) {
+        val data = supabase.from("solicitude").select(columns = Columns.raw("id")) {
+            filter {
+                eq("assigned_to", assignedToId)
+                eq("small_group_id", grupoId)
+                isIn("status", listOf("pending", "active"))
+            }
+        }.data
+        val ids = Json.parseToJsonElement(data).jsonArray
+            .mapNotNull { it.jsonObject["id"]?.jsonPrimitive?.contentOrNull }
+        ids.forEach { id -> cancelSolicitud(id) }
+    }
+
+    override suspend fun revokeDeputyCode(grupoId: String) {
+        supabase.postgrest.rpc("revoke_deputy_code", buildJsonObject {
+            put("p_small_group_id", grupoId)
+        })
+    }
+
     override suspend fun getAsignadosPotenciales(grupoId: String): List<AsignadoPotencial> {
         val data = supabase.from("member").select {
             filter {
@@ -103,7 +122,8 @@ class SolicitudRepositoryImpl @Inject constructor(
     private fun parseSolicitud(obj: kotlinx.serialization.json.JsonObject): Solicitud {
         val profileCreado   = obj["profile!solicitude_created_by_fkey"]
             ?.takeIf { it !is JsonNull }?.jsonObject
-        val profileAsignado = obj["profile!solicitude_assigned_to_fkey"]
+        val profileAsignado = (obj["member!solicitude_assigned_to_fkey"]
+            ?: obj["profile!solicitude_assigned_to_fkey"])
             ?.takeIf { it !is JsonNull }?.jsonObject
 
         val profileRef = profileAsignado ?: profileCreado

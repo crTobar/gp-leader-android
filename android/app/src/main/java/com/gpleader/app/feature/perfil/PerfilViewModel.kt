@@ -154,13 +154,16 @@ data class PerfilUiState(
     val navigateToActividadesLista:  Boolean = false,
 
     // Asignar suplente (sheet)
-    val showDelegarSheet:       Boolean                 = false,
-    val asignadosPotenciales:   List<AsignadoPotencial> = emptyList(),
-    val isLoadingAsignados:     Boolean                 = false,
-    val isGenerandoCodigo:      Boolean                 = false,
-    val solicitudError:         String?                 = null,
-    val miembroSeleccionadoId:  String                  = "",
-    val codigoSuplente:         String                  = "",
+    val showDelegarSheet:          Boolean                 = false,
+    val asignadosPotenciales:      List<AsignadoPotencial> = emptyList(),
+    val isLoadingAsignados:        Boolean                 = false,
+    val isGenerandoCodigo:         Boolean                 = false,
+    val solicitudError:            String?                 = null,
+    val miembroSeleccionadoId:     String                  = "",
+    val codigoSuplente:            String                  = "",
+    // Confirmación tras guardar
+    val showConfirmacion:          Boolean                 = false,
+    val confirmacionNombre:        String                  = "",
 )
 
 // ── ViewModel ─────────────────────────────────────────────────────────────────
@@ -386,6 +389,7 @@ class PerfilViewModel @Inject constructor(
             runCatching {
                 val resp = supabase.postgrest.rpc("create_deputy_code", buildJsonObject {
                     put("p_small_group_id", session.grupoId)
+                    put("p_member_id", id)
                 })
                 val arr = Json.parseToJsonElement(resp.data).jsonArray
                 arr.first().jsonObject["code"]?.jsonPrimitive?.contentOrNull ?: ""
@@ -397,7 +401,18 @@ class PerfilViewModel @Inject constructor(
         }
     }
 
-    fun onCrearSolicitud() {
-        _uiState.update { it.copy(showDelegarSheet = false, miembroSeleccionadoId = "", codigoSuplente = "", solicitudError = null) }
+    fun onGuardarAsignacion() {
+        val assignedToId = _uiState.value.miembroSeleccionadoId
+        val nombre = _uiState.value.asignadosPotenciales.find { it.profileId == assignedToId }?.nombre ?: ""
+        _uiState.update { it.copy(
+            showConfirmacion      = true,
+            confirmacionNombre    = nombre,
+            miembroSeleccionadoId = "",
+            solicitudError        = null,
+        ) }
+    }
+
+    fun onDismissConfirmacion() {
+        _uiState.update { it.copy(showDelegarSheet = false, showConfirmacion = false, codigoSuplente = "", solicitudError = null) }
     }
 }

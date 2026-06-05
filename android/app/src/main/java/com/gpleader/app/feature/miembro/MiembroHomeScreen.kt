@@ -49,6 +49,7 @@ import com.gpleader.app.core.ui.theme.Mid
 import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.Sage
 import com.gpleader.app.core.ui.theme.neuElevated
+import com.gpleader.app.core.ui.components.OnResumeEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +69,8 @@ fun MiembroHomeScreen(
             viewModel.consumeLoginNavigation()
         }
     }
+
+    OnResumeEffect { viewModel.onRefresh() }
 
     MiembroHomeContent(
         uiState                      = uiState,

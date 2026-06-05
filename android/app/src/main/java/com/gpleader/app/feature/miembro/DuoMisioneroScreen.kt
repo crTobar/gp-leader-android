@@ -13,6 +13,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -75,7 +76,7 @@ fun DuoMisioneroScreen(
             .fillMaxSize()
             .background(Background),
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
             // ── Top bar ───────────────────────────────────────────────────────
             Row(
                 modifier          = Modifier
@@ -110,6 +111,7 @@ fun DuoMisioneroScreen(
                 modifier     = Modifier.weight(1f).fillMaxWidth(),
             indicator = {},
             ) {
+            Column(modifier = Modifier.fillMaxSize()) {
             when {
                 uiState.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
@@ -154,17 +156,18 @@ fun DuoMisioneroScreen(
                             onToggle      = viewModel::onToggleActividad,
                             onIncrementar = viewModel::onIncrementar,
                             onDecrementar = viewModel::onDecrementar,
-                            modifier      = Modifier.fillMaxSize(),
+                            modifier      = Modifier.weight(1f).fillMaxWidth(),
                         )
                         DuoMiembroTab.ESTUDIOS -> TabEstudiosMiembro(
                             estudios        = uiState.estudios,
                             onToggleLeccion = viewModel::onToggleLeccion,
                             onCrearEstudio  = viewModel::onCrearEstudio,
-                            modifier        = Modifier.fillMaxSize(),
+                            modifier        = Modifier.weight(1f).fillMaxWidth(),
                         )
                     }
                 }
             }
+            } // Column
             } // PullToRefreshBox
         }
     }

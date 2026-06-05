@@ -2,22 +2,29 @@ package com.gpleader.app.feature.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.gpleader.app.core.data.repository.AsignadoPotencial
 import com.gpleader.app.core.data.repository.GroupLogRepository
 import com.gpleader.app.core.data.repository.GrupoRepository
 import com.gpleader.app.core.data.repository.MiembroRepository
 import com.gpleader.app.core.data.repository.ReunionRepository
 import com.gpleader.app.core.data.repository.SabbathMeetingResumen
-import com.gpleader.app.core.data.repository.Solicitud
 import com.gpleader.app.core.data.repository.SolicitudRepository
 import com.gpleader.app.core.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters
 import javax.inject.Inject
@@ -63,15 +70,16 @@ data class HomeUiState(
     val navigateToDetalle:    String?                  = null,
     val navigateToSabadoCulto: Boolean                 = false,
 
-    // ── Solicitudes ──────────────────────────────────────────────────────────
-    val solicitudesActivas:    List<Solicitud>          = emptyList(),
-    val solicitudAsignada:     Solicitud?               = null,  // pendiente para este usuario
-    val showDelegarSheet:      Boolean                  = false,
-    val asignadosPotenciales:  List<AsignadoPotencial>  = emptyList(),
-    val isLoadingAsignados:    Boolean                  = false,
-    val isCreandoSolicitud:    Boolean                  = false,
-    val solicitudError:        String?                  = null,
-    val showActivarDialog:     Boolean                  = false,
+    // ── Delegaciones activas (deputy_code con miembro asignado) ─────────────
+    val delegaciones:          List<DelegacionActiva>   = emptyList(),
+    val cancelandoCodeId:      String?                  = null,
+    val delegacionError:       String?                  = null,
+)
+
+data class DelegacionActiva(
+    val codeId:        String,
+    val nombreAsignado: String,
+    val expiresAt:     String?,
 )
 
 // ── ViewModel ─────────────────────────────────────────────────────────────────
@@ -83,6 +91,7 @@ class HomeViewModel @Inject constructor(
     private val miembroRepo:   MiembroRepository,
     private val solicitudRepo: SolicitudRepository,
     private val groupLogRepo:  GroupLogRepository,
+    private val supabase:      SupabaseClient,
     private val session:       SessionManager,
 ) : ViewModel() {
 
@@ -227,107 +236,55 @@ class HomeViewModel @Inject constructor(
         _uiState.update { it.copy(navigateToSabadoCulto = false) }
     }
 
-    // ── Solicitudes ───────────────────────────────────────────────────────────
+    // ── Delegaciones (deputy_code con miembro asignado) ──────────────────────
 
     fun cargarSolicitudes() {
         viewModelScope.launch {
-            val grupoId = session.grupoId
-            // Solicitudes que el líder creó (pendientes o activas)
-            runCatching { solicitudRepo.getSolicitudesCreadas(grupoId) }
-                .onSuccess { lista ->
-                    _uiState.update { it.copy(solicitudesActivas = lista) }
-                }
-            // Solicitudes asignadas al usuario autenticado (pendientes)
-            runCatching { solicitudRepo.getSolicitudesAsignadas(session.miembroId) }
-                .onSuccess { lista ->
-                    _uiState.update { it.copy(
-                        solicitudAsignada = lista.firstOrNull { it.smallGroupId != grupoId },
-                        showActivarDialog = lista.any { it.smallGroupId != grupoId },
-                    ) }
-                }
-        }
-    }
-
-    fun onDelegarClick() {
-        _uiState.update { it.copy(showDelegarSheet = true, isLoadingAsignados = true, solicitudError = null) }
-        viewModelScope.launch {
-            runCatching { solicitudRepo.getAsignadosPotenciales(session.grupoId) }
-                .onSuccess { lista ->
-                    val sinLider = lista.filter { it.profileId != session.miembroId }
-                    _uiState.update { it.copy(asignadosPotenciales = sinLider, isLoadingAsignados = false) }
-                }
-                .onFailure {
-                    _uiState.update { it.copy(isLoadingAsignados = false) }
-                }
-        }
-    }
-
-    fun onDismissDelegarSheet() {
-        _uiState.update { it.copy(showDelegarSheet = false, solicitudError = null) }
-    }
-
-    fun onCrearSolicitud(assignedToId: String, nota: String?) {
-        _uiState.update { it.copy(isCreandoSolicitud = true, solicitudError = null) }
-        viewModelScope.launch {
             runCatching {
-                solicitudRepo.createSolicitud(assignedToId, session.grupoId, nota)
-            }.onSuccess { nueva ->
-                // Buscar nombre del delegado para el log
-                val nombreDelegado = _uiState.value.asignadosPotenciales
-                    .find { it.profileId == assignedToId }?.nombre ?: "miembro"
-                groupLogRepo.logAccion(session.grupoId, "deputy_submission_created", "Delegación creada para $nombreDelegado")
-                _uiState.update { state ->
-                    state.copy(
-                        isCreandoSolicitud = false,
-                        showDelegarSheet   = false,
-                        solicitudesActivas = state.solicitudesActivas + nueva,
-                    )
+                val resp = supabase.from("deputy_code").select(
+                    columns = Columns.raw("id, expires_at, assigned_member_id, member!deputy_code_assigned_member_id_fkey(first_name, last_name)")
+                ) {
+                    filter {
+                        eq("small_group_id", session.grupoId)
+                        gt("expires_at", Instant.now().toString())
+                    }
+                }.data
+                Json.parseToJsonElement(resp).jsonArray.mapNotNull { el ->
+                    val obj        = el.jsonObject
+                    val id         = obj["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                    val assignedId = obj["assigned_member_id"]?.jsonPrimitive?.contentOrNull
+                    if (assignedId.isNullOrBlank()) return@mapNotNull null  // solo códigos asignados
+                    val usedAt     = obj["used_at"]?.jsonPrimitive?.contentOrNull
+                    if (!usedAt.isNullOrBlank()) return@mapNotNull null     // no usados
+                    val exp        = obj["expires_at"]?.jsonPrimitive?.contentOrNull
+                    val member     = obj["member"]?.jsonObject
+                    val nombre     = listOfNotNull(
+                        member?.get("first_name")?.jsonPrimitive?.contentOrNull,
+                        member?.get("last_name")?.jsonPrimitive?.contentOrNull,
+                    ).joinToString(" ")
+                    DelegacionActiva(codeId = id, nombreAsignado = nombre, expiresAt = exp)
                 }
-            }.onFailure { e ->
-                val msg = when {
-                    e.message?.contains("duplicate_solicitude") == true ->
-                        "Esta persona ya tiene una solicitud pendiente para este grupo"
-                    else -> "No se pudo crear la delegación"
-                }
-                _uiState.update { it.copy(isCreandoSolicitud = false, solicitudError = msg) }
+            }.onSuccess { lista ->
+                _uiState.update { it.copy(delegaciones = lista) }
             }
         }
     }
 
-    fun onCancelarSolicitud(solicitudId: String) {
+    fun onCancelarSolicitud(codeId: String) {
+        _uiState.update { it.copy(cancelandoCodeId = codeId, delegacionError = null) }
         viewModelScope.launch {
-            runCatching { solicitudRepo.cancelSolicitud(solicitudId) }
-                .onSuccess { _ ->
-                    _uiState.update { state ->
-                        state.copy(
-                            solicitudesActivas = state.solicitudesActivas
-                                .filter { it.id != solicitudId }
-                        )
-                    }
+            runCatching {
+                solicitudRepo.revokeDeputyCode(session.grupoId)
+            }.onSuccess {
+                _uiState.update { state ->
+                    state.copy(
+                        cancelandoCodeId = null,
+                        delegaciones     = state.delegaciones.filter { it.codeId != codeId },
+                    )
                 }
+            }.onFailure {
+                _uiState.update { it.copy(cancelandoCodeId = null, delegacionError = "No se pudo cancelar. Intentá de nuevo.") }
+            }
         }
-    }
-
-    fun onActivarSolicitud(solicitudId: String) {
-        viewModelScope.launch {
-            runCatching { solicitudRepo.activateSolicitud(solicitudId, session.miembroId) }
-                .onSuccess { activada ->
-                    _uiState.update { it.copy(
-                        showActivarDialog  = false,
-                        solicitudAsignada  = activada,
-                    ) }
-                }
-                .onFailure {
-                    _uiState.update { it.copy(showActivarDialog = false) }
-                }
-        }
-    }
-
-    fun onDismissActivarDialog() {
-        _uiState.update { it.copy(showActivarDialog = false) }
-    }
-
-    fun consumeSolicitudError() {
-        _uiState.update { it.copy(solicitudError = null) }
     }
 }
