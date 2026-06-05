@@ -35,6 +35,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.gpleader.app.core.ui.components.NeuAvatar
 import com.gpleader.app.core.ui.components.NeuButtonPrimary
 import com.gpleader.app.core.ui.components.NeuButtonSecondary
 import com.gpleader.app.core.ui.components.NeuCard
@@ -52,10 +53,11 @@ import com.gpleader.app.core.ui.theme.neuElevated
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MiembroHomeScreen(
-    onCerrarSesion:              () -> Unit,
-    onNavigateToActividades:     () -> Unit = {},
-    onNavigateToDuoMisionero:    () -> Unit = {},
+    onCerrarSesion:               () -> Unit,
+    onNavigateToActividades:      () -> Unit = {},
+    onNavigateToDuoMisionero:     () -> Unit = {},
     onNavigateToEstudiosBiblicos: () -> Unit = {},
+    onEntrarComoSuplente:         (solicitudId: String) -> Unit = {},
     viewModel: MiembroHomeViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -68,12 +70,13 @@ fun MiembroHomeScreen(
     }
 
     MiembroHomeContent(
-        uiState                       = uiState,
-        onCerrarSesion                = viewModel::onCerrarSesion,
-        onNavigateToActividades       = onNavigateToActividades,
-        onNavigateToDuoMisionero      = onNavigateToDuoMisionero,
-        onNavigateToEstudiosBiblicos  = onNavigateToEstudiosBiblicos,
-        onRefresh                     = viewModel::onRefresh,
+        uiState                      = uiState,
+        onCerrarSesion               = viewModel::onCerrarSesion,
+        onNavigateToActividades      = onNavigateToActividades,
+        onNavigateToDuoMisionero     = onNavigateToDuoMisionero,
+        onNavigateToEstudiosBiblicos = onNavigateToEstudiosBiblicos,
+        onEntrarComoSuplente         = onEntrarComoSuplente,
+        onRefresh                    = viewModel::onRefresh,
     )
 }
 
@@ -85,6 +88,7 @@ private fun MiembroHomeContent(
     onNavigateToActividades:      () -> Unit = {},
     onNavigateToDuoMisionero:     () -> Unit = {},
     onNavigateToEstudiosBiblicos: () -> Unit = {},
+    onEntrarComoSuplente:         (String) -> Unit = {},
     onRefresh:                    () -> Unit = {},
 ) {
     if (uiState.isValidandoPerfil) {
@@ -110,20 +114,7 @@ private fun MiembroHomeContent(
                 .padding(horizontal = 24.dp, vertical = 20.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(52.dp)
-                    .neuElevated(cornerRadius = 26.dp)
-                    .background(Background, RoundedCornerShape(26.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text       = uiState.miembroIniciales,
-                    style      = MaterialTheme.typography.titleLarge,
-                    color      = Accent,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
+            NeuAvatar(iniciales = uiState.miembroIniciales, size = 52.dp)
             Spacer(Modifier.width(14.dp))
             Column {
                 Text(
@@ -278,7 +269,15 @@ private fun MiembroHomeContent(
 
             Spacer(Modifier.height(24.dp))
 
-            // ── Cerrar sesión (al fondo del scroll) ───────────────────────────
+            // ── Entrar como suplente ──────────────────────────────────────────
+            NeuButtonPrimary(
+                text     = "Entrar como suplente",
+                onClick  = { onEntrarComoSuplente("") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(8.dp))
+
+            // ── Cerrar sesión ─────────────────────────────────────────────────
             NeuButtonSecondary(
                 text     = "Cerrar sesión",
                 onClick  = onCerrarSesion,

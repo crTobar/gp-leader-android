@@ -88,7 +88,10 @@ class MiembroActividadHistorialViewModel @Inject constructor(
     fun onCantidadChange(v: Int) = _uiState.update { it.copy(nuevaCantidad = v.coerceAtLeast(1)) }
 
     fun onGuardar() {
-        val cantidad = _uiState.value.nuevaCantidad
+        val state    = _uiState.value
+        val cantidad = state.nuevaCantidad
+        if (cantidad <= 0) return
+        val autoApprove = state.markerType != "monetary"
         viewModelScope.launch {
             _uiState.update { it.copy(isGuardando = true) }
             actividadRepo.agregarRegistroMiembro(
@@ -96,6 +99,7 @@ class MiembroActividadHistorialViewModel @Inject constructor(
                 actividadTipoId = actividadTipoId,
                 fecha           = LocalDate.now(),
                 count           = cantidad,
+                autoApprove     = autoApprove,
             ).fold(
                 onSuccess = {
                     _uiState.update { it.copy(isGuardando = false, showAddDialog = false) }

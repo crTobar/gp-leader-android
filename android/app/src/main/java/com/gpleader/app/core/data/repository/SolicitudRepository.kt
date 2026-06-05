@@ -30,8 +30,8 @@ interface SolicitudRepository {
     /** Solicitudes creadas por el líder para su grupo (pending + active). */
     suspend fun getSolicitudesCreadas(grupoId: String): List<Solicitud>
 
-    /** Solicitudes donde el usuario autenticado es el asignado (pending). */
-    suspend fun getSolicitudesAsignadas(): List<Solicitud>
+    /** Solicitudes asignadas a [miembroId] con status pending. */
+    suspend fun getSolicitudesAsignadas(miembroId: String): List<Solicitud>
 
     /** Crea una nueva solicitud delegando a [assignedToId]. */
     suspend fun createSolicitud(
@@ -43,11 +43,11 @@ interface SolicitudRepository {
     /** Cancela una solicitud propia (pending o active). */
     suspend fun cancelSolicitud(solicitudId: String): Solicitud
 
-    /** Activa una solicitud asignada al usuario autenticado. */
-    suspend fun activateSolicitud(solicitudId: String): Solicitud
+    /** Activa una solicitud asignada a [miembroId]. */
+    suspend fun activateSolicitud(solicitudId: String, miembroId: String): Solicitud
 
     /** Finaliza una solicitud activa vinculando la reunión registrada. */
-    suspend fun finishSolicitud(solicitudId: String, meetingId: String): Solicitud
+    suspend fun finishSolicitud(solicitudId: String, meetingId: String, miembroId: String): Solicitud
 
     /** Devuelve miembros del grupo con rol assignable (co_leader, anciano, leader). */
     suspend fun getAsignadosPotenciales(grupoId: String): List<AsignadoPotencial>

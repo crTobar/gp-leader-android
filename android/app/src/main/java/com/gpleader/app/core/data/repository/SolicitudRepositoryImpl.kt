@@ -31,11 +31,12 @@ class SolicitudRepositoryImpl @Inject constructor(
         return parseSolicitudes(data)
     }
 
-    override suspend fun getSolicitudesAsignadas(): List<Solicitud> {
+    override suspend fun getSolicitudesAsignadas(miembroId: String): List<Solicitud> {
         val data = supabase.from("solicitude").select(
-            columns = Columns.raw("*, profile!solicitude_created_by_fkey(first_name, last_name)")
+            columns = Columns.raw("*")
         ) {
             filter {
+                eq("assigned_to", miembroId)
                 eq("status", "pending")
             }
         }.data
@@ -64,18 +65,20 @@ class SolicitudRepositoryImpl @Inject constructor(
         return parseSolicitud(arr.first().jsonObject)
     }
 
-    override suspend fun activateSolicitud(solicitudId: String): Solicitud {
+    override suspend fun activateSolicitud(solicitudId: String, miembroId: String): Solicitud {
         val resp = supabase.postgrest.rpc("activate_solicitude", buildJsonObject {
             put("p_solicitude_id", solicitudId)
+            put("p_member_id",     miembroId)
         })
         val arr = Json.parseToJsonElement(resp.data).jsonArray
         return parseSolicitud(arr.first().jsonObject)
     }
 
-    override suspend fun finishSolicitud(solicitudId: String, meetingId: String): Solicitud {
+    override suspend fun finishSolicitud(solicitudId: String, meetingId: String, miembroId: String): Solicitud {
         val resp = supabase.postgrest.rpc("finish_solicitude", buildJsonObject {
             put("p_solicitude_id", solicitudId)
             put("p_meeting_id",    meetingId)
+            put("p_member_id",     miembroId)
         })
         val arr = Json.parseToJsonElement(resp.data).jsonArray
         return parseSolicitud(arr.first().jsonObject)

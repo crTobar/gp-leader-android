@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gpleader.app.core.data.repository.DuoRepository
 import com.gpleader.app.core.data.repository.MiembroRepository
+import com.gpleader.app.core.data.repository.SolicitudRepository
 import com.gpleader.app.core.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.jan.supabase.SupabaseClient
@@ -42,16 +43,21 @@ data class MiembroHomeUiState(
     // Dúo misionero
     val tieneDuo: Boolean = false,
 
+    // Solicitud suplente
+    val tieneSolicitudPendiente: Boolean = false,
+    val solicitudPendienteId:    String  = "",
+
     // Navegación
     val navigateToLogin: Boolean = false,
 )
 
 @HiltViewModel
 class MiembroHomeViewModel @Inject constructor(
-    private val miembroRepo: MiembroRepository,
-    private val duoRepo:     DuoRepository,
-    private val session:     SessionManager,
-    private val supabase:    SupabaseClient,
+    private val miembroRepo:   MiembroRepository,
+    private val duoRepo:       DuoRepository,
+    private val session:       SessionManager,
+    private val supabase:      SupabaseClient,
+    private val solicitudRepo: SolicitudRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MiembroHomeUiState())
@@ -72,6 +78,22 @@ class MiembroHomeViewModel @Inject constructor(
         validarPerfilEnServidor()
         cargarEstadisticasTrimestre()
         verificarDuo()
+        verificarSolicitudSuplente()
+    }
+
+    private fun verificarSolicitudSuplente() {
+        viewModelScope.launch {
+            runCatching { solicitudRepo.getSolicitudesAsignadas(session.miembroId) }
+                .onSuccess { lista ->
+                    val pendiente = lista.firstOrNull { it.status == "pending" }
+                    _uiState.update {
+                        it.copy(
+                            tieneSolicitudPendiente = pendiente != null,
+                            solicitudPendienteId    = pendiente?.id ?: "",
+                        )
+                    }
+                }
+        }
     }
 
     private fun verificarDuo() {
@@ -160,6 +182,7 @@ class MiembroHomeViewModel @Inject constructor(
             _uiState.update { it.copy(isRefreshing = true) }
             verificarDuo()
             cargarEstadisticasTrimestre()
+            verificarSolicitudSuplente()
             _uiState.update { it.copy(isRefreshing = false) }
         }
     }

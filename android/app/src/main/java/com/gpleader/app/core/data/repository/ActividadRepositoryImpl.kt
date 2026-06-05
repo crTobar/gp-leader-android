@@ -148,7 +148,7 @@ class ActividadRepositoryImpl @Inject constructor(
             ) {
                 filter {
                     isIn("member_id", memberIds)
-                    isIn("status", listOf("approved", "pending_board"))
+                    neq("status", "rejected")
                 }
             }.data
             Json.parseToJsonElement(memberData).jsonArray.forEach { elem ->
@@ -713,14 +713,17 @@ class ActividadRepositoryImpl @Inject constructor(
             val miembroId = obj["member_id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
             val dateStr   = obj["record_date"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
             val recordDate = runCatching { LocalDate.parse(dateStr) }.getOrNull() ?: return@mapNotNull null
+            val count  = obj["count"]?.jsonPrimitive?.intOrNull
+            val isDone = obj["is_done"]?.jsonPrimitive?.booleanOrNull ?: false
+            if (count != null && count <= 0 && !isDone) return@mapNotNull null
             MemberActivitySubmission(
                 recordId      = obj["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
                 miembroId     = miembroId,
                 miembroNombre = members[miembroId] ?: "Miembro",
                 recordDate    = recordDate,
-                count         = obj["count"]?.jsonPrimitive?.intOrNull,
+                count         = count,
                 monto         = null,
-                isDone        = obj["is_done"]?.jsonPrimitive?.booleanOrNull ?: false,
+                isDone        = isDone,
                 status        = obj["status"]?.jsonPrimitive?.contentOrNull ?: "draft",
                 markedAt      = obj["marked_at"]?.jsonPrimitive?.contentOrNull?.let { parseTimestamp(it) },
             )
@@ -743,11 +746,14 @@ class ActividadRepositoryImpl @Inject constructor(
         Json.parseToJsonElement(data).jsonArray.mapNotNull { elem ->
             val obj     = elem.jsonObject
             val dateStr = obj["record_date"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            val count   = obj["count"]?.jsonPrimitive?.intOrNull
+            val isDone  = obj["is_done"]?.jsonPrimitive?.booleanOrNull ?: false
+            if (count != null && count <= 0 && !isDone) return@mapNotNull null
             RegistroHistorial(
                 id         = obj["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
                 recordDate = runCatching { LocalDate.parse(dateStr) }.getOrNull() ?: return@mapNotNull null,
-                count      = obj["count"]?.jsonPrimitive?.intOrNull,
-                isDone     = obj["is_done"]?.jsonPrimitive?.booleanOrNull ?: false,
+                count      = count,
+                isDone     = isDone,
                 status     = obj["status"]?.jsonPrimitive?.contentOrNull ?: "draft",
             )
         }.sortedByDescending { it.recordDate }
@@ -763,7 +769,7 @@ class ActividadRepositoryImpl @Inject constructor(
             filter {
                 eq("member_id", miembroId)
                 eq("activity_type_id", actividadTipoId)
-                isIn("status", listOf("approved", "pending_board"))
+                neq("status", "rejected")
             }
         }.data
         Json.parseToJsonElement(data).jsonArray.sumOf { elem ->
@@ -778,6 +784,7 @@ class ActividadRepositoryImpl @Inject constructor(
         count: Int,
         autoApprove: Boolean,
     ): Result<Unit> = runCatching {
+        if (count <= 0) return@runCatching
         supabase.from("member_activity_record").upsert(
             buildJsonObject {
                 put("member_id",         miembroId)

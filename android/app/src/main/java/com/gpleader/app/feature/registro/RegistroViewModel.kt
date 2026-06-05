@@ -610,7 +610,7 @@ class RegistroViewModel @Inject constructor(
                 val nuevoTotal = newDesglose.sumOf { it.cantidad }
                 a.copy(
                     desgloseMiembros = newDesglose,
-                    cantidad = nuevoTotal.takeIf { nuevoTotal > 0 },
+                    cantidad = nuevoTotal,
                 )
             })
         }
@@ -797,7 +797,7 @@ class RegistroViewModel @Inject constructor(
             // Guardar registros de actividades (best-effort; no bloquea al usuario si falla)
             if (!state.noHuboReunion) {
                 val registros = state.actividades
-                    .filter { !it.esExtra }
+                    .filter { !it.esExtra && !it.bloqueada }
                     .mapNotNull { a -> mapActividadToRegistro(a) }
                 actividadRepo.saveRegistros(meetingId, registros)
             }

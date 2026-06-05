@@ -1,6 +1,7 @@
 package com.gpleader.app.feature.miembro
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,26 +11,25 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -42,7 +42,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -60,6 +62,7 @@ import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.Sage
 import com.gpleader.app.core.ui.theme.neuElevatedSm
 import com.gpleader.app.core.ui.theme.neuGlow
+import com.gpleader.app.core.ui.theme.neuInsetSm
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -72,111 +75,162 @@ fun MiembroActividadHistorialScreen(
     val uiState by viewModel.uiState.collectAsState()
     OnResumeEffect { viewModel.cargar() }
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Background)
             .statusBarsPadding(),
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // ── TopBar ────────────────────────────────────────────────────────
+        // ── Back button ───────────────────────────────────────────────────────
+        Row(
+            modifier          = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .neuElevatedSm(cornerRadius = 12.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Background)
+                    .clickable(onClick = onNavigateBack)
+                    .padding(10.dp),
+            ) {
+                Icon(
+                    imageVector        = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Volver",
+                    tint               = Ink,
+                    modifier           = Modifier.size(20.dp),
+                )
+            }
+            Text(
+                text      = "Detalle",
+                style     = MaterialTheme.typography.titleLarge,
+                color     = Ink,
+                textAlign = TextAlign.Center,
+                modifier  = Modifier.weight(1f),
+            )
+            Box(modifier = Modifier.size(40.dp))
+        }
+
+        // ── Card nombre + total ───────────────────────────────────────────────
+        NeuCard(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+        ) {
             Row(
                 modifier          = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(onClick = onNavigateBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = Ink)
+                Text(
+                    text       = uiState.nombreActividad.ifBlank { "Actividad" },
+                    style      = MaterialTheme.typography.titleLarge,
+                    color      = Ink,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier   = Modifier.weight(1f),
+                )
+                val totalLabel = when (uiState.markerType) {
+                    "monetary"              -> "₡${uiState.totalHistorico}"
+                    "realizado", "checkbox" -> if (uiState.totalHistorico > 0) "${uiState.totalHistorico}×" else "—"
+                    else                    -> if (uiState.totalHistorico > 0) "${uiState.totalHistorico} ${uiState.unitLabel}" else "—"
                 }
-                Spacer(Modifier.width(4.dp))
-                Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text       = totalLabel,
+                    style      = MaterialTheme.typography.bodyLarge,
+                    color      = if (uiState.totalHistorico > 0) Accent else Muted,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        // ── Card "Registrar aporte" (solo para no-monetario) ─────────────────
+        if (uiState.markerType != "monetary") {
+            NeuCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                ) {
                     Text(
-                        text       = uiState.nombreActividad.ifBlank { "Actividad" },
+                        text       = "Registrar aporte",
                         style      = MaterialTheme.typography.titleLarge,
                         color      = Ink,
                         fontWeight = FontWeight.SemiBold,
                     )
-                    // Total acumulado
-                    val totalLabel = when (uiState.markerType) {
-                        "monetary"              -> "₡${uiState.totalHistorico} acumulado"
-                        "realizado", "checkbox" -> if (uiState.totalHistorico > 0) "Realizado ${uiState.totalHistorico} veces" else "Aún no realizado"
-                        else                    -> "${uiState.totalHistorico} ${uiState.unitLabel} acumulados"
-                    }
+                    Spacer(Modifier.height(4.dp))
                     Text(
-                        text  = totalLabel,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (uiState.totalHistorico > 0) Accent else Muted,
+                        text  = "Registra tu aporte de hoy",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Muted,
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    NeuButtonPrimary(
+                        text     = "Agregar",
+                        onClick  = viewModel::onShowAddDialog,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
-
-            PullToRefreshBox(
-                isRefreshing = uiState.isRefreshing,
-                onRefresh    = viewModel::onRefresh,
-                modifier     = Modifier.fillMaxSize(),
-                indicator    = {},
-            ) {
-                when {
-                    uiState.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = Accent)
-                    }
-
-                    uiState.error != null -> Box(
-                        Modifier.fillMaxSize().padding(24.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(uiState.error!!, color = Blush, textAlign = TextAlign.Center)
-                    }
-
-                    uiState.registros.isEmpty() -> Box(
-                        Modifier.fillMaxSize().padding(24.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Sin registros aún", style = MaterialTheme.typography.bodyLarge, color = Muted)
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text  = "Usa el botón + para registrar tu primer aporte.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Muted,
-                                textAlign = TextAlign.Center,
-                            )
-                        }
-                    }
-
-                    else -> LazyColumn(
-                        modifier            = Modifier.fillMaxSize(),
-                        contentPadding      = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 100.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        items(uiState.registros, key = { it.id }) { reg ->
-                            RegistroHistorialRow(
-                                reg        = reg,
-                                markerType = uiState.markerType,
-                                unitLabel  = uiState.unitLabel,
-                            )
-                        }
-                    }
-                }
-            }
+            Spacer(Modifier.height(16.dp))
         }
 
-        // ── FAB agregar (solo para counter y realizado, no monetary) ─────────
-        if (uiState.markerType != "monetary") {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .navigationBarsPadding()
-                    .padding(24.dp)
-                    .size(56.dp)
-                    .neuGlow(cornerRadius = 28.dp)
-                    .clip(RoundedCornerShape(28.dp))
-                    .background(Accent),
-            ) {
-                IconButton(onClick = viewModel::onShowAddDialog) {
-                    Icon(Icons.Default.Add, contentDescription = "Agregar", tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(24.dp))
+        // ── Lista de registros ────────────────────────────────────────────────
+        PullToRefreshBox(
+            isRefreshing = uiState.isRefreshing,
+            onRefresh    = viewModel::onRefresh,
+            modifier     = Modifier.fillMaxSize(),
+            indicator    = {},
+        ) {
+            when {
+                uiState.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Accent)
+                }
+
+                uiState.error != null -> Box(
+                    Modifier.fillMaxSize().padding(24.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(uiState.error!!, color = Blush, textAlign = TextAlign.Center)
+                }
+
+                uiState.registros.isEmpty() -> Box(
+                    Modifier.fillMaxSize().padding(24.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Sin registros aún", style = MaterialTheme.typography.bodyLarge, color = Muted)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text  = "Toca \"Agregar\" para registrar tu primer aporte.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Muted,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
+
+                else -> LazyColumn(
+                    modifier            = Modifier.fillMaxSize(),
+                    contentPadding      = PaddingValues(start = 20.dp, end = 20.dp, top = 0.dp, bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    items(uiState.registros, key = { it.id }) { reg ->
+                        RegistroHistorialRow(
+                            reg        = reg,
+                            markerType = uiState.markerType,
+                            unitLabel  = uiState.unitLabel,
+                        )
+                    }
                 }
             }
         }
@@ -229,18 +283,20 @@ private fun RegistroHistorialRow(
                     color      = Ink,
                     fontWeight = FontWeight.Medium,
                 )
-                Spacer(Modifier.height(2.dp))
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(statusColor.copy(alpha = 0.12f))
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                ) {
-                    Text(
-                        text  = statusLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = statusColor,
-                    )
+                if (markerType == "monetary") {
+                    Spacer(Modifier.height(2.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(statusColor.copy(alpha = 0.12f))
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                    ) {
+                        Text(
+                            text  = statusLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = statusColor,
+                        )
+                    }
                 }
             }
             when (markerType) {
@@ -305,25 +361,108 @@ private fun AddRegistroDialog(
                     color = Mid,
                 )
             } else {
-                var texto by remember { mutableStateOf(if (cantidad > 0) cantidad.toString() else "") }
-                Column {
+                var editando  by remember { mutableStateOf(false) }
+                var inputText by remember { mutableStateOf(cantidad.toString()) }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text  = "¿Cuánto ${unitLabel.ifBlank { "deseas agregar" }}?",
+                        text  = unitLabel.ifBlank { "Cantidad" },
                         style = MaterialTheme.typography.bodyMedium,
                         color = Mid,
                     )
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value         = texto,
-                        onValueChange = { v ->
-                            texto = v.filter { it.isDigit() }
-                            onCantidadChange(texto.toIntOrNull() ?: 1)
-                        },
-                        label         = { Text(unitLabel.ifBlank { "Cantidad" }) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine    = true,
-                        modifier      = Modifier.fillMaxWidth(),
-                    )
+                    Spacer(Modifier.height(20.dp))
+                    Row(
+                        verticalAlignment     = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier              = Modifier.fillMaxWidth(),
+                    ) {
+                        // − button
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .neuElevatedSm(cornerRadius = 14.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Background)
+                                .clickable(enabled = cantidad > 0) {
+                                    editando = false
+                                    onCantidadChange((cantidad - 1).coerceAtLeast(0))
+                                }
+                                .padding(horizontal = 20.dp, vertical = 14.dp),
+                        ) {
+                            Text(
+                                text  = "−",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = if (cantidad > 0) Ink else Muted,
+                            )
+                        }
+                        Spacer(Modifier.width(16.dp))
+                        // Valor central — tappable para input directo
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .neuInsetSm(cornerRadius = 12.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Background)
+                                .clickable {
+                                    inputText = if (cantidad > 0) cantidad.toString() else ""
+                                    editando = true
+                                }
+                                .padding(horizontal = 24.dp, vertical = 14.dp)
+                                .widthIn(min = 64.dp),
+                        ) {
+                            if (editando) {
+                                BasicTextField(
+                                    value         = inputText,
+                                    onValueChange = {
+                                        inputText = it.filter { c -> c.isDigit() }
+                                        onCantidadChange(inputText.toIntOrNull() ?: 0)
+                                    },
+                                    singleLine    = true,
+                                    textStyle     = MaterialTheme.typography.headlineMedium.copy(
+                                        color     = Accent,
+                                        textAlign = TextAlign.Center,
+                                    ),
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.Number,
+                                        imeAction    = ImeAction.Done,
+                                    ),
+                                    keyboardActions = KeyboardActions(
+                                        onDone = {
+                                            editando = false
+                                            onCantidadChange(inputText.toIntOrNull() ?: 0)
+                                        },
+                                    ),
+                                )
+                            } else {
+                                Text(
+                                    text      = cantidad.toString(),
+                                    style     = MaterialTheme.typography.headlineMedium,
+                                    color     = if (cantidad > 0) Accent else Muted,
+                                    textAlign = TextAlign.Center,
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(16.dp))
+                        // + button
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .neuGlow(cornerRadius = 14.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Accent)
+                                .clickable {
+                                    editando = false
+                                    onCantidadChange(cantidad + 1)
+                                }
+                                .padding(horizontal = 20.dp, vertical = 14.dp),
+                        ) {
+                            Text(
+                                text  = "+",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = Color.White,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
                 }
             }
         },
@@ -331,8 +470,8 @@ private fun AddRegistroDialog(
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Accent)
             } else {
-                TextButton(onClick = onConfirmar) {
-                    Text("Guardar", color = Accent, fontWeight = FontWeight.SemiBold)
+                TextButton(onClick = onConfirmar, enabled = cantidad > 0) {
+                    Text("Guardar", color = if (cantidad > 0) Accent else Muted, fontWeight = FontWeight.SemiBold)
                 }
             }
         },

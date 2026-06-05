@@ -238,7 +238,7 @@ class HomeViewModel @Inject constructor(
                     _uiState.update { it.copy(solicitudesActivas = lista) }
                 }
             // Solicitudes asignadas al usuario autenticado (pendientes)
-            runCatching { solicitudRepo.getSolicitudesAsignadas() }
+            runCatching { solicitudRepo.getSolicitudesAsignadas(session.miembroId) }
                 .onSuccess { lista ->
                     _uiState.update { it.copy(
                         solicitudAsignada = lista.firstOrNull { it.smallGroupId != grupoId },
@@ -310,7 +310,7 @@ class HomeViewModel @Inject constructor(
 
     fun onActivarSolicitud(solicitudId: String) {
         viewModelScope.launch {
-            runCatching { solicitudRepo.activateSolicitud(solicitudId) }
+            runCatching { solicitudRepo.activateSolicitud(solicitudId, session.miembroId) }
                 .onSuccess { activada ->
                     _uiState.update { it.copy(
                         showActivarDialog  = false,

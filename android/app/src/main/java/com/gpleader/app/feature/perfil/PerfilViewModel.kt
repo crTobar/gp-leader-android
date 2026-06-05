@@ -154,11 +154,13 @@ data class PerfilUiState(
     val navigateToActividadesLista:  Boolean = false,
 
     // Asignar suplente (sheet)
-    val showDelegarSheet:     Boolean                 = false,
-    val asignadosPotenciales: List<AsignadoPotencial> = emptyList(),
-    val isLoadingAsignados:   Boolean                 = false,
-    val isCreandoSolicitud:   Boolean                 = false,
-    val solicitudError:       String?                 = null,
+    val showDelegarSheet:       Boolean                 = false,
+    val asignadosPotenciales:   List<AsignadoPotencial> = emptyList(),
+    val isLoadingAsignados:     Boolean                 = false,
+    val isGenerandoCodigo:      Boolean                 = false,
+    val solicitudError:         String?                 = null,
+    val miembroSeleccionadoId:  String                  = "",
+    val codigoSuplente:         String                  = "",
 )
 
 // ── ViewModel ─────────────────────────────────────────────────────────────────
@@ -375,27 +377,27 @@ class PerfilViewModel @Inject constructor(
     }
 
     fun onDismissDelegarSheet() {
-        _uiState.update { it.copy(showDelegarSheet = false, solicitudError = null) }
+        _uiState.update { it.copy(showDelegarSheet = false, solicitudError = null, miembroSeleccionadoId = "", codigoSuplente = "") }
     }
 
-    fun onCrearSolicitud(assignedToId: String, nota: String?) {
-        _uiState.update { it.copy(isCreandoSolicitud = true, solicitudError = null) }
+    fun onSeleccionarMiembroSuplente(id: String) {
+        _uiState.update { it.copy(miembroSeleccionadoId = id, codigoSuplente = "", isGenerandoCodigo = true, solicitudError = null) }
         viewModelScope.launch {
             runCatching {
-                solicitudRepo.createSolicitud(assignedToId, session.grupoId, nota)
-            }.onSuccess {
-                val nombreDelegado = _uiState.value.asignadosPotenciales
-                    .find { it.profileId == assignedToId }?.nombre ?: "miembro"
-                groupLogRepo.logAccion(session.grupoId, "deputy_submission_created", "Delegación creada para $nombreDelegado")
-                _uiState.update { it.copy(isCreandoSolicitud = false, showDelegarSheet = false) }
-            }.onFailure { e ->
-                val msg = when {
-                    e.message?.contains("duplicate_solicitude") == true ->
-                        "Esta persona ya tiene una solicitud pendiente para este grupo"
-                    else -> "No se pudo crear la delegación"
-                }
-                _uiState.update { it.copy(isCreandoSolicitud = false, solicitudError = msg) }
+                val resp = supabase.postgrest.rpc("create_deputy_code", buildJsonObject {
+                    put("p_small_group_id", session.grupoId)
+                })
+                val arr = Json.parseToJsonElement(resp.data).jsonArray
+                arr.first().jsonObject["code"]?.jsonPrimitive?.contentOrNull ?: ""
+            }.onSuccess { code ->
+                _uiState.update { it.copy(codigoSuplente = code, isGenerandoCodigo = false) }
+            }.onFailure {
+                _uiState.update { it.copy(isGenerandoCodigo = false, solicitudError = "No se pudo generar el código") }
             }
         }
+    }
+
+    fun onCrearSolicitud() {
+        _uiState.update { it.copy(showDelegarSheet = false, miembroSeleccionadoId = "", codigoSuplente = "", solicitudError = null) }
     }
 }

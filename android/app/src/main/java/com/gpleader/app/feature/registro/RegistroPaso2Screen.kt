@@ -102,8 +102,6 @@ fun RegistroPaso2Screen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    OnResumeEffect { viewModel.recargarActividades() }
-
     LaunchedEffect(uiState.navigateToPaso3) {
         if (uiState.navigateToPaso3) {
             viewModel.consumePaso3Navigation()
@@ -112,12 +110,13 @@ fun RegistroPaso2Screen(
     }
 
     RegistroPaso2Content(
-        uiState          = uiState,
-        onNavigateBack   = onNavigateBack,
-        onActividadClick = onNavigateToDetalle,
-        onAgregarExtra   = onNavigateToAgregar,
-        onCheckboxToggle = viewModel::onCheckboxToggle,
-        onSiguiente      = viewModel::onSiguienteClick,
+        uiState           = uiState,
+        onNavigateBack    = onNavigateBack,
+        onActividadClick  = onNavigateToDetalle,
+        onAgregarExtra    = onNavigateToAgregar,
+        onCheckboxToggle  = viewModel::onCheckboxToggle,
+        onCantidadChange  = viewModel::onCantidadChange,
+        onSiguiente       = viewModel::onSiguienteClick,
     )
 }
 
@@ -130,6 +129,7 @@ private fun RegistroPaso2Content(
     onActividadClick: (String) -> Unit,
     onAgregarExtra:   () -> Unit,
     onCheckboxToggle: (String) -> Unit,
+    onCantidadChange: (String, Int?) -> Unit,
     onSiguiente:      () -> Unit,
 ) {
     val actividadesUnion  = uiState.actividades.filter { it.nivel == NivelActividad.UNION }
@@ -139,10 +139,22 @@ private fun RegistroPaso2Content(
     val listState        = rememberLazyListState()
     val errorShakeOffset = remember { Animatable(0f) }
 
-    // Al fallar validación: desplazar a sección PASTOR (donde están las obligatorias) y sacudir error
+    // índices en LazyColumn: 0=TopBar, 1=Stepper, 2=Spacer, 3=UNION, 4=Spacer, 5=PASTOR, 6=Spacer, 7=GP
+    fun ActividadRegistro.estaVacia() = when (tipoMarcador) {
+        TipoMarcador.CHECKBOX      -> realizado == null
+        TipoMarcador.MONETARIO     -> monto == null
+        else                       -> cantidad == null
+    }
+
     LaunchedEffect(uiState.errorActividadesObligatoriasTrigger) {
         if (uiState.errorActividadesObligatoriasTrigger > 0) {
-            listState.animateScrollToItem(5) // índice de SeccionActividades PASTOR
+            val targetIndex = when {
+                actividadesUnion .any { it.esObligatoria && it.estaVacia() } -> 3
+                actividadesPastor.any { it.esObligatoria && it.estaVacia() } -> 5
+                actividadesGP    .any { it.esObligatoria && it.estaVacia() } -> 7
+                else -> 5
+            }
+            listState.animateScrollToItem(targetIndex)
             repeat(3) {
                 errorShakeOffset.animateTo(10f, tween(70))
                 errorShakeOffset.animateTo(-10f, tween(70))
@@ -175,7 +187,10 @@ private fun RegistroPaso2Content(
                     actividades      = actividadesUnion,
                     onActividadClick = onActividadClick,
                     onCheckboxToggle = onCheckboxToggle,
+                    onCantidadChange = onCantidadChange,
                     onAgregarExtra   = null,
+                    hayError         = uiState.errorActividadesObligatorias,
+                    shakeOffset      = errorShakeOffset.value,
                     modifier         = Modifier.padding(horizontal = 16.dp),
                 )
             }
@@ -199,7 +214,10 @@ private fun RegistroPaso2Content(
                     actividades      = actividadesPastor,
                     onActividadClick = onActividadClick,
                     onCheckboxToggle = onCheckboxToggle,
+                    onCantidadChange = onCantidadChange,
                     onAgregarExtra   = null,
+                    hayError         = uiState.errorActividadesObligatorias,
+                    shakeOffset      = errorShakeOffset.value,
                     modifier         = Modifier.padding(horizontal = 16.dp),
                 )
             }
@@ -223,22 +241,12 @@ private fun RegistroPaso2Content(
                     actividades      = actividadesGP,
                     onActividadClick = onActividadClick,
                     onCheckboxToggle = onCheckboxToggle,
+                    onCantidadChange = onCantidadChange,
                     onAgregarExtra   = if (uiState.registryKind == RegistryKind.SATURDAY_WORSHIP) null else onAgregarExtra,
+                    hayError         = uiState.errorActividadesObligatorias,
+                    shakeOffset      = errorShakeOffset.value,
                     modifier         = Modifier.padding(horizontal = 16.dp),
                 )
-            }
-
-            if (uiState.errorActividadesObligatorias) {
-                item {
-                    Text(
-                        text     = stringResource(R.string.registro_error_obligatorias),
-                        style    = MaterialTheme.typography.bodyMedium,
-                        color    = Blush,
-                        modifier = Modifier
-                            .padding(horizontal = 16.dp, vertical = 6.dp)
-                            .offset { IntOffset(errorShakeOffset.value.roundToInt(), 0) },
-                    )
-                }
             }
 
             item { Spacer(Modifier.height(8.dp)) }
@@ -412,7 +420,10 @@ private fun SeccionActividades(
     actividades:      List<ActividadRegistro>,
     onActividadClick: (String) -> Unit,
     onCheckboxToggle: (String) -> Unit,
+    onCantidadChange: (String, Int?) -> Unit,
     onAgregarExtra:   (() -> Unit)?,
+    hayError:         Boolean = false,
+    shakeOffset:      Float   = 0f,
     modifier:         Modifier = Modifier,
 ) {
     if (actividades.isEmpty() && onAgregarExtra == null) return
@@ -438,10 +449,20 @@ private fun SeccionActividades(
 
         // ── Tarjeta individual por actividad ──────────────────────────────────
         actividades.forEach { actividad ->
+            val estaVacia = when (actividad.tipoMarcador) {
+                TipoMarcador.CHECKBOX      -> actividad.realizado == null
+                TipoMarcador.MONETARIO     -> actividad.monto == null
+                else                       -> actividad.cantidad == null
+            }
+            val mostrarError = hayError && actividad.esObligatoria && estaVacia
             ActividadCard(
                 actividad        = actividad,
                 onClick          = { onActividadClick(actividad.id) },
                 onCheckboxToggle = { onCheckboxToggle(actividad.id) },
+                onDecrement      = { val cur = actividad.cantidad; onCantidadChange(actividad.id, if (cur == null || cur <= 0) null else cur - 1) },
+                onIncrement      = { val cur = actividad.cantidad ?: -1; onCantidadChange(actividad.id, cur + 1) },
+                mostrarError     = mostrarError,
+                shakeOffset      = if (mostrarError) shakeOffset else 0f,
             )
         }
 
@@ -464,12 +485,21 @@ private fun ActividadCard(
     actividad:        ActividadRegistro,
     onClick:          () -> Unit,
     onCheckboxToggle: () -> Unit,
+    onDecrement:      () -> Unit = {},
+    onIncrement:      () -> Unit = {},
+    mostrarError:     Boolean = false,
+    shakeOffset:      Float   = 0f,
     modifier:         Modifier = Modifier,
 ) {
     val tappable = !actividad.bloqueada && actividad.tipoMarcador != TipoMarcador.CHECKBOX
 
-    NeuCard(
+    Column(
         modifier = modifier
+            .fillMaxWidth()
+            .offset { IntOffset(shakeOffset.roundToInt(), 0) },
+    ) {
+    NeuCard(
+        modifier = Modifier
             .fillMaxWidth()
             .then(if (tappable) Modifier.clickable(onClick = onClick) else Modifier),
     ) {
@@ -552,6 +582,7 @@ private fun ActividadCard(
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
                             .size(28.dp)
                             .clip(RoundedCornerShape(7.dp))
                             .background(if (realizado) Accent else BackgroundDeep)
@@ -566,44 +597,98 @@ private fun ActividadCard(
                     }
                 }
                 else -> {
-                    val valorText = when (actividad.tipoMarcador) {
-                        TipoMarcador.MONETARIO -> actividad.monto?.let { "₡${it.toLong()}" } ?: "—"
-                        else                   -> actividad.cantidad?.toString() ?: "—"
-                    }
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(BackgroundDeep)
-                            .padding(horizontal = 10.dp, vertical = 5.dp),
-                    ) {
-                        Text(
-                            text       = valorText,
-                            style      = MaterialTheme.typography.labelSmall,
-                            color      = if (valorText == "—") Muted else Accent,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                    }
-                    Spacer(Modifier.width(6.dp))
-                    if (actividad.bloqueada) {
-                        Icon(
-                            imageVector        = Icons.Default.Lock,
-                            contentDescription = null,
-                            tint               = Muted,
-                            modifier           = Modifier.size(16.dp),
-                        )
+                    val showInlineCounter = !actividad.bloqueada &&
+                        (actividad.tipoMarcador == TipoMarcador.CONTADOR || actividad.tipoMarcador == TipoMarcador.PARTICIPANTES)
+
+                    if (showInlineCounter) {
+                        val tieneValor = actividad.cantidad != null
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            // Chip valor — tappable → detalle
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(BackgroundDeep)
+                                    .clickable(onClick = onClick)
+                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                                    .widthIn(min = 28.dp),
+                            ) {
+                                Text(
+                                    text       = actividad.cantidad?.toString() ?: "—",
+                                    style      = MaterialTheme.typography.labelSmall,
+                                    color      = if (tieneValor) Accent else Muted,
+                                    fontWeight = FontWeight.SemiBold,
+                                    textAlign  = TextAlign.Center,
+                                )
+                            }
+                            // "+" solo cuando es — (null) para confirmar 0
+                            if (!tieneValor) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Accent)
+                                        .clickable(onClick = onIncrement)
+                                        .padding(horizontal = 8.dp, vertical = 5.dp),
+                                ) {
+                                    Text(
+                                        text       = "+",
+                                        style      = MaterialTheme.typography.labelSmall,
+                                        color      = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+                            }
+                        }
                     } else {
-                        Icon(
-                            imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            contentDescription = null,
-                            tint               = Accent,
-                            modifier           = Modifier.size(20.dp),
-                        )
+                        val valorText = when (actividad.tipoMarcador) {
+                            TipoMarcador.MONETARIO -> actividad.monto?.let { "₡${it.toLong()}" } ?: "—"
+                            else                   -> actividad.cantidad?.toString() ?: "—"
+                        }
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(BackgroundDeep)
+                                .padding(horizontal = 10.dp, vertical = 5.dp),
+                        ) {
+                            Text(
+                                text       = valorText,
+                                style      = MaterialTheme.typography.labelSmall,
+                                color      = if (valorText == "—") Muted else Accent,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                        Spacer(Modifier.width(6.dp))
+                        if (actividad.bloqueada) {
+                            Icon(
+                                imageVector        = Icons.Default.Lock,
+                                contentDescription = null,
+                                tint               = Muted,
+                                modifier           = Modifier.size(16.dp),
+                            )
+                        } else {
+                            Icon(
+                                imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint               = Accent,
+                                modifier           = Modifier.size(20.dp),
+                            )
+                        }
                     }
                 }
             }
         }
     }
+    if (mostrarError) {
+        Text(
+            text     = stringResource(R.string.registro_error_obligatorias),
+            style    = MaterialTheme.typography.bodySmall,
+            color    = Blush,
+            modifier = Modifier.padding(start = 4.dp, top = 4.dp),
+        )
+    }
+    } // Column
 }
 
 
@@ -979,12 +1064,13 @@ private val paso2PreviewState = RegistroUiState(
 private fun Paso2Preview() {
     GpLeaderTheme {
         RegistroPaso2Content(
-            uiState          = paso2PreviewState,
-            onNavigateBack   = {},
-            onActividadClick = {},
-            onAgregarExtra   = {},
-            onCheckboxToggle = {},
-            onSiguiente      = {},
+            uiState           = paso2PreviewState,
+            onNavigateBack    = {},
+            onActividadClick  = {},
+            onAgregarExtra    = {},
+            onCheckboxToggle  = {},
+            onCantidadChange  = { _, _ -> },
+            onSiguiente       = {},
         )
     }
 }
@@ -994,12 +1080,13 @@ private fun Paso2Preview() {
 private fun Paso2ErrorPreview() {
     GpLeaderTheme {
         RegistroPaso2Content(
-            uiState          = paso2PreviewState.copy(errorActividadesObligatorias = true),
-            onNavigateBack   = {},
-            onActividadClick = {},
-            onAgregarExtra   = {},
-            onCheckboxToggle = {},
-            onSiguiente      = {},
+            uiState           = paso2PreviewState.copy(errorActividadesObligatorias = true),
+            onNavigateBack    = {},
+            onActividadClick  = {},
+            onAgregarExtra    = {},
+            onCheckboxToggle  = {},
+            onCantidadChange  = { _, _ -> },
+            onSiguiente       = {},
         )
     }
 }

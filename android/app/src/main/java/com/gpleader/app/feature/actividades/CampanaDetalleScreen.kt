@@ -24,10 +24,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -45,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gpleader.app.core.data.repository.DiaStat
 import com.gpleader.app.core.data.repository.MiembroMarcado
+import com.gpleader.app.core.ui.components.NeuAvatar
 import com.gpleader.app.core.ui.components.NeuCard
 import com.gpleader.app.core.ui.theme.Accent
 import com.gpleader.app.core.ui.theme.Background
@@ -282,25 +282,24 @@ private fun MiembroRow(
     isToggling: Boolean,
     onToggle:   () -> Unit,
 ) {
+    val iniciales = miembro.nombre.split(" ")
+        .take(2).mapNotNull { it.firstOrNull()?.uppercaseChar() }.joinToString("")
+
     Row(
         modifier          = Modifier
             .fillMaxWidth()
             .clickable(enabled = !isToggling, onClick = onToggle)
-            .padding(horizontal = 20.dp, vertical = 10.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(if (miembro.marcado) Sage else BackgroundDeep),
-        )
+        NeuAvatar(iniciales = iniciales, size = 40.dp)
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text  = miembro.nombre,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (miembro.marcado) Ink else Muted,
+                text       = miembro.nombre,
+                style      = MaterialTheme.typography.bodyLarge,
+                color      = if (miembro.marcado) Ink else Muted,
+                fontWeight = if (miembro.marcado) FontWeight.Medium else FontWeight.Normal,
             )
             if (miembro.marcado && miembro.marcadaEn != null) {
                 val hora = remember(miembro.marcadaEn) {
@@ -310,34 +309,24 @@ private fun MiembroRow(
                 }
                 Text(
                     text  = hora,
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.bodySmall,
                     color = Muted,
                 )
             }
         }
         if (isToggling) {
             CircularProgressIndicator(
-                modifier    = Modifier.size(18.dp),
+                modifier    = Modifier.size(22.dp),
                 color       = Accent,
                 strokeWidth = 2.dp,
             )
         } else {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (miembro.marcado) Sage else BackgroundDeep),
-            ) {
-                if (miembro.marcado) {
-                    Icon(
-                        imageVector        = Icons.Default.Check,
-                        contentDescription = null,
-                        tint               = Color.White,
-                        modifier           = Modifier.size(16.dp),
-                    )
-                }
-            }
+            Icon(
+                imageVector        = if (miembro.marcado) Icons.Default.CheckCircle else Icons.Outlined.Circle,
+                contentDescription = null,
+                tint               = if (miembro.marcado) Sage else Muted,
+                modifier           = Modifier.size(28.dp),
+            )
         }
     }
 }

@@ -16,6 +16,8 @@ import com.gpleader.app.feature.auth.QuienEresScreen
 import com.gpleader.app.feature.auth.SabadoAutoMarcarScreen
 import com.gpleader.app.feature.auth.SabadoConfirmacionScreen
 import com.gpleader.app.feature.miembro.MiembroHomeScreen
+import com.gpleader.app.feature.miembro.SuplementeCodigoEntryScreen
+import com.gpleader.app.feature.miembro.SuplementeHomeScreen
 import com.gpleader.app.feature.historial.HistorialScreen
 import com.gpleader.app.feature.sabado.SabadoCultoScreen
 import com.gpleader.app.feature.home.HomeScreen
@@ -72,6 +74,9 @@ object NavRoutes {
     // ── Miembro regular (perfil guardado) ────────────────────────────────────
     const val CONFIRMAR_IDENTIDAD           = "confirmar_identidad/{miembroId}/{miembroNombre}"
     const val MIEMBRO_HOME                  = "miembro_home"
+    const val SUPLENTE_CODIGO_ENTRY         = "suplente_codigo_entry"
+    const val SUPLENTE_HOME                 = "suplente_home/{deputyCodeId}"
+    fun suplementeHome(deputyCodeId: String) = "suplente_home/$deputyCodeId"
     const val MIEMBRO_DUO_MISIONERO         = "miembro_duo_misionero"
     const val MIEMBRO_ESTUDIOS_BIBLICOS     = "miembro_estudios_biblicos"
     const val MIEMBRO_ESTUDIOS_BIBLICOS_DE  = "miembro_estudios_biblicos/{miembroId}"
@@ -209,6 +214,33 @@ fun AppNavGraph(
                 onNavigateToActividades      = { navController.navigate(NavRoutes.MIEMBRO_ACTIVIDADES) },
                 onNavigateToDuoMisionero     = { navController.navigate(NavRoutes.MIEMBRO_DUO_MISIONERO) },
                 onNavigateToEstudiosBiblicos = { navController.navigate(NavRoutes.MIEMBRO_ESTUDIOS_BIBLICOS) },
+                onEntrarComoSuplente         = { navController.navigate(NavRoutes.SUPLENTE_CODIGO_ENTRY) },
+            )
+        }
+
+        composable(NavRoutes.SUPLENTE_CODIGO_ENTRY) {
+            SuplementeCodigoEntryScreen(
+                onNavigateBack   = { navController.popBackStack() },
+                onCodigoValidado = { deputyCodeId ->
+                    navController.navigate(NavRoutes.suplementeHome(deputyCodeId)) {
+                        popUpTo(NavRoutes.SUPLENTE_CODIGO_ENTRY) { inclusive = true }
+                    }
+                },
+            )
+        }
+
+        composable(
+            route     = NavRoutes.SUPLENTE_HOME,
+            arguments = listOf(navArgument("deputyCodeId") { type = NavType.StringType }),
+        ) {
+            SuplementeHomeScreen(
+                onRegistrarGP     = { navController.navigate(NavRoutes.registroGraph("gp_meeting")) },
+                onRegistrarSabado = { navController.navigate(NavRoutes.registroGraph("saturday_worship")) },
+                onSalir           = {
+                    navController.navigate(NavRoutes.MIEMBRO_HOME) {
+                        popUpTo(NavRoutes.MIEMBRO_HOME) { inclusive = false }
+                    }
+                },
             )
         }
 
@@ -706,8 +738,16 @@ fun AppNavGraph(
                 val sharedVm: RegistroViewModel = hiltViewModel(graphEntry)
                 ExitoEnviadoScreen(
                     onNavigateToHome = {
-                        navController.navigate(NavRoutes.HOME) {
-                            popUpTo(NavRoutes.HOME) { inclusive = false }
+                        val enModosuplente = navController.currentBackStack.value
+                            .any { it.destination.route == NavRoutes.SUPLENTE_HOME }
+                        if (enModosuplente) {
+                            navController.navigate(NavRoutes.MIEMBRO_HOME) {
+                                popUpTo(NavRoutes.MIEMBRO_HOME) { inclusive = false }
+                            }
+                        } else {
+                            navController.navigate(NavRoutes.HOME) {
+                                popUpTo(NavRoutes.HOME) { inclusive = false }
+                            }
                         }
                     },
                     onNavigateToHistorial = {
@@ -726,8 +766,16 @@ fun AppNavGraph(
                 val sharedVm: RegistroViewModel = hiltViewModel(graphEntry)
                 ExitoOfflineScreen(
                     onNavigateToHome = {
-                        navController.navigate(NavRoutes.HOME) {
-                            popUpTo(NavRoutes.HOME) { inclusive = false }
+                        val enModoSuplente = navController.currentBackStack.value
+                            .any { it.destination.route == NavRoutes.SUPLENTE_HOME }
+                        if (enModoSuplente) {
+                            navController.navigate(NavRoutes.MIEMBRO_HOME) {
+                                popUpTo(NavRoutes.MIEMBRO_HOME) { inclusive = false }
+                            }
+                        } else {
+                            navController.navigate(NavRoutes.HOME) {
+                                popUpTo(NavRoutes.HOME) { inclusive = false }
+                            }
                         }
                     },
                     viewModel = sharedVm,

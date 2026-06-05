@@ -160,6 +160,7 @@ fun PerfilPrincipalScreen(
         onEditarAvatarClick          = viewModel::onEditarAvatarClick,
         onAsignarSuplenteClick       = viewModel::onAsignarSuplenteClick,
         onDismissDelegarSheet        = viewModel::onDismissDelegarSheet,
+        onSeleccionarMiembro         = viewModel::onSeleccionarMiembroSuplente,
         onCrearSolicitud             = viewModel::onCrearSolicitud,
     )
 }
@@ -180,9 +181,10 @@ private fun PerfilContent(
     onDismissCerrarSesion:    () -> Unit,
     onConfirmarCerrarSesion:  () -> Unit,
     onEditarAvatarClick:      () -> Unit,
-    onAsignarSuplenteClick:   () -> Unit = {},
-    onDismissDelegarSheet:    () -> Unit = {},
-    onCrearSolicitud:         (String, String?) -> Unit = { _, _ -> },
+    onAsignarSuplenteClick:      () -> Unit = {},
+    onDismissDelegarSheet:       () -> Unit = {},
+    onSeleccionarMiembro:        (String) -> Unit = {},
+    onCrearSolicitud:            () -> Unit = {},
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -292,12 +294,15 @@ private fun PerfilContent(
         // ── Sheet: asignar suplente ───────────────────────────────────────────
         if (uiState.showDelegarSheet) {
             AsignarSuplenteSheet(
-                asignados  = uiState.asignadosPotenciales,
-                isLoading  = uiState.isLoadingAsignados,
-                isCreando  = uiState.isCreandoSolicitud,
-                error      = uiState.solicitudError,
-                onCrear    = onCrearSolicitud,
-                onDismiss  = onDismissDelegarSheet,
+                asignados            = uiState.asignadosPotenciales,
+                selectedId           = uiState.miembroSeleccionadoId,
+                codigo               = uiState.codigoSuplente,
+                isLoading            = uiState.isLoadingAsignados,
+                isGenerando          = uiState.isGenerandoCodigo,
+                error                = uiState.solicitudError,
+                onSeleccionarMiembro = onSeleccionarMiembro,
+                onCrear              = onCrearSolicitud,
+                onDismiss            = onDismissDelegarSheet,
             )
         }
 
@@ -589,16 +594,18 @@ private fun CerrarSesionDialog(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AsignarSuplenteSheet(
-    asignados: List<AsignadoPotencial>,
-    isLoading: Boolean,
-    isCreando: Boolean,
-    error:     String?,
-    onCrear:   (assignedToId: String, nota: String?) -> Unit,
-    onDismiss: () -> Unit,
+    asignados:            List<AsignadoPotencial>,
+    selectedId:           String,
+    codigo:               String,
+    isLoading:            Boolean,
+    isGenerando:          Boolean,
+    error:                String?,
+    onSeleccionarMiembro: (String) -> Unit,
+    onCrear:              () -> Unit,
+    onDismiss:            () -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var selectedId by remember { mutableStateOf<String?>(null) }
-    var nota       by remember { mutableStateOf("") }
+    val sheetState    = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val clipManager   = androidx.compose.ui.platform.LocalClipboardManager.current
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -619,12 +626,74 @@ private fun AsignarSuplenteSheet(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text  = "Seleccioná a quién se delega el registro.",
+                text  = "Seleccioná a un miembro para que pueda registrar la reunión en las próximas 24 horas. Compartile el código que aparece.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Mid,
             )
             Spacer(Modifier.height(16.dp))
 
+            // ── Código de 6 dígitos ───────────────────────────────────────────
+            AnimatedVisibility(visible = selectedId.isNotBlank() && (codigo.isNotBlank() || isGenerando)) {
+                Column {
+                    NeuCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier            = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text(
+                                text  = "CÓDIGO DE ACCESO",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Muted,
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment     = Alignment.CenterVertically,
+                            ) {
+                                codigo.forEach { digit ->
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier
+                                            .neuElevatedSm(cornerRadius = 8.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Background)
+                                            .padding(horizontal = 10.dp, vertical = 10.dp),
+                                    ) {
+                                        Text(
+                                            text  = digit.toString(),
+                                            style = MaterialTheme.typography.titleLarge,
+                                            color = Ink,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.width(4.dp))
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .neuElevatedSm(cornerRadius = 8.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Background)
+                                        .clickable {
+                                            clipManager.setText(androidx.compose.ui.text.AnnotatedString(codigo))
+                                        }
+                                        .padding(8.dp),
+                                ) {
+                                    Icon(
+                                        imageVector        = Icons.Default.Edit,
+                                        contentDescription = "Copiar código",
+                                        tint               = Accent,
+                                        modifier           = Modifier.size(18.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                }
+            }
+
+            // ── Lista de miembros ─────────────────────────────────────────────
             when {
                 isLoading -> {
                     Box(
@@ -634,7 +703,7 @@ private fun AsignarSuplenteSheet(
                 }
                 asignados.isEmpty() -> {
                     Text(
-                        text  = "No hay delegados registrados en este grupo.",
+                        text  = "No hay miembros registrados en este grupo.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = Muted,
                     )
@@ -646,6 +715,8 @@ private fun AsignarSuplenteSheet(
                     ) {
                         items(asignados) { asignado ->
                             val isSelected = asignado.profileId == selectedId
+                            val iniciales  = asignado.nombre.split(" ")
+                                .take(2).mapNotNull { it.firstOrNull()?.uppercaseChar() }.joinToString("")
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -657,29 +728,25 @@ private fun AsignarSuplenteSheet(
                                         if (isSelected) Accent.copy(alpha = 0.08f) else Background,
                                         RoundedCornerShape(14.dp),
                                     )
-                                    .clickable { selectedId = asignado.profileId }
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                    .clickable { onSeleccionarMiembro(asignado.profileId) }
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text       = asignado.nombre,
-                                        style      = MaterialTheme.typography.bodyLarge,
-                                        color      = if (isSelected) Accent else Ink,
-                                        fontWeight = FontWeight.SemiBold,
-                                    )
-                                    val rolDisplay = when (asignado.rol) {
-                                        "leader"             -> "Líder"
-                                        "co_leader"          -> "Co-líder"
-                                        "anciano"            -> "Anciano"
-                                        "pastor_practicante" -> "Pastor practicante"
-                                        "member"             -> "Miembro"
-                                        else                 -> asignado.rol
-                                    }
-                                    Text(
-                                        text  = rolDisplay,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = Mid,
+                                NeuAvatar(iniciales = iniciales, size = 40.dp)
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    text       = asignado.nombre,
+                                    style      = MaterialTheme.typography.bodyLarge,
+                                    color      = if (isSelected) Accent else Ink,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier   = Modifier.weight(1f),
+                                )
+                                if (isSelected) {
+                                    Icon(
+                                        imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                        contentDescription = null,
+                                        tint               = Accent,
+                                        modifier           = Modifier.size(20.dp),
                                     )
                                 }
                             }
@@ -690,18 +757,28 @@ private fun AsignarSuplenteSheet(
 
             if (error != null) {
                 Spacer(Modifier.height(8.dp))
-                Text(text = error, style = MaterialTheme.typography.bodyMedium, color = androidx.compose.ui.graphics.Color(0xFFD4836A))
+                Text(text = error, style = MaterialTheme.typography.bodyMedium, color = Blush)
             }
 
-            Spacer(Modifier.height(20.dp))
-            NeuButtonPrimary(
-                text     = if (isCreando) "Creando…" else "Asignar",
-                onClick  = {
-                    val id = selectedId
-                    if (id != null && !isCreando) onCrear(id, nota.ifBlank { null })
-                },
-                modifier = Modifier.fillMaxWidth(),
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text  = "El permiso es válido por 24 horas a partir de guardar.",
+                style = MaterialTheme.typography.labelSmall,
+                color = Muted,
             )
+            Spacer(Modifier.height(12.dp))
+            if (isGenerando) {
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(modifier = Modifier.size(28.dp), color = Accent)
+                }
+            } else {
+                NeuButtonPrimary(
+                    text     = if (codigo.isNotBlank()) "Listo" else "Guardar",
+                    enabled  = selectedId.isNotBlank(),
+                    onClick  = onCrear,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }
