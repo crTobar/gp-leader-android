@@ -148,7 +148,7 @@ private fun DetalleReunionContent(
         },
         bottomBar = {
             AppBottomNavBar(
-                selectedTab        = NAV_TAB_INICIO,
+                selectedTab        = -1,
                 onInicioClick      = onNavigateToHome,
                 onActividadesClick = onNavigateToActividades,
                 onPerfilClick      = onNavigateToPerfil,
@@ -207,7 +207,7 @@ private fun DetalleReunionContent(
             }
 
             // ── Sección Actividades ───────────────────────────────────────────
-            if (uiState.actividades.isNotEmpty()) {
+            if (uiState.actividades.isNotEmpty() && uiState.tipoReunion != "saturday_worship") {
                 val nivelesOrden   = listOf("UNION", "PASTOR", "GP")
                 val labelNivel     = mapOf("UNION" to "UNIÓN", "PASTOR" to "PASTOR", "GP" to "MI GP")
                 val colorNivel     = mapOf<String, Color>(
@@ -531,28 +531,33 @@ private fun NivelHeader(label: String, color: Color) {
     Row(
         modifier          = Modifier
             .fillMaxWidth()
-            .neuElevatedSm(cornerRadius = 12.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .neuElevated(cornerRadius = 16.dp)
+            .clip(RoundedCornerShape(16.dp))
             .background(Background)
-            .padding(vertical = 10.dp, horizontal = 16.dp),
+            .padding(vertical = 12.dp, horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
-                .width(3.dp)
-                .height(18.dp)
+                .width(4.dp)
+                .height(20.dp)
                 .clip(RoundedCornerShape(2.dp))
                 .background(color),
         )
-        Spacer(Modifier.width(10.dp))
-        Text(text = "☆", style = MaterialTheme.typography.labelSmall, color = color)
-        Spacer(Modifier.width(6.dp))
-        Text(
-            text       = label,
-            style      = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            color      = Ink,
-        )
+        Spacer(Modifier.width(12.dp))
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(color.copy(alpha = 0.12f))
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+        ) {
+            Text(
+                text       = label,
+                style      = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color      = color,
+            )
+        }
     }
 }
 
@@ -561,14 +566,14 @@ private fun ActividadFila(actividad: ActividadDetalle) {
     Row(
         modifier          = Modifier
             .fillMaxWidth()
-            .neuElevatedSm(cornerRadius = 12.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .neuElevated(cornerRadius = 16.dp)
+            .clip(RoundedCornerShape(16.dp))
             .background(Background)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(text = "☆", style = MaterialTheme.typography.bodyMedium, color = Muted)
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(12.dp))
         Text(
             text     = actividad.nombre,
             style    = MaterialTheme.typography.bodyLarge,
@@ -579,12 +584,19 @@ private fun ActividadFila(actividad: ActividadDetalle) {
         )
         Spacer(Modifier.width(8.dp))
         if (actividad.cantidad != null) {
-            Text(
-                text       = "${actividad.cantidad} ${actividad.unidad}",
-                style      = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-                color      = Accent,
-            )
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Accent.copy(alpha = 0.10f))
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+            ) {
+                Text(
+                    text       = "${actividad.cantidad} ${actividad.unidad}",
+                    style      = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color      = Accent,
+                )
+            }
         } else {
             Text(text = "—", style = MaterialTheme.typography.bodyMedium, color = Muted)
         }

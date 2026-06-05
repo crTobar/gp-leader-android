@@ -47,8 +47,11 @@ import com.gpleader.app.feature.actividades.CampanaDetalleScreen
 import com.gpleader.app.feature.actividades.ActividadHistorialScreen
 import com.gpleader.app.feature.actividades.AgregarAporteScreen
 import com.gpleader.app.feature.actividades.CrearActividadDuoScreen
+import com.gpleader.app.feature.actividades.DuoActividadDetalleScreen
+import com.gpleader.app.feature.actividades.DuoActividadRegistroScreen
 import com.gpleader.app.feature.actividades.CrearDuoScreen
 import com.gpleader.app.feature.actividades.DuoDetalleScreen
+import com.gpleader.app.feature.actividades.DuoEstudioDetalleScreen
 import com.gpleader.app.feature.actividades.DuosListScreen
 import com.gpleader.app.feature.actividades.EstudiosBiblicosMiembrosScreen
 import com.gpleader.app.feature.miembro.ActividadCampanaScreen
@@ -121,6 +124,9 @@ object NavRoutes {
     const val DUO_DETALLE                 = "duo_detalle/{duoId}"
     const val CREAR_ACTIVIDAD_DUO         = "crear_actividad_duo/{duoId}"
     const val ESTUDIOS_BIBLICOS_MIEMBROS  = "estudios_biblicos_miembros"
+    const val DUO_ACTIVIDAD_REGISTRO      = "duo_actividad_registro/{actividadTipoId}/{duoId}/{nombreActividad}"
+    const val DUO_ACTIVIDAD_DETALLE       = "duo_actividad_detalle/{duoId}/{actividadTipoId}"
+    const val DUO_ESTUDIO_DETALLE         = "duo_estudio_detalle/{estudioId}"
 
     fun actividadHistorial(actividadTipoId: String) = "actividad_historial/$actividadTipoId"
     fun agregarAporte(actividadTipoId: String)      = "agregar_aporte/$actividadTipoId"
@@ -128,6 +134,10 @@ object NavRoutes {
         "campana_detalle/$tipoId/${android.net.Uri.encode(nombre)}/$desde/$hasta"
     fun duoDetalle(duoId: String) = "duo_detalle/$duoId"
     fun crearActividadDuo(duoId: String) = "crear_actividad_duo/$duoId"
+    fun duoActividadRegistro(tipoId: String, duoId: String, nombre: String) =
+        "duo_actividad_registro/$tipoId/$duoId/${android.net.Uri.encode(nombre)}"
+    fun duoActividadDetalle(duoId: String, tipoId: String) = "duo_actividad_detalle/$duoId/$tipoId"
+    fun duoEstudioDetalle(estudioId: String) = "duo_estudio_detalle/$estudioId"
 
     // ── Registro nested graph ─────────────────────────────────────────────────
     const val REGISTRO_GRAPH         = "registro"
@@ -280,7 +290,15 @@ fun AppNavGraph(
         }
 
         composable(NavRoutes.MIEMBRO_DUO_MISIONERO) {
-            DuoMisioneroScreen(onNavigateBack = { navController.popBackStack() })
+            DuoMisioneroScreen(
+                onNavigateBack             = { navController.popBackStack() },
+                onNavigateToDetalle        = { duoId, tipoId ->
+                    navController.navigate(NavRoutes.duoActividadDetalle(duoId, tipoId))
+                },
+                onNavigateToEstudioDetalle = { id ->
+                    navController.navigate(NavRoutes.duoEstudioDetalle(id))
+                },
+            )
         }
 
         composable(NavRoutes.MIEMBRO_ESTUDIOS_BIBLICOS) {
@@ -562,6 +580,12 @@ fun AppNavGraph(
                 onNavigateToCampana  = { tipoId, nombre, desde, hasta ->
                     navController.navigate(NavRoutes.campanaDetalle(tipoId, nombre, desde, hasta))
                 },
+                onNavigateToCrearActividadDuo = { duoId ->
+                    navController.navigate(NavRoutes.crearActividadDuo(duoId))
+                },
+                onNavigateToDuoActividad = { tipoId, nombre, duoId ->
+                    navController.navigate(NavRoutes.duoActividadRegistro(tipoId, duoId, nombre))
+                },
             )
         }
 
@@ -635,7 +659,34 @@ fun AppNavGraph(
                 onNavigateToCrearActividad = { duoId ->
                     navController.navigate(NavRoutes.crearActividadDuo(duoId))
                 },
+                onNavigateToDetalle        = { duoId, tipoId ->
+                    navController.navigate(NavRoutes.duoActividadDetalle(duoId, tipoId))
+                },
+                onNavigateToEstudioDetalle = { id ->
+                    navController.navigate(NavRoutes.duoEstudioDetalle(id))
+                },
             )
+        }
+
+        composable(
+            route     = NavRoutes.DUO_ESTUDIO_DETALLE,
+            arguments = listOf(navArgument("estudioId") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val estudioId = backStackEntry.arguments?.getString("estudioId") ?: return@composable
+            DuoEstudioDetalleScreen(
+                estudioId      = estudioId,
+                onNavigateBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route     = NavRoutes.DUO_ACTIVIDAD_DETALLE,
+            arguments = listOf(
+                navArgument("duoId")          { type = NavType.StringType },
+                navArgument("actividadTipoId") { type = NavType.StringType },
+            ),
+        ) {
+            DuoActividadDetalleScreen(onNavigateBack = { navController.popBackStack() })
         }
 
         composable(
@@ -643,6 +694,17 @@ fun AppNavGraph(
             arguments = listOf(navArgument("duoId") { type = NavType.StringType }),
         ) {
             CrearActividadDuoScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(
+            route     = NavRoutes.DUO_ACTIVIDAD_REGISTRO,
+            arguments = listOf(
+                navArgument("actividadTipoId")  { type = NavType.StringType },
+                navArgument("duoId")            { type = NavType.StringType },
+                navArgument("nombreActividad")  { type = NavType.StringType },
+            ),
+        ) {
+            DuoActividadRegistroScreen(onNavigateBack = { navController.popBackStack() })
         }
 
         composable(NavRoutes.ESTUDIOS_BIBLICOS_MIEMBROS) {

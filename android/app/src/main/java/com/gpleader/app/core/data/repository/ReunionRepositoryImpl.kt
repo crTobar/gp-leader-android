@@ -43,6 +43,22 @@ class ReunionRepositoryImpl @Inject constructor(
         emit(result)
     }
 
+    override fun getReunionesSabado(grupoId: String, limit: Int): Flow<List<ReunionConStats>> = flow {
+        val data = supabase.from("meeting").select(
+            columns = Columns.raw("*, attendance(*)")
+        ) {
+            filter {
+                eq("small_group_id", grupoId)
+                eq("registry_kind", "saturday_worship")
+            }
+        }.data
+
+        val all = parseReuniones(data)
+            .sortedByDescending { it.fecha }
+        val result = if (limit == Int.MAX_VALUE) all else all.take(limit)
+        emit(result)
+    }
+
     override suspend fun saveReunion(
         grupoId:       String,
         fecha:         LocalDate,

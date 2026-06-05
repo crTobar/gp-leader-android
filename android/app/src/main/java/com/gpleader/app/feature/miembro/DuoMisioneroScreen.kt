@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
@@ -49,7 +50,11 @@ import com.gpleader.app.core.data.repository.DuoActividadRecord
 import com.gpleader.app.core.data.repository.DuoActividadTipo
 import com.gpleader.app.core.data.repository.DuoBibleStudy
 import com.gpleader.app.core.data.repository.iniciales
+import com.gpleader.app.core.ui.estudios.AgregarAlumnoEstudioDialog
+import com.gpleader.app.core.ui.estudios.EstudiosBiblicosLista
+import com.gpleader.app.core.ui.estudios.asItem
 import com.gpleader.app.core.ui.components.NeuAvatar
+import com.gpleader.app.core.ui.components.OnResumeEffect
 import com.gpleader.app.core.ui.components.NeuCard
 import com.gpleader.app.core.ui.components.NeuTextField
 import com.gpleader.app.core.ui.theme.Accent
@@ -66,10 +71,13 @@ import com.gpleader.app.core.ui.theme.neuInsetInner
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DuoMisioneroScreen(
-    onNavigateBack: () -> Unit,
+    onNavigateBack:             () -> Unit,
+    onNavigateToDetalle:        (duoId: String, tipoId: String) -> Unit = { _, _ -> },
+    onNavigateToEstudioDetalle: (estudioId: String) -> Unit = {},
     viewModel: DuoMisioneroViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    OnResumeEffect { viewModel.onRefresh() }
 
     Box(
         modifier = Modifier
@@ -151,18 +159,18 @@ fun DuoMisioneroScreen(
 
                     when (uiState.tabActivo) {
                         DuoMiembroTab.ACTIVIDADES -> TabActividadesMiembro(
-                            actividades   = uiState.actividades,
-                            registrosHoy  = uiState.registrosHoy,
-                            onToggle      = viewModel::onToggleActividad,
-                            onIncrementar = viewModel::onIncrementar,
-                            onDecrementar = viewModel::onDecrementar,
-                            modifier      = Modifier.weight(1f).fillMaxWidth(),
+                            actividades  = uiState.actividades,
+                            registrosHoy = uiState.registrosHoy,
+                            duoId        = uiState.duoId ?: "",
+                            onCardClick  = { tipoId -> onNavigateToDetalle(uiState.duoId ?: "", tipoId) },
+                            onToggle     = viewModel::onToggleActividad,
+                            modifier     = Modifier.weight(1f).fillMaxWidth(),
                         )
                         DuoMiembroTab.ESTUDIOS -> TabEstudiosMiembro(
-                            estudios        = uiState.estudios,
-                            onToggleLeccion = viewModel::onToggleLeccion,
-                            onCrearEstudio  = viewModel::onCrearEstudio,
-                            modifier        = Modifier.weight(1f).fillMaxWidth(),
+                            estudios       = uiState.estudios,
+                            onEstudioClick = onNavigateToEstudioDetalle,
+                            onCrearEstudio = viewModel::onCrearEstudio,
+                            modifier       = Modifier.weight(1f).fillMaxWidth(),
                         )
                     }
                 }
@@ -214,12 +222,12 @@ private fun DuoMiembroTabControl(
 
 @Composable
 private fun TabActividadesMiembro(
-    actividades:   List<DuoActividadTipo>,
-    registrosHoy:  Map<String, DuoActividadRecord>,
-    onToggle:      (tipoId: String, markerType: String) -> Unit,
-    onIncrementar: (tipoId: String) -> Unit,
-    onDecrementar: (tipoId: String) -> Unit,
-    modifier:      Modifier,
+    actividades:  List<DuoActividadTipo>,
+    registrosHoy: Map<String, DuoActividadRecord>,
+    duoId:        String,
+    onCardClick:  (tipoId: String) -> Unit,
+    onToggle:     (tipoId: String, markerType: String) -> Unit,
+    modifier:     Modifier,
 ) {
     if (actividades.isEmpty()) {
         Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -236,45 +244,80 @@ private fun TabActividadesMiembro(
     ) {
         items(actividades) { tipo ->
             val record = registrosHoy[tipo.id]
-            NeuCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(tipo.nombre, style = MaterialTheme.typography.bodyLarge, color = Ink, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(10.dp))
-                    when (tipo.markerType) {
-                        "checkbox" -> Row(
-                            modifier = Modifier.fillMaxWidth().clickable { onToggle(tipo.id, tipo.markerType) },
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            val done = record?.isDone ?: false
-                            Icon(
-                                imageVector = if (done) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                                contentDescription = null, tint = if (done) Sage else Muted, modifier = Modifier.size(24.dp),
-                            )
-                            Spacer(Modifier.width(10.dp))
-                            Text(if (done) "Completado hoy" else "Marcar como hecho", style = MaterialTheme.typography.bodyMedium, color = if (done) Sage else Mid)
-                        }
-                        else -> Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center,
-                        ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier.size(40.dp).neuElevatedSm(cornerRadius = 20.dp).clip(RoundedCornerShape(20.dp)).background(Background).clickable { onDecrementar(tipo.id) }
-                            ) { Text("−", style = MaterialTheme.typography.titleLarge, color = Ink) }
-                            Spacer(Modifier.width(20.dp))
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("${record?.count ?: 0}", style = MaterialTheme.typography.headlineMedium, color = Accent, fontWeight = FontWeight.Bold)
-                                Text(tipo.unitLabel, style = MaterialTheme.typography.labelSmall, color = Muted)
-                            }
-                            Spacer(Modifier.width(20.dp))
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier.size(40.dp).neuElevatedSm(cornerRadius = 20.dp).clip(RoundedCornerShape(20.dp)).background(Background).clickable { onIncrementar(tipo.id) }
-                            ) { Text("+", style = MaterialTheme.typography.titleLarge, color = Ink) }
-                        }
-                    }
+            if (tipo.markerType == "daily_checker") {
+                DailyCheckerCardMiembro(tipo = tipo, record = record, onToggle = { onToggle(tipo.id, tipo.markerType) })
+            } else {
+                ActividadMiembroCardSimple(tipo = tipo, record = record, onClick = { onCardClick(tipo.id) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActividadMiembroCardSimple(
+    tipo:    DuoActividadTipo,
+    record:  DuoActividadRecord?,
+    onClick: () -> Unit,
+) {
+    val tipoLabel = when (tipo.markerType) {
+        "monetary" -> "Monetario"
+        "checkbox" -> "Verificación"
+        else       -> "Contador"
+    }
+    val valorStr = when (tipo.markerType) {
+        "monetary" -> if (record?.count != null) "₡${record.count}" else "—"
+        "checkbox" -> if (record?.isDone == true) "✓" else "—"
+        else       -> if (record?.count != null) "${record.count} ${tipo.unitLabel}" else "—"
+    }
+    val valorColor = if (record != null && (record.count != null || record.isDone)) Sage else Muted
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .neuElevatedSm(cornerRadius = 16.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Background)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(tipo.nombre, style = MaterialTheme.typography.bodyLarge, color = Ink, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text("$tipoLabel · ${tipo.unitLabel.ifBlank { tipoLabel }}", style = MaterialTheme.typography.labelSmall, color = Muted)
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(valorStr, style = MaterialTheme.typography.bodyLarge, color = valorColor, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.width(4.dp))
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Muted, modifier = Modifier.size(18.dp))
+    }
+}
+
+@Composable
+private fun DailyCheckerCardMiembro(
+    tipo:     DuoActividadTipo,
+    record:   DuoActividadRecord?,
+    onToggle: () -> Unit,
+) {
+    val done = record?.isDone == true
+    NeuCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(tipo.nombre, style = MaterialTheme.typography.bodyLarge, color = Ink, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Accent.copy(alpha = 0.12f)).padding(horizontal = 8.dp, vertical = 3.dp)) {
+                    Text("DIARIO", style = MaterialTheme.typography.labelSmall, color = Accent, fontWeight = FontWeight.Bold)
                 }
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = if (done) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                    contentDescription = null, tint = if (done) Sage else Muted, modifier = Modifier.size(22.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(if (done) "Marcado hoy" else "Marcar hoy", style = MaterialTheme.typography.bodyMedium, color = if (done) Sage else Mid)
             }
         }
     }
@@ -283,24 +326,26 @@ private fun TabActividadesMiembro(
 @Composable
 private fun TabEstudiosMiembro(
     estudios:       List<DuoBibleStudy>,
-    onToggleLeccion: (estudioId: String, leccion: Int, completado: Boolean) -> Unit,
-    onCrearEstudio:  (studentName: String) -> Unit,
-    modifier:        Modifier,
+    onEstudioClick: (estudioId: String) -> Unit,
+    onCrearEstudio: (studentName: String) -> Unit,
+    modifier:       Modifier,
 ) {
     var showDialog by remember { mutableStateOf(false) }
     var nuevoNombre by remember { mutableStateOf("") }
 
     if (showDialog) {
-        AlertDialog(
-            onDismissRequest = { showDialog = false; nuevoNombre = "" },
-            title   = { Text("Nuevo estudio bíblico") },
-            text    = { NeuTextField(value = nuevoNombre, onValueChange = { nuevoNombre = it }, label = "Nombre del estudiante") },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (nuevoNombre.isNotBlank()) { onCrearEstudio(nuevoNombre.trim()); nuevoNombre = ""; showDialog = false }
-                }) { Text("Crear") }
+        AgregarAlumnoEstudioDialog(
+            nombre         = nuevoNombre,
+            isCreating     = false,
+            onNombreChange = { nuevoNombre = it },
+            onDismiss      = { showDialog = false; nuevoNombre = "" },
+            onConfirm      = {
+                if (nuevoNombre.isNotBlank()) {
+                    onCrearEstudio(nuevoNombre.trim())
+                    nuevoNombre = ""
+                    showDialog = false
+                }
             },
-            dismissButton = { TextButton(onClick = { showDialog = false; nuevoNombre = "" }) { Text("Cancelar") } },
         )
     }
 
@@ -313,46 +358,21 @@ private fun TabEstudiosMiembro(
             Text("Estudios del Dúo", style = MaterialTheme.typography.bodyLarge, color = Ink, fontWeight = FontWeight.SemiBold)
             Box(
                 contentAlignment = Alignment.Center,
-                modifier = Modifier.neuElevatedSm(cornerRadius = 10.dp).clip(RoundedCornerShape(10.dp)).background(Background).clickable { showDialog = true }.padding(8.dp),
+                modifier = Modifier.neuElevatedSm(cornerRadius = 10.dp).clip(RoundedCornerShape(10.dp))
+                    .background(Background).clickable { showDialog = true }.padding(8.dp),
             ) { Icon(Icons.Default.Add, null, tint = Accent, modifier = Modifier.size(20.dp)) }
         }
 
-        if (estudios.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Sin estudios. Toca + para agregar.", style = MaterialTheme.typography.bodyMedium, color = Muted, textAlign = TextAlign.Center)
-            }
-        } else {
-            LazyColumn(
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                items(estudios) { estudio ->
-                    NeuCard(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(estudio.studentName, style = MaterialTheme.typography.bodyLarge, color = Ink, fontWeight = FontWeight.SemiBold)
-                            Text("${estudio.totalCompleted}/20 lecciones", style = MaterialTheme.typography.bodyMedium, color = Mid)
-                            Spacer(Modifier.height(10.dp))
-                            val chunks = (1..20).chunked(5)
-                            chunks.forEach { row ->
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    row.forEach { n ->
-                                        val done = estudio.completedLessons.contains(n)
-                                        Box(
-                                            contentAlignment = Alignment.Center,
-                                            modifier = Modifier.size(36.dp)
-                                                .then(if (done) Modifier.clip(RoundedCornerShape(8.dp)).background(Sage) else Modifier.neuElevatedSm(cornerRadius = 8.dp).clip(RoundedCornerShape(8.dp)).background(Background))
-                                                .clickable { onToggleLeccion(estudio.id, n, !done) },
-                                        ) {
-                                            Text("$n", style = MaterialTheme.typography.bodyMedium, color = if (done) Color.White else Mid, fontWeight = FontWeight.SemiBold)
-                                        }
-                                    }
-                                }
-                                Spacer(Modifier.height(6.dp))
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        EstudiosBiblicosLista(
+            estudios       = estudios.map { it.asItem() },
+            onEstudioClick = onEstudioClick,
+            modifier       = Modifier.weight(1f).fillMaxWidth(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp,
+            ),
+            emptyTitle    = "Aún no hay estudios bíblicos del dúo",
+            emptySubtitle = "Agrega a las personas a quienes\nel dúo está dando estudio bíblico.",
+            onAgregar     = { showDialog = true },
+        )
     }
 }

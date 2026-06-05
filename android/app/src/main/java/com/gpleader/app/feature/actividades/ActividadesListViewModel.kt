@@ -4,6 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gpleader.app.core.data.repository.ActividadRepository
 import com.gpleader.app.core.data.repository.ActividadTipoData
+import com.gpleader.app.core.data.repository.DuoActividadConTotal
+import com.gpleader.app.core.data.repository.DuoMisioneroData
+import com.gpleader.app.core.data.repository.DuoRepository
 import com.gpleader.app.core.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,18 +39,23 @@ data class ActividadConResumen(
 )
 
 data class ActividadesListUiState(
-    val actividades:  List<ActividadConResumen> = emptyList(),
-    val visibles:     List<ActividadConResumen> = emptyList(),
-    val filtroNivel:  FiltroNivel               = FiltroNivel.TODOS,
-    val filtroEstado: FiltroEstado              = FiltroEstado.TODAS,
-    val isLoading:    Boolean                   = true,
-    val isRefreshing: Boolean                   = false,
-    val error:        String?                   = null,
+    val actividades:    List<ActividadConResumen>  = emptyList(),
+    val visibles:       List<ActividadConResumen>  = emptyList(),
+    val filtroNivel:    FiltroNivel                = FiltroNivel.TODOS,
+    val filtroEstado:   FiltroEstado               = FiltroEstado.TODAS,
+    val isLoading:      Boolean                    = true,
+    val isRefreshing:   Boolean                    = false,
+    val error:          String?                    = null,
+    val modoGP:         Boolean                    = true,
+    val duoActividades: List<DuoActividadConTotal> = emptyList(),
+    val duosActivos:    List<DuoMisioneroData>     = emptyList(),
+    val isDuoLoading:   Boolean                    = false,
 )
 
 @HiltViewModel
 class ActividadesListViewModel @Inject constructor(
     private val actividadRepo: ActividadRepository,
+    private val duoRepo:       DuoRepository,
     private val session:       SessionManager,
 ) : ViewModel() {
 
@@ -101,6 +109,29 @@ class ActividadesListViewModel @Inject constructor(
             }
             _uiState.update { it.copy(isLoading = false, actividades = combined) }
             filtrar()
+        }
+    }
+
+    fun onModoChange(esGP: Boolean) {
+        _uiState.update { it.copy(modoGP = esGP) }
+        if (!esGP && _uiState.value.duoActividades.isEmpty()) {
+            cargarDuoActividades()
+        }
+    }
+
+    fun cargarDuoActividades() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDuoLoading = true) }
+            val duosResult = duoRepo.getDuosByGrupo(session.grupoId)
+            val duos = duosResult.getOrElse { emptyList() }.filter { it.isActive }
+            val actResult = duoRepo.getActividadesConTotalesPorGrupo(session.grupoId)
+            _uiState.update {
+                it.copy(
+                    isDuoLoading   = false,
+                    duosActivos    = duos,
+                    duoActividades = actResult.getOrElse { emptyList() },
+                )
+            }
         }
     }
 

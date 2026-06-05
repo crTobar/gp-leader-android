@@ -54,8 +54,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.gpleader.app.core.data.repository.DuoActividadConTotal
+import com.gpleader.app.core.data.repository.DuoMisioneroData
+import com.gpleader.app.core.data.repository.nombreCompleto
 import com.gpleader.app.core.ui.components.AppBottomNavBar
 import com.gpleader.app.core.ui.components.NAV_TAB_ACTIVIDADES
+import com.gpleader.app.core.ui.components.NeuAvatar
 import com.gpleader.app.core.ui.components.NeuCard
 import com.gpleader.app.core.ui.components.OnResumeEffect
 import com.gpleader.app.core.ui.theme.Accent
@@ -67,6 +71,7 @@ import com.gpleader.app.core.ui.theme.Ink
 import com.gpleader.app.core.ui.theme.Mid
 import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.Sage
+import com.gpleader.app.core.ui.theme.neuElevated
 import com.gpleader.app.core.ui.theme.neuElevatedSm
 import com.gpleader.app.core.ui.theme.neuGlow
 import com.gpleader.app.core.ui.theme.neuInsetInner
@@ -80,27 +85,35 @@ import java.util.Locale
 
 @Composable
 fun ActividadesListScreen(
-    onNavigateBack:          () -> Unit,
-    onNavigateToHistorial:   (actividadTipoId: String) -> Unit,
-    onNavigateToCrear:       () -> Unit = {},
-    onNavigateToHome:        () -> Unit = {},
-    onNavigateToPerfil:      () -> Unit = {},
-    onNavigateToCampana:     (tipoId: String, nombre: String, desde: String, hasta: String) -> Unit = { _, _, _, _ -> },
+    onNavigateBack:               () -> Unit,
+    onNavigateToHistorial:        (actividadTipoId: String) -> Unit,
+    onNavigateToCrear:            () -> Unit = {},
+    onNavigateToHome:             () -> Unit = {},
+    onNavigateToPerfil:           () -> Unit = {},
+    onNavigateToCampana:          (tipoId: String, nombre: String, desde: String, hasta: String) -> Unit = { _, _, _, _ -> },
+    onNavigateToCrearActividadDuo: (duoId: String) -> Unit = {},
+    onNavigateToDuoActividad:     (actividadTipoId: String, nombre: String, duoId: String) -> Unit = { _, _, _ -> },
     viewModel: ActividadesListViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    OnResumeEffect { viewModel.cargar() }
+    OnResumeEffect {
+        viewModel.cargar()
+        viewModel.cargarDuoActividades()
+    }
     ActividadesListContent(
-        uiState               = uiState,
-        onNavigateBack        = onNavigateBack,
-        onNavigateToHistorial = onNavigateToHistorial,
-        onNavigateToCrear     = onNavigateToCrear,
-        onNavigateToHome      = onNavigateToHome,
-        onNavigateToPerfil    = onNavigateToPerfil,
-        onNavigateToCampana   = onNavigateToCampana,
-        onFiltroNivel         = viewModel::onFiltroNivel,
-        onFiltroEstado        = viewModel::onFiltroEstado,
-        onRefresh             = viewModel::onRefresh,
+        uiState                    = uiState,
+        onNavigateBack             = onNavigateBack,
+        onNavigateToHistorial      = onNavigateToHistorial,
+        onNavigateToCrear          = onNavigateToCrear,
+        onNavigateToHome           = onNavigateToHome,
+        onNavigateToPerfil         = onNavigateToPerfil,
+        onNavigateToCampana        = onNavigateToCampana,
+        onNavigateToCrearActividadDuo = onNavigateToCrearActividadDuo,
+        onNavigateToDuoActividad   = onNavigateToDuoActividad,
+        onFiltroNivel              = viewModel::onFiltroNivel,
+        onFiltroEstado             = viewModel::onFiltroEstado,
+        onRefresh                  = viewModel::onRefresh,
+        onModoChange               = viewModel::onModoChange,
     )
 }
 
@@ -109,16 +122,19 @@ fun ActividadesListScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ActividadesListContent(
-    uiState:               ActividadesListUiState,
-    onNavigateBack:        () -> Unit,
-    onNavigateToHistorial: (String) -> Unit,
-    onNavigateToCrear:     () -> Unit = {},
-    onNavigateToHome:      () -> Unit = {},
-    onNavigateToPerfil:    () -> Unit = {},
-    onNavigateToCampana:   (tipoId: String, nombre: String, desde: String, hasta: String) -> Unit = { _, _, _, _ -> },
-    onFiltroNivel:         (FiltroNivel) -> Unit,
-    onFiltroEstado:        (FiltroEstado) -> Unit,
-    onRefresh:             () -> Unit = {},
+    uiState:                       ActividadesListUiState,
+    onNavigateBack:                () -> Unit,
+    onNavigateToHistorial:         (String) -> Unit,
+    onNavigateToCrear:             () -> Unit = {},
+    onNavigateToHome:              () -> Unit = {},
+    onNavigateToPerfil:            () -> Unit = {},
+    onNavigateToCampana:           (tipoId: String, nombre: String, desde: String, hasta: String) -> Unit = { _, _, _, _ -> },
+    onNavigateToCrearActividadDuo: (duoId: String) -> Unit = {},
+    onNavigateToDuoActividad:      (actividadTipoId: String, nombre: String, duoId: String) -> Unit = { _, _, _ -> },
+    onFiltroNivel:                 (FiltroNivel) -> Unit,
+    onFiltroEstado:                (FiltroEstado) -> Unit,
+    onRefresh:                     () -> Unit = {},
+    onModoChange:                  (Boolean) -> Unit = {},
 ) {
     Scaffold(
         containerColor = Background,
@@ -137,7 +153,7 @@ private fun ActividadesListContent(
             .padding(innerPadding)
             .background(Background),
     ) {
-        var modoGP by remember { mutableStateOf(true) }
+        val modoGP = uiState.modoGP
 
         Column(modifier = Modifier.fillMaxSize()) {
 
@@ -177,7 +193,7 @@ private fun ActividadesListContent(
             // ── Segmented control GP / Duos ───────────────────────────────────
             ModoSegmentedControl(
                 modoGP   = modoGP,
-                onSelect = { modoGP = it },
+                onSelect = { onModoChange(it) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
@@ -198,17 +214,15 @@ private fun ActividadesListContent(
             }
 
             if (!modoGP) {
-                Box(
-                    modifier         = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text  = "Actividades de dúos misioneros\npróximamente",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Muted,
-                        textAlign = TextAlign.Center,
-                    )
-                }
+                DuoActividadesContent(
+                    actividades                = uiState.duoActividades,
+                    duosActivos               = uiState.duosActivos,
+                    isLoading                 = uiState.isDuoLoading,
+                    onCardClick               = { item -> onNavigateToDuoActividad(item.tipo.id, item.tipo.nombre, item.duo.id) },
+                    onFabClick                = {},
+                    onNavigateToCrearActividad = { onNavigateToCrearActividadDuo("todos") },
+                    modifier                  = Modifier.weight(1f),
+                )
                 return@Column
             }
 
@@ -331,27 +345,208 @@ private fun ActividadesListContent(
             }
         }
 
-        // ── FAB neumórfico ────────────────────────────────────────────────────
+        // ── FAB neumórfico — solo en modo GP ─────────────────────────────────
+        if (modoGP) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 20.dp, bottom = 20.dp)
+                    .neuGlow(cornerRadius = 20.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Accent)
+                    .clickable(onClick = onNavigateToCrear)
+                    .size(56.dp),
+            ) {
+                Icon(
+                    imageVector        = Icons.Default.Add,
+                    contentDescription = "Nueva actividad",
+                    tint               = Color.White,
+                    modifier           = Modifier.size(24.dp),
+                )
+            }
+        }
+    }   // Box
+    }   // Scaffold
+}
+
+// ── Dúo: lista de actividades ─────────────────────────────────────────────────
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun DuoActividadesContent(
+    actividades:               List<DuoActividadConTotal>,
+    duosActivos:               List<DuoMisioneroData>,
+    isLoading:                 Boolean,
+    onCardClick:               (DuoActividadConTotal) -> Unit,
+    onFabClick:                () -> Unit,
+    onNavigateToCrearActividad: (duoId: String) -> Unit = {},
+    modifier:                  Modifier = Modifier,
+) {
+    var showDuoPicker by remember { mutableStateOf(false) }
+
+    val fabEnabled  = !isLoading && duosActivos.isNotEmpty()
+    val fabAlpha    = if (fabEnabled) 1f else 0.5f
+
+    val handleFabClick: () -> Unit = {
+        if (fabEnabled) {
+            when {
+                duosActivos.size == 1 -> onNavigateToCrearActividad(duosActivos[0].id)
+                duosActivos.size > 1  -> showDuoPicker = true
+            }
+        }
+    }
+
+    Box(modifier = modifier.fillMaxWidth()) {
+        if (isLoading) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                androidx.compose.material3.CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
+            }
+        } else if (actividades.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Sin actividades de dúos.\nToca + para crear una.", style = MaterialTheme.typography.bodyMedium, color = Muted, textAlign = TextAlign.Center)
+            }
+        } else {
+            LazyColumn(
+                modifier            = Modifier.fillMaxSize(),
+                contentPadding      = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 96.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(actividades, key = { it.tipo.id }) { item ->
+                    DuoActividadCard(item = item, onClick = { onCardClick(item) })
+                }
+            }
+        }
+
+        // FAB
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(end = 20.dp, bottom = 20.dp)
+                .alpha(fabAlpha)
                 .neuGlow(cornerRadius = 20.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(Accent)
-                .clickable(onClick = onNavigateToCrear)
+                .clickable(enabled = fabEnabled, onClick = handleFabClick)
                 .size(56.dp),
         ) {
-            Icon(
-                imageVector        = Icons.Default.Add,
-                contentDescription = "Nueva actividad",
-                tint               = Color.White,
-                modifier           = Modifier.size(24.dp),
-            )
+            Icon(Icons.Default.Add, contentDescription = "Nueva actividad dúo", tint = Color.White, modifier = Modifier.size(24.dp))
         }
-    }   // Box
-    }   // Scaffold
+    }
+
+    // Sheet selector de dúo cuando hay más de uno
+    if (showDuoPicker) {
+        androidx.compose.material3.ModalBottomSheet(
+            onDismissRequest = { showDuoPicker = false },
+            containerColor   = Background,
+        ) {
+            Column(
+                modifier            = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(
+                    "¿Para qué dúo?",
+                    style      = MaterialTheme.typography.titleLarge,
+                    color      = Ink,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.height(4.dp))
+                duosActivos.forEach { duo ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .neuElevated(cornerRadius = 16.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Background)
+                            .clickable {
+                                showDuoPicker = false
+                                onNavigateToCrearActividad(duo.id)
+                            }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(modifier = Modifier.size(44.dp)) {
+                            NeuAvatar(iniciales = inicialesActividadesListDuo(duo.member2.nombreCompleto), size = 32.dp, modifier = Modifier.align(Alignment.BottomEnd))
+                            NeuAvatar(iniciales = inicialesActividadesListDuo(duo.member1.nombreCompleto), size = 32.dp, modifier = Modifier.align(Alignment.TopStart))
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            "${duo.member1.primerNombre} & ${duo.member2.primerNombre}",
+                            style      = MaterialTheme.typography.bodyLarge,
+                            color      = Ink,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun DuoActividadCard(
+    item:    DuoActividadConTotal,
+    onClick: () -> Unit,
+) {
+    val inic1 = inicialesActividadesListDuo(item.duo.member1.nombreCompleto)
+    val inic2 = inicialesActividadesListDuo(item.duo.member2.nombreCompleto)
+    val valorStr = when (item.tipo.markerType) {
+        "monetary"      -> "₡${item.montoTotal.toLong()}"
+        "daily_checker" -> "${item.diasMarcados} días"
+        "checkbox"      -> if (item.diasMarcados > 0) "✓" else "—"
+        else            -> "${item.totalCantidad} ${item.tipo.unitLabel}"
+    }
+    val tipoLabel = when (item.tipo.markerType) {
+        "monetary"      -> "Monetario"
+        "daily_checker" -> "Diario"
+        "checkbox"      -> "Verificación"
+        else            -> "Contador"
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .neuElevated(cornerRadius = 20.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Background)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Avatares dúo
+        Box(modifier = Modifier.size(44.dp)) {
+            NeuAvatar(iniciales = inic2, size = 32.dp, modifier = Modifier.align(Alignment.BottomEnd))
+            NeuAvatar(iniciales = inic1, size = 32.dp, modifier = Modifier.align(Alignment.TopStart))
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(item.tipo.nombre, style = MaterialTheme.typography.bodyLarge, color = Ink, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("${item.duo.member1.primerNombre} & ${item.duo.member2.primerNombre}", style = MaterialTheme.typography.labelSmall, color = Muted)
+                Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Accent.copy(alpha = 0.12f)).padding(horizontal = 6.dp, vertical = 2.dp)) {
+                    Text(tipoLabel, style = MaterialTheme.typography.labelSmall, color = Accent, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(valorStr, style = MaterialTheme.typography.bodyLarge, color = Accent, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.width(4.dp))
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Muted, modifier = Modifier.size(18.dp))
+    }
+}
+
+private fun inicialesActividadesListDuo(nombre: String): String {
+    val partes = nombre.trim().split(" ").filter { it.isNotBlank() }
+    return when {
+        partes.size >= 2 -> "${partes[0].first().uppercaseChar()}${partes[1].first().uppercaseChar()}"
+        partes.size == 1 -> partes[0].take(2).uppercase()
+        else             -> "?"
+    }
 }
 
 // ── Chip de filtro ────────────────────────────────────────────────────────────

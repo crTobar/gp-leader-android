@@ -533,7 +533,7 @@ private fun ActividadesMisionerasCard(onClick: () -> Unit) {
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text  = "Administrador de campañas del grupo",
+                    text  = "Administrador de dúos misioneros y estudios individuales",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Mid,
                 )
@@ -585,7 +585,7 @@ private fun VerHistorialCard(onClick: () -> Unit) {
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text  = "Asistencia de las últimas 6 semanas",
+                    text  = "Ver reuniones pasadas y asistencia a cultos de sábado",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Mid,
                 )

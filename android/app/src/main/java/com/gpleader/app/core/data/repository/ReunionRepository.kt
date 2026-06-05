@@ -60,6 +60,7 @@ data class SabbathMeetingResumen(
 
 interface ReunionRepository {
     fun getReuniones(grupoId: String, limit: Int = Int.MAX_VALUE): Flow<List<ReunionConStats>>
+    fun getReunionesSabado(grupoId: String, limit: Int = Int.MAX_VALUE): Flow<List<ReunionConStats>>
     suspend fun saveReunion(
         grupoId:       String,
         fecha:         LocalDate,

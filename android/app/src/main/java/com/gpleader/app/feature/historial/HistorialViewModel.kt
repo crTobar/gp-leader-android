@@ -2,6 +2,7 @@ package com.gpleader.app.feature.historial
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gpleader.app.core.data.repository.ReunionConStats
 import com.gpleader.app.core.data.repository.ReunionRepository
 import com.gpleader.app.core.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,6 +26,8 @@ data class Trimestre(
 )
 
 enum class EstadoReunionHistorial { ENVIADA, PENDIENTE_SYNC }
+
+enum class TipoHistorial { GP, SABADO }
 
 data class ReunionResumen(
     val id:                  String,
@@ -58,6 +61,7 @@ data class GrupoMes(
 data class HistorialUiState(
     val trimestres:           List<Trimestre>   = emptyList(),
     val trimestreSeleccionado: String           = "todo",   // id o "todo"
+    val tipoHistorial:        TipoHistorial     = TipoHistorial.GP,
     val grupos:               List<GrupoMes>    = emptyList(),
     val stats:                HistorialStats    = HistorialStats(0, 0, 0, 0),
     val isLoading:            Boolean           = false,
@@ -82,6 +86,7 @@ class HistorialViewModel @Inject constructor(
 
     /** Cache de todas las reuniones cargadas desde Supabase */
     private var todasLasReuniones: List<ReunionResumen> = emptyList()
+    private var todasLasReunionesSabado: List<ReunionResumen> = emptyList()
 
     private val trimestresDelAnio: List<Trimestre> by lazy {
         val anio = LocalDate.now().year
@@ -123,24 +128,7 @@ class HistorialViewModel @Inject constructor(
                         _uiState.update { it.copy(isRefreshing = false, error = "Error al cargar reuniones: ${e.message}") }
                     }
                     .collect { reuniones ->
-                        todasLasReuniones = reuniones.map { r ->
-                            val total = r.presentes + r.ausentes + r.justificados
-                            val pct   = if (total > 0) (r.presentes * 100 / total) else 0
-                            val estado = when (r.estado.uppercase()) {
-                                "ENVIADA", "SENT", "SUBMITTED", "APPROVED", "APROBADA" -> EstadoReunionHistorial.ENVIADA
-                                else -> EstadoReunionHistorial.PENDIENTE_SYNC
-                            }
-                            ReunionResumen(
-                                id                    = r.id,
-                                fecha                 = r.fecha,
-                                estado                = estado,
-                                presentes             = r.presentes,
-                                ausentes              = r.ausentes,
-                                justificados          = r.justificados,
-                                porcentajeAsistencia  = pct,
-                                permitirEdicion       = estado != EstadoReunionHistorial.ENVIADA,
-                            )
-                        }
+                        todasLasReuniones = reuniones.map { r -> r.toResumen() }
                         aplicarFiltro(_uiState.value.trimestreSeleccionado)
                         _uiState.update { it.copy(isRefreshing = false, error = null) }
                     }
@@ -157,38 +145,56 @@ class HistorialViewModel @Inject constructor(
                     _uiState.update { it.copy(isLoading = false, error = "Error al cargar reuniones: ${e.message}\ngrupoId=$gId") }
                 }
                 .collect { reuniones ->
-                    _uiState.update { it.copy(debugInfo = "grupoId=$gId total=${reuniones.size}") }
-                    todasLasReuniones = reuniones.map { r ->
-                        val total = r.presentes + r.ausentes + r.justificados
-                        val pct   = if (total > 0) (r.presentes * 100 / total) else 0
-                        val estado = when (r.estado.uppercase()) {
-                            "ENVIADA", "SENT", "SUBMITTED", "APPROVED", "APROBADA" -> EstadoReunionHistorial.ENVIADA
-                            else -> EstadoReunionHistorial.PENDIENTE_SYNC
-                        }
-                        ReunionResumen(
-                            id                    = r.id,
-                            fecha                 = r.fecha,
-                            estado                = estado,
-                            presentes             = r.presentes,
-                            ausentes              = r.ausentes,
-                            justificados          = r.justificados,
-                            porcentajeAsistencia  = pct,
-                            permitirEdicion       = estado != EstadoReunionHistorial.ENVIADA,
-                        )
-                    }
+                    todasLasReuniones = reuniones.map { r -> r.toResumen() }
                     aplicarFiltro(_uiState.value.trimestreSeleccionado)
                     _uiState.update { it.copy(isLoading = false, error = null) }
                 }
         }
+        viewModelScope.launch {
+            reunionRepo.getReunionesSabado(gId)
+                .catch { }
+                .collect { reuniones ->
+                    todasLasReunionesSabado = reuniones.map { r -> r.toResumen() }
+                    if (_uiState.value.tipoHistorial == TipoHistorial.SABADO) {
+                        aplicarFiltro(_uiState.value.trimestreSeleccionado)
+                    }
+                }
+        }
+    }
+
+    private fun ReunionConStats.toResumen(): ReunionResumen {
+        val total = presentes + ausentes + justificados
+        val pct   = if (total > 0) (presentes * 100 / total) else 0
+        val estado = when (this.estado.uppercase()) {
+            "ENVIADA", "SENT", "SUBMITTED", "APPROVED", "APROBADA" -> EstadoReunionHistorial.ENVIADA
+            else -> EstadoReunionHistorial.PENDIENTE_SYNC
+        }
+        return ReunionResumen(
+            id                   = id,
+            fecha                = fecha,
+            estado               = estado,
+            presentes            = presentes,
+            ausentes             = ausentes,
+            justificados         = justificados,
+            porcentajeAsistencia = pct,
+            permitirEdicion      = estado != EstadoReunionHistorial.ENVIADA,
+        )
+    }
+
+    fun onTipoChange(tipo: TipoHistorial) {
+        _uiState.update { it.copy(tipoHistorial = tipo) }
+        aplicarFiltro(_uiState.value.trimestreSeleccionado)
     }
 
     private fun aplicarFiltro(trimestreId: String) {
+        val fuente = if (_uiState.value.tipoHistorial == TipoHistorial.SABADO)
+            todasLasReunionesSabado else todasLasReuniones
         val filtradas = if (trimestreId == "todo") {
-            todasLasReuniones
+            fuente
         } else {
             val trimestre = trimestresDelAnio.find { it.id == trimestreId }
-            if (trimestre == null) todasLasReuniones
-            else todasLasReuniones.filter { r ->
+            if (trimestre == null) fuente
+            else fuente.filter { r ->
                 !r.fecha.isBefore(trimestre.fechaInicio) && !r.fecha.isAfter(trimestre.fechaFin)
             }
         }

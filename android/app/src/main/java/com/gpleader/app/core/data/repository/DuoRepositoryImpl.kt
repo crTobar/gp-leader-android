@@ -107,17 +107,21 @@ class DuoRepositoryImpl @Inject constructor(
                 nombre     = obj["nombre"]!!.jsonPrimitive.content,
                 markerType = obj["marker_type"]?.jsonPrimitive?.contentOrNull ?: "counter",
                 unitLabel  = obj["unit_label"]?.jsonPrimitive?.contentOrNull ?: "veces",
+                startDate  = obj["start_date"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
+                endDate    = obj["end_date"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
             )
         }
     }
 
-    override suspend fun crearActividadDuo(duoId: String, nombre: String, markerType: String, unitLabel: String): Result<String> = runCatching {
+    override suspend fun crearActividadDuo(duoId: String, nombre: String, markerType: String, unitLabel: String, startDate: LocalDate?, endDate: LocalDate?): Result<String> = runCatching {
         val rows = supabase.from("duo_activity_type").insert(
             buildJsonObject {
                 put("duo_id", duoId)
                 put("nombre", nombre)
                 put("marker_type", markerType)
                 put("unit_label", unitLabel)
+                if (startDate != null) put("start_date", startDate.toString()) else put("start_date", JsonNull)
+                if (endDate != null)   put("end_date",   endDate.toString())   else put("end_date",   JsonNull)
             }
         ) { select() }.data
         kotlinx.serialization.json.Json.parseToJsonElement(rows).jsonArray[0].jsonObject["id"]!!.jsonPrimitive.content
@@ -131,18 +135,57 @@ class DuoRepositoryImpl @Inject constructor(
                 gte("record_date", desde.toString())
             }
         }.data
+        parseRegistrosDuo(rows, duoId)
+    }
+
+    override suspend fun getRegistrosPorTipoActividad(actividadTipoId: String, duoId: String, desde: LocalDate): Result<List<DuoActividadRecord>> = runCatching {
+        val rows = supabase.from("duo_activity_record").select {
+            filter {
+                eq("activity_type_id", actividadTipoId)
+                eq("duo_id", duoId)
+                gte("record_date", desde.toString())
+            }
+        }.data
+        parseRegistrosDuo(rows, duoId)
+    }
+
+    override suspend fun getActividadesConTotalesPorGrupo(grupoId: String): Result<List<DuoActividadConTotal>> = runCatching {
+        val duos = getDuosByGrupo(grupoId).getOrThrow().filter { it.isActive }
+        val desde = LocalDate.now().minusDays(90)
+        val result = mutableListOf<DuoActividadConTotal>()
+        for (duo in duos) {
+            val tipos = getActividadesDuo(duo.id).getOrElse { emptyList() }
+            for (tipo in tipos) {
+                val registros = getRegistrosDuo(duo.id, tipo.id, desde).getOrElse { emptyList() }
+                val totalCantidad = registros.sumOf { it.count ?: 0 }
+                val diasMarcados  = registros.count { it.isDone }
+                result.add(DuoActividadConTotal(
+                    tipo          = tipo,
+                    duo           = duo,
+                    totalCantidad = totalCantidad,
+                    montoTotal    = totalCantidad.toDouble(),
+                    diasMarcados  = diasMarcados,
+                ))
+            }
+        }
+        result
+    }
+
+    private fun parseRegistrosDuo(rows: String, duoIdFallback: String): List<DuoActividadRecord> =
         kotlinx.serialization.json.Json.parseToJsonElement(rows).jsonArray.map { el ->
             val obj = el.jsonObject
             DuoActividadRecord(
                 id              = obj["id"]!!.jsonPrimitive.content,
+                duoId           = obj["duo_id"]?.jsonPrimitive?.contentOrNull ?: duoIdFallback,
                 actividadTipoId = obj["activity_type_id"]!!.jsonPrimitive.content,
                 recordDate      = LocalDate.parse(obj["record_date"]!!.jsonPrimitive.content),
                 count           = obj["count"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.intOrNull,
                 isDone          = obj["is_done"]?.jsonPrimitive?.content?.toBoolean() ?: false,
                 updatedBy       = obj["updated_by"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
+                updatedAt       = obj["updated_at"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull
+                                    ?.let { runCatching { java.time.Instant.parse(it) }.getOrNull() },
             )
         }
-    }
 
     override suspend fun upsertRegistroDuo(duoId: String, actividadTipoId: String, fecha: LocalDate, count: Int?, isDone: Boolean, updatedBy: String): Result<Unit> = runCatching {
         supabase.from("duo_activity_record").upsert(
@@ -177,6 +220,24 @@ class DuoRepositoryImpl @Inject constructor(
                 completedLessons = lessonsArr,
             )
         }
+    }
+
+    override suspend fun getEstudioDuoById(estudioId: String): Result<DuoBibleStudy?> = runCatching {
+        val rows = supabase.from("duo_bible_study").select {
+            filter { eq("id", estudioId) }
+            limit(1)
+        }.data
+        val arr = kotlinx.serialization.json.Json.parseToJsonElement(rows).jsonArray
+        if (arr.isEmpty()) return@runCatching null
+        val obj = arr[0].jsonObject
+        val lessonsArr = obj["completed_lessons"]?.takeIf { it !is JsonNull }
+            ?.jsonArray?.mapNotNull { it.jsonPrimitive.intOrNull } ?: emptyList()
+        DuoBibleStudy(
+            id               = obj["id"]!!.jsonPrimitive.content,
+            duoId            = obj["duo_id"]!!.jsonPrimitive.content,
+            studentName      = obj["student_name"]!!.jsonPrimitive.content,
+            completedLessons = lessonsArr,
+        )
     }
 
     override suspend fun crearEstudioDuo(duoId: String, studentName: String): Result<String> = runCatching {

@@ -108,6 +108,8 @@ fun AgregarActividadStandaloneScreen(
 
     AgregarActividadContent(
         onNavigateBack = onNavigateBack,
+        isSaving       = uiState.isSaving,
+        errorExterno   = uiState.error,
         onAgregar = { nombre, markerType, isMemberAccessible, frecuencia, startDate, endDate ->
             viewModel.onNombreChange(nombre)
             viewModel.onMarkerTypeChange(markerType)
@@ -126,6 +128,8 @@ fun AgregarActividadStandaloneScreen(
 @Composable
 private fun AgregarActividadContent(
     onNavigateBack: () -> Unit,
+    isSaving:       Boolean = false,
+    errorExterno:   String? = null,
     onAgregar: (nombre: String, markerType: String, isMemberAccessible: Boolean, frecuencia: String, startDate: LocalDate?, endDate: LocalDate?) -> Unit,
 ) {
     var nombre              by remember { mutableStateOf("") }
@@ -305,10 +309,18 @@ private fun AgregarActividadContent(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            if (errorExterno != null) {
+                androidx.compose.material3.Text(
+                    text  = errorExterno,
+                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
+                    color = com.gpleader.app.core.ui.theme.Blush,
+                )
+            }
             NeuButtonPrimary(
-                text    = stringResource(R.string.agregar_actividad_btn_agregar),
+                text    = if (isSaving) "Guardando…" else stringResource(R.string.agregar_actividad_btn_agregar),
+                enabled = !isSaving,
                 onClick = {
-                    if (nombre.isNotBlank()) {
+                    if (nombre.isNotBlank() && !isSaving) {
                         val markerType = when (tipoMarcador) {
                             TipoMarcador.CONTADOR      -> "counter"
                             TipoMarcador.CHECKBOX      -> "realizado"

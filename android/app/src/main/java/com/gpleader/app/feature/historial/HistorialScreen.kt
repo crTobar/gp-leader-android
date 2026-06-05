@@ -132,6 +132,7 @@ fun HistorialScreen(
         onReunionClick          = viewModel::onReunionClick,
         onEditarReunionClick    = viewModel::onEditarReunionClick,
         onRefresh               = viewModel::onRefresh,
+        onTipoChange            = viewModel::onTipoChange,
     )
 }
 
@@ -150,12 +151,13 @@ private fun HistorialContent(
     onReunionClick:          (String) -> Unit,
     onEditarReunionClick:    (String) -> Unit = {},
     onRefresh:               () -> Unit = {},
+    onTipoChange:            (TipoHistorial) -> Unit = {},
 ) {
     Scaffold(
         containerColor = Background,
         bottomBar = {
             AppBottomNavBar(
-                selectedTab        = NAV_TAB_INICIO,
+                selectedTab        = -1,
                 onInicioClick      = onNavigateToHome,
                 onActividadesClick = onNavigateToActividades,
                 onPerfilClick      = onNavigateToPerfil,
@@ -189,6 +191,15 @@ private fun HistorialContent(
                 HistorialTopBar(
                     modifier = Modifier
                         .padding(horizontal = 20.dp, vertical = 16.dp),
+                )
+            }
+
+            // ── Toggle GP / Sábado ────────────────────────────────────────────
+            item {
+                TipoHistorialToggle(
+                    tipoSeleccionado = uiState.tipoHistorial,
+                    onTipoChange     = onTipoChange,
+                    modifier         = Modifier.padding(horizontal = 20.dp),
                 )
             }
 
@@ -241,6 +252,7 @@ private fun HistorialContent(
                 items(grupo.reuniones, key = { it.id }) { reunion ->
                     ReunionCard(
                         reunion              = reunion,
+                        tipoHistorial        = uiState.tipoHistorial,
                         onClick              = { onReunionClick(reunion.id) },
                         onEditarClick        = { onEditarReunionClick(reunion.id) },
                         modifier             = Modifier.padding(horizontal = 20.dp),
@@ -686,25 +698,43 @@ private fun MesHeader(
 
 // ── Tarjeta de reunión ────────────────────────────────────────────────────────
 
-private val DIAS_CORTOS  = arrayOf("Dom","Lun","Mar","Mié","Jue","Vie","Sáb")
-private val MESES_CORTOS = arrayOf("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic")
+private val DIAS_CORTOS    = arrayOf("Dom","Lun","Mar","Mié","Jue","Vie","Sáb")
+private val DIAS_COMPLETOS = arrayOf("Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado")
+private val MESES_CORTOS   = arrayOf("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic")
+private val MESES_COMPLETOS = arrayOf("Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre")
 
 private fun LocalDate.diaSemanaCorto(): String {
     val idx = if (dayOfWeek == DayOfWeek.SUNDAY) 0 else dayOfWeek.value
     return DIAS_CORTOS[idx]
 }
 
+private fun LocalDate.fechaLarga(): String {
+    val diaIdx = if (dayOfWeek == DayOfWeek.SUNDAY) 0 else dayOfWeek.value
+    return "${DIAS_COMPLETOS[diaIdx]}, $dayOfMonth de ${MESES_COMPLETOS[monthValue - 1]}"
+}
+
 @Composable
 private fun ReunionCard(
     reunion:       ReunionResumen,
+    tipoHistorial: TipoHistorial = TipoHistorial.GP,
     onClick:       () -> Unit,
     onEditarClick: () -> Unit = {},
     modifier:      Modifier = Modifier,
 ) {
-    val esPendiente = reunion.estado == EstadoReunionHistorial.PENDIENTE_SYNC
-    val pct         = reunion.porcentajeAsistencia
-    val diaSemana   = reunion.fecha.diaSemanaCorto()
-    val mes         = MESES_CORTOS[reunion.fecha.monthValue - 1]
+    val esPendiente  = reunion.estado == EstadoReunionHistorial.PENDIENTE_SYNC
+    val esSabado     = tipoHistorial == TipoHistorial.SABADO
+    val pct          = reunion.porcentajeAsistencia
+    val diaSemana    = reunion.fecha.diaSemanaCorto()
+    val mes          = MESES_CORTOS[reunion.fecha.monthValue - 1]
+
+    // Paleta según tipo
+    val cardBg      = if (esSabado) Color(0xFFEDE8F5) else Background
+    val accentColor = when {
+        esPendiente -> Gold
+        esSabado    -> Color(0xFF7C5CBF)
+        else        -> Accent
+    }
+    val progressColor = if (esSabado) Color(0xFF7C5CBF) else Sage
 
     // Animación de escala al presionar
     val interactionSource = remember { MutableInteractionSource() }
@@ -725,8 +755,7 @@ private fun ReunionCard(
         label = "progress",
     )
 
-    val semana    = (reunion.fecha.dayOfMonth - 1) / 7 + 1
-    val subTitulo = "Mes ${reunion.fecha.monthValue}, Semana $semana"
+    val fechaHeader = reunion.fecha.fechaLarga()
 
     SwipeableItem(
         itemKey      = reunion.id,
@@ -744,16 +773,16 @@ private fun ReunionCard(
         modifier = Modifier
             .fillMaxWidth()
             .height(IntrinsicSize.Min)
-            .neuElevated(cornerRadius = 20.dp)
+            .neuElevated(cornerRadius = 20.dp, bgColor = cardBg)
             .clip(RoundedCornerShape(20.dp))
-            .background(Background),
+            .background(cardBg),
     ) {
         // Barra de color izquierda
         Box(
             modifier = Modifier
                 .width(4.dp)
                 .fillMaxHeight()
-                .background(if (esPendiente) Gold else Accent),
+                .background(accentColor),
         )
 
         Row(
@@ -764,12 +793,13 @@ private fun ReunionCard(
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
+                    .neuInsetSm(cornerRadius = 14.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(if (esPendiente) Muted else BackgroundDeep)
+                    .background(cardBg)
                     .padding(horizontal = 10.dp, vertical = 8.dp),
             ) {
-                val fechaTextColor = if (esPendiente) Mid else Muted
-                val numColor       = if (esPendiente) Mid else Ink
+                val fechaTextColor = if (esPendiente) Gold else Muted
+                val numColor       = accentColor
                 Text(
                     text  = diaSemana.uppercase(),
                     style = MaterialTheme.typography.labelSmall,
@@ -793,14 +823,15 @@ private fun ReunionCard(
             // ── Contenido ─────────────────────────────────────────────────────
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text       = stringResource(R.string.historial_reunion_titulo),
-                    style      = MaterialTheme.typography.titleLarge,
-                    color      = Accent,
-                    fontWeight = FontWeight.Bold,
+                    text       = fechaHeader,
+                    style      = MaterialTheme.typography.headlineMedium.copy(fontSize = 17.sp, lineHeight = 20.sp),
+                    color      = Ink,
+                    fontWeight = FontWeight.SemiBold,
                 )
 
                 Text(
-                    text  = subTitulo,
+                    text  = if (tipoHistorial == TipoHistorial.SABADO) "Culto de Sábado"
+                            else stringResource(R.string.historial_reunion_titulo),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Muted,
                 )
@@ -844,14 +875,14 @@ private fun ReunionCard(
                         .fillMaxWidth()
                         .height(5.dp)
                         .clip(RoundedCornerShape(3.dp))
-                        .background(BackgroundDeep),
+                        .background(accentColor.copy(alpha = 0.15f)),
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth(animatedProgress)
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(3.dp))
-                            .background(Sage),
+                            .background(progressColor),
                     )
                 }
             }
@@ -968,6 +999,58 @@ private fun DotLabel(count: Int, color: Color, res: Int) {
             style = MaterialTheme.typography.labelSmall,
             color = color,
         )
+    }
+}
+
+// ── Toggle GP / Sábado ────────────────────────────────────────────────────────
+
+@Composable
+private fun TipoHistorialToggle(
+    tipoSeleccionado: TipoHistorial,
+    onTipoChange:     (TipoHistorial) -> Unit,
+    modifier:         Modifier = Modifier,
+) {
+    val animSpec = spring<Color>(stiffness = Spring.StiffnessMedium)
+
+    Row(
+        modifier              = modifier
+            .fillMaxWidth()
+            .neuElevated(cornerRadius = 20.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Background)
+            .padding(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        TipoHistorial.values().forEach { tipo ->
+            val activo = tipoSeleccionado == tipo
+            val bg by animateColorAsState(
+                targetValue   = if (activo) Accent else Background,
+                animationSpec = animSpec,
+                label         = "toggleBg_${tipo.name}",
+            )
+            val textColor by animateColorAsState(
+                targetValue   = if (activo) Color.White else Mid,
+                animationSpec = animSpec,
+                label         = "toggleText_${tipo.name}",
+            )
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .weight(1f)
+                    .then(if (activo) Modifier.neuGlow(cornerRadius = 14.dp) else Modifier)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(bg)
+                    .clickable(onClick = { onTipoChange(tipo) })
+                    .padding(vertical = 10.dp),
+            ) {
+                Text(
+                    text       = if (tipo == TipoHistorial.GP) "Reunión de GP" else "Culto de Sábado",
+                    style      = MaterialTheme.typography.labelSmall,
+                    color      = textColor,
+                    fontWeight = if (activo) FontWeight.Bold else FontWeight.Normal,
+                )
+            }
+        }
     }
 }
 
