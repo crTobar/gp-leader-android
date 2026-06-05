@@ -286,6 +286,7 @@ fun crearActividadDuo(duoId: String) = "crear_actividad_duo/$duoId"
 
 ### Pendiente — Prioridad 2
 
+- ⚠️ **Guardar como borrador** (RegistroPaso3Screen): botón eliminado de la UI temporalmente. Requiere insertar la reunión con `status = "draft"` en Supabase, guardar asistencia y actividades vinculadas, y navegar a pantalla de confirmación. El enum `meeting_status` ya incluye `"draft"`.
 - ⚠️ **MiembrosViewModel**: datos reales de Supabase (sample data hardcoded)
 - ⚠️ **Logs temporales**: remover Log.d en ReunionRepositoryImpl y Log.e en DetalleReunionViewModel
 - ⚠️ **DetalleReunionViewModel**: eliminar sample data r1-r4

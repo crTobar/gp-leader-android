@@ -193,29 +193,6 @@ private fun RegistroPaso3Content(
                 )
             }
             if (!isEnviando) {
-                Row(
-                    modifier          = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable(onClick = onGuardarBorrador)
-                        .padding(vertical = 10.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment     = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector        = Icons.Outlined.Save,
-                        contentDescription = null,
-                        tint               = Accent,
-                        modifier           = Modifier.size(20.dp),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text       = stringResource(R.string.paso3_btn_borrador),
-                        style      = MaterialTheme.typography.titleLarge,
-                        color      = Accent,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
                 if (!esSabado) {
                     Text(
                         text       = stringResource(R.string.paso3_btn_editar_actividades),
