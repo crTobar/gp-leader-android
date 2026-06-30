@@ -2,12 +2,14 @@ package com.gpleader.app.core.data.repository
 
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import java.time.LocalDate
 import javax.inject.Inject
 
 class IglesiaRepositoryImpl @Inject constructor(
@@ -119,6 +121,111 @@ class IglesiaRepositoryImpl @Inject constructor(
             }
         }
         return ChurchHit(id = id, churchName = name, districtName = districtName, campoName = campoName)
+    }
+
+    override suspend fun getGruposByIglesia(iglesiaId: String): List<GrupoResumen> {
+        val data = supabase.from("small_group").select {
+            filter { eq("church_id", iglesiaId) }
+        }.data
+
+        return Json.parseToJsonElement(data).jsonArray.mapNotNull { elem ->
+            val obj = elem.jsonObject
+            // Excluir el grupo general de la iglesia — no es un GP regular
+            val isGeneral = obj["is_general_group"]?.jsonPrimitive?.contentOrNull?.toBoolean() ?: false
+            if (isGeneral) return@mapNotNull null
+            val id    = obj["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            val name  = obj["name"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            GrupoResumen(id = id, nombre = name, totalMiembros = 0, pendingBoardCount = 0)
+        }.let { grupos ->
+            if (grupos.isEmpty()) return emptyList()
+            val grupoIds = grupos.map { it.id }
+
+            // Contar miembros activos por grupo
+            val memberCounts = mutableMapOf<String, Int>()
+            val memberData = supabase.from("member").select {
+                filter {
+                    isIn("small_group_id", grupoIds)
+                    eq("is_active", true)
+                    eq("is_visitor", false)
+                }
+            }.data
+            Json.parseToJsonElement(memberData).jsonArray.forEach { elem ->
+                val groupId = elem.jsonObject["small_group_id"]?.jsonPrimitive?.contentOrNull ?: return@forEach
+                memberCounts[groupId] = (memberCounts[groupId] ?: 0) + 1
+            }
+
+            // Contar pending_board por grupo
+            val pendingCounts = mutableMapOf<String, Int>()
+            val pendingData = supabase.from("member_activity_record").select(
+                Columns.raw("id, member_id, member!inner(small_group_id)")
+            ) {
+                filter { eq("status", "pending_board") }
+            }.data
+            Json.parseToJsonElement(pendingData).jsonArray.forEach { elem ->
+                val obj2    = elem.jsonObject
+                val member  = obj2["member"]?.takeIf { it !is JsonNull }?.jsonObject ?: return@forEach
+                val groupId = member["small_group_id"]?.jsonPrimitive?.contentOrNull ?: return@forEach
+                if (groupId in grupoIds) pendingCounts[groupId] = (pendingCounts[groupId] ?: 0) + 1
+            }
+
+            grupos.map { g ->
+                g.copy(totalMiembros = memberCounts[g.id] ?: 0, pendingBoardCount = pendingCounts[g.id] ?: 0)
+            }
+        }
+    }
+
+    override suspend fun getPendingBoardActivities(iglesiaId: String): List<PendingBoardItem> {
+        val data = supabase.from("member_activity_record").select(
+            Columns.raw("id, record_date, count, member!inner(first_name, last_name, small_group_id, small_group!inner(name, church_id)), activity_type!inner(name)")
+        ) {
+            filter {
+                eq("status", "pending_board")
+                eq("member.small_group.church_id", iglesiaId)
+            }
+        }.data
+
+        return Json.parseToJsonElement(data).jsonArray.mapNotNull { elem ->
+            val obj        = elem.jsonObject
+            val recordId   = obj["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            val recordDate = obj["record_date"]?.jsonPrimitive?.contentOrNull?.let {
+                runCatching { LocalDate.parse(it) }.getOrNull()
+            } ?: LocalDate.now()
+            val monto      = obj["count"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull?.toDoubleOrNull() ?: 0.0
+
+            val member        = obj["member"]?.takeIf { it !is JsonNull }?.jsonObject ?: return@mapNotNull null
+            val firstName     = member["first_name"]?.jsonPrimitive?.contentOrNull ?: ""
+            val lastName      = member["last_name"]?.jsonPrimitive?.contentOrNull ?: ""
+            val smallGroup    = member["small_group"]?.takeIf { it !is JsonNull }?.jsonObject ?: return@mapNotNull null
+            val grupoNombre   = smallGroup["name"]?.jsonPrimitive?.contentOrNull ?: ""
+
+            val actividadObj  = obj["activity_type"]?.takeIf { it !is JsonNull }?.jsonObject ?: return@mapNotNull null
+            val actNombre     = actividadObj["name"]?.jsonPrimitive?.contentOrNull ?: ""
+
+            PendingBoardItem(
+                recordId        = recordId,
+                miembroNombre   = "$firstName $lastName".trim(),
+                grupoNombre     = grupoNombre,
+                actividadNombre = actNombre,
+                monto           = monto,
+                recordDate      = recordDate,
+            )
+        }
+    }
+
+    override suspend fun approveMonetaryActivity(recordId: String): Result<Unit> = runCatching {
+        supabase.from("member_activity_record").update(
+            mapOf("status" to "approved")
+        ) {
+            filter { eq("id", recordId) }
+        }
+    }
+
+    override suspend fun rejectMonetaryActivity(recordId: String): Result<Unit> = runCatching {
+        supabase.from("member_activity_record").update(
+            mapOf("status" to "rejected")
+        ) {
+            filter { eq("id", recordId) }
+        }
     }
 
     private fun fuzzyRank(hits: List<ChurchHit>, tokens: List<String>): List<ChurchHit> {

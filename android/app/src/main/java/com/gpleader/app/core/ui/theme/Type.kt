@@ -64,11 +64,25 @@ val GpTypography = Typography(
         fontSize   = 28.sp,
         lineHeight = 36.sp,
     ),
+    // Cormorant serif — encabezado pequeño (números/stats destacados)
+    headlineSmall = TextStyle(
+        fontFamily = CormorantGaramond,
+        fontWeight = FontWeight.SemiBold,
+        fontSize   = 24.sp,
+        lineHeight = 32.sp,
+    ),
     titleLarge = TextStyle(
         fontFamily = DMSans,
         fontWeight = FontWeight.SemiBold,
         fontSize   = 20.sp,
         lineHeight = 28.sp,
+    ),
+    // DM Sans — título medio
+    titleMedium = TextStyle(
+        fontFamily = DMSans,
+        fontWeight = FontWeight.Medium,
+        fontSize   = 16.sp,
+        lineHeight = 24.sp,
     ),
     bodyLarge = TextStyle(
         fontFamily = DMSans,
@@ -81,6 +95,13 @@ val GpTypography = Typography(
         fontWeight = FontWeight.Normal,
         fontSize   = 14.sp,
         lineHeight = 20.sp,
+    ),
+    // DM Sans — texto pequeño (captions)
+    bodySmall = TextStyle(
+        fontFamily = DMSans,
+        fontWeight = FontWeight.Normal,
+        fontSize   = 12.sp,
+        lineHeight = 16.sp,
     ),
     labelSmall = TextStyle(
         fontFamily    = DMMono,

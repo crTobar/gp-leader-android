@@ -72,6 +72,10 @@ class SessionManager @Inject constructor(
         get() = prefs.getBoolean("isMiembroGuardado", false)
         set(value) { prefs.edit { putBoolean("isMiembroGuardado", value) } }
 
+    var isIglesiaLeader: Boolean
+        get() = prefs.getBoolean("isIglesiaLeader", false)
+        set(value) { prefs.edit { putBoolean("isIglesiaLeader", value) } }
+
     val isLoggedIn: Boolean
         get() = grupoId.isNotEmpty() && miembroId.isNotEmpty()
 

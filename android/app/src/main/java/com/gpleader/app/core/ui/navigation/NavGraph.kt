@@ -16,6 +16,7 @@ import com.gpleader.app.feature.auth.QuienEresScreen
 import com.gpleader.app.feature.auth.SabadoAutoMarcarScreen
 import com.gpleader.app.feature.auth.SabadoConfirmacionScreen
 import com.gpleader.app.feature.miembro.MiembroHomeScreen
+import com.gpleader.app.feature.miembro.MiembroPerfilScreen
 import com.gpleader.app.feature.miembro.SuplementeCodigoEntryScreen
 import com.gpleader.app.feature.miembro.SuplementeHomeScreen
 import com.gpleader.app.feature.historial.HistorialScreen
@@ -60,6 +61,9 @@ import com.gpleader.app.feature.miembro.MiembroActividadesScreen
 import com.gpleader.app.feature.miembro.DuoMisioneroScreen
 import com.gpleader.app.feature.miembro.EstudiosBiblicosListScreen
 import com.gpleader.app.feature.miembro.EstudioDetalleScreen
+import com.gpleader.app.feature.iglesia.IglesiaHomeScreen
+import com.gpleader.app.feature.iglesia.IglesiaGruposScreen
+import com.gpleader.app.feature.iglesia.AprobacionesScreen
 
 object NavRoutes {
     const val LOGIN                      = "login"
@@ -77,6 +81,7 @@ object NavRoutes {
     // ── Miembro regular (perfil guardado) ────────────────────────────────────
     const val CONFIRMAR_IDENTIDAD           = "confirmar_identidad/{miembroId}/{miembroNombre}"
     const val MIEMBRO_HOME                  = "miembro_home"
+    const val MIEMBRO_PERFIL                = "miembro_perfil"
     const val SUPLENTE_CODIGO_ENTRY         = "suplente_codigo_entry"
     const val SUPLENTE_HOME                 = "suplente_home/{deputyCodeId}"
     fun suplementeHome(deputyCodeId: String) = "suplente_home/$deputyCodeId"
@@ -139,6 +144,11 @@ object NavRoutes {
     fun duoActividadDetalle(duoId: String, tipoId: String) = "duo_actividad_detalle/$duoId/$tipoId"
     fun duoEstudioDetalle(estudioId: String) = "duo_estudio_detalle/$estudioId"
 
+    // ── Iglesia (church-level) ────────────────────────────────────────────────
+    const val IGLESIA_HOME    = "iglesia_home"
+    const val IGLESIA_GRUPOS  = "iglesia_grupos"
+    const val APROBACIONES    = "aprobaciones"
+
     // ── Registro nested graph ─────────────────────────────────────────────────
     const val REGISTRO_GRAPH         = "registro"
     const val REGISTRO_GRAPH_ROUTE   = "registro?kind={kind}"
@@ -170,6 +180,11 @@ fun AppNavGraph(
             LoginScreen(
                 onNavigateToQuienEres = {
                     navController.navigate(NavRoutes.QUIEN_ERES) {
+                        popUpTo(NavRoutes.LOGIN) { inclusive = true }
+                    }
+                },
+                onNavigateToIglesiaHome = {
+                    navController.navigate(NavRoutes.IGLESIA_HOME) {
                         popUpTo(NavRoutes.LOGIN) { inclusive = true }
                     }
                 },
@@ -221,10 +236,39 @@ fun AppNavGraph(
                         popUpTo(0) { inclusive = true }
                     }
                 },
-                onNavigateToActividades      = { navController.navigate(NavRoutes.MIEMBRO_ACTIVIDADES) },
+                onNavigateToActividades      = {
+                    navController.navigate(NavRoutes.MIEMBRO_ACTIVIDADES) {
+                        popUpTo(NavRoutes.MIEMBRO_HOME) { inclusive = false }
+                    }
+                },
+                onNavigateToPerfil           = {
+                    navController.navigate(NavRoutes.MIEMBRO_PERFIL) {
+                        popUpTo(NavRoutes.MIEMBRO_HOME) { inclusive = false }
+                    }
+                },
                 onNavigateToDuoMisionero     = { navController.navigate(NavRoutes.MIEMBRO_DUO_MISIONERO) },
                 onNavigateToEstudiosBiblicos = { navController.navigate(NavRoutes.MIEMBRO_ESTUDIOS_BIBLICOS) },
-                onEntrarComoSuplente         = { navController.navigate(NavRoutes.SUPLENTE_CODIGO_ENTRY) },
+            )
+        }
+
+        composable(NavRoutes.MIEMBRO_PERFIL) {
+            MiembroPerfilScreen(
+                onNavigateToInicio = {
+                    navController.navigate(NavRoutes.MIEMBRO_HOME) {
+                        popUpTo(NavRoutes.MIEMBRO_HOME) { inclusive = false }
+                    }
+                },
+                onNavigateToActividades = {
+                    navController.navigate(NavRoutes.MIEMBRO_ACTIVIDADES) {
+                        popUpTo(NavRoutes.MIEMBRO_HOME) { inclusive = false }
+                    }
+                },
+                onEntrarComoSuplente = { navController.navigate(NavRoutes.SUPLENTE_CODIGO_ENTRY) },
+                onCerrarSesion = {
+                    navController.navigate(NavRoutes.LOGIN) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
             )
         }
 
@@ -256,7 +300,16 @@ fun AppNavGraph(
 
         composable(NavRoutes.MIEMBRO_ACTIVIDADES) {
             MiembroActividadesScreen(
-                onNavigateBack        = { navController.popBackStack() },
+                onNavigateToInicio    = {
+                    navController.navigate(NavRoutes.MIEMBRO_HOME) {
+                        popUpTo(NavRoutes.MIEMBRO_HOME) { inclusive = false }
+                    }
+                },
+                onNavigateToPerfil    = {
+                    navController.navigate(NavRoutes.MIEMBRO_PERFIL) {
+                        popUpTo(NavRoutes.MIEMBRO_HOME) { inclusive = false }
+                    }
+                },
                 onNavigateToCampana   = { tipoId, nombre, desde, hasta ->
                     navController.navigate(NavRoutes.miembroActividadCampana(tipoId, nombre, desde, hasta))
                 },
@@ -843,6 +896,31 @@ fun AppNavGraph(
                     viewModel = sharedVm,
                 )
             }
+        }
+
+        // ── Iglesia (church-level) ────────────────────────────────────────────
+        composable(NavRoutes.IGLESIA_HOME) {
+            IglesiaHomeScreen(
+                onNavigateToRegistro              = { kind -> navController.navigate(NavRoutes.registroGraph(kind)) },
+                onNavigateToActividadesMisioneras = { navController.navigate(NavRoutes.ACTIVIDADES_MISIONERAS) },
+                onNavigateToGrupos                = { navController.navigate(NavRoutes.IGLESIA_GRUPOS) },
+                onNavigateToAprobaciones          = { navController.navigate(NavRoutes.APROBACIONES) },
+                onNavigateToHistorial             = { navController.navigate(NavRoutes.HISTORIAL) },
+                onNavigateToActividades           = { navController.navigate(NavRoutes.ACTIVIDADES_LISTA) },
+                onNavigateToPerfil                = { navController.navigate(NavRoutes.PERFIL) },
+            )
+        }
+
+        composable(NavRoutes.IGLESIA_GRUPOS) {
+            IglesiaGruposScreen(
+                onNavigateBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(NavRoutes.APROBACIONES) {
+            AprobacionesScreen(
+                onNavigateBack = { navController.popBackStack() },
+            )
         }
     }
 }

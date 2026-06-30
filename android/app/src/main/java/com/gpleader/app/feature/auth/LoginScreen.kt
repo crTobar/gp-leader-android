@@ -44,11 +44,13 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -110,6 +112,7 @@ import com.gpleader.app.core.ui.theme.neuInsetInner
 @Composable
 fun LoginScreen(
     onNavigateToQuienEres: () -> Unit,
+    onNavigateToIglesiaHome: () -> Unit = {},
     viewModel: LoginViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -121,12 +124,25 @@ fun LoginScreen(
         }
     }
 
+    LaunchedEffect(uiState.navigateToIglesiaHome) {
+        if (uiState.navigateToIglesiaHome) {
+            onNavigateToIglesiaHome()
+            viewModel.consumeIglesiaHomeNavigation()
+        }
+    }
+
     LoginScreenContent(
-        uiState            = uiState,
-        onCampoSelected    = viewModel::onCampoSelected,
-        onDistritoSelected = viewModel::onDistritoSelected,
-        onIglesiaSelected  = viewModel::onIglesiaSelected,
-        onGrupoTap         = viewModel::onGrupoTap,
+        uiState                        = uiState,
+        onCampoSelected                = viewModel::onCampoSelected,
+        onDistritoSelected             = viewModel::onDistritoSelected,
+        onIglesiaSelected              = viewModel::onIglesiaSelected,
+        onGrupoTap                     = viewModel::onGrupoTap,
+        onIngresarComoIglesia          = viewModel::onIngresarComoIglesia,
+        onVolverDesdeModoIglesia       = viewModel::onVolverDesdeModoIglesia,
+        onIglesiaSearchQueryChange     = viewModel::onIglesiaSearchQueryChange,
+        onIglesiaParaLoginSelected     = viewModel::onIglesiaParaLoginSelected,
+        onDismissIglesiaPasswordDialog = viewModel::onDismissIglesiaPasswordDialog,
+        onConfirmarAccesoIglesia       = viewModel::onConfirmarAccesoIglesia,
     )
 }
 
@@ -135,11 +151,17 @@ fun LoginScreen(
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun LoginScreenContent(
-    uiState:            LoginUiState,
-    onCampoSelected:    (CampoItem?) -> Unit,
-    onDistritoSelected: (DistritoItem?) -> Unit,
-    onIglesiaSelected:  (IglesiaItem?) -> Unit,
-    onGrupoTap:         (GrupoItem) -> Unit,
+    uiState:                         LoginUiState,
+    onCampoSelected:                 (CampoItem?) -> Unit,
+    onDistritoSelected:              (DistritoItem?) -> Unit,
+    onIglesiaSelected:               (IglesiaItem?) -> Unit,
+    onGrupoTap:                      (GrupoItem) -> Unit,
+    onIngresarComoIglesia:           () -> Unit = {},
+    onVolverDesdeModoIglesia:        () -> Unit = {},
+    onIglesiaSearchQueryChange:      (String) -> Unit = {},
+    onIglesiaParaLoginSelected:      (IglesiaItem) -> Unit = {},
+    onDismissIglesiaPasswordDialog:  () -> Unit = {},
+    onConfirmarAccesoIglesia:        () -> Unit = {},
 ) {
     var active by remember { mutableStateOf(ActiveDropdown.NONE) }
     var mostrarFiltros by remember { mutableStateOf(false) }
@@ -150,9 +172,12 @@ private fun LoginScreenContent(
     var distritoQuery by remember { mutableStateOf("") }
     var iglesiaQuery  by remember { mutableStateOf("") }
 
-    // La tarjeta se expande automáticamente al interactuar con cualquier campo
+    // La tarjeta se expande automáticamente al interactuar con cualquier campo o en modo iglesia
     LaunchedEffect(active, mostrarFiltros) {
         if (active != ActiveDropdown.NONE || mostrarFiltros) cardExpandido = true
+    }
+    LaunchedEffect(uiState.iglesiaMode) {
+        if (uiState.iglesiaMode) cardExpandido = true
     }
 
     fun expand(d: ActiveDropdown) { active = d }
@@ -383,6 +408,17 @@ private fun LoginScreenContent(
                     .weight(1f)
                     .padding(horizontal = 20.dp, vertical = 20.dp),
             ) {
+
+            if (uiState.iglesiaMode) {
+                IglesiaLoginSection(
+                    query         = uiState.iglesiaSearchQuery,
+                    allIglesias   = uiState.allIglesias,
+                    onQueryChange = onIglesiaSearchQueryChange,
+                    onIglesiaSelected = onIglesiaParaLoginSelected,
+                    onVolver      = onVolverDesdeModoIglesia,
+                )
+            } else {
+
             val grupoExpandido = active == ActiveDropdown.GRUPO && !mostrarFiltros
 
             if (!mostrarFiltros) {
@@ -642,10 +678,18 @@ private fun LoginScreenContent(
                     CircularProgressIndicator(color = Accent)
                 }
             }
+            } // fin else iglesiaMode
             } // formulario
         }
 
-        Spacer(Modifier.height(24.dp))
+        TextButton(onClick = onIngresarComoIglesia) {
+            Text(
+                text  = "Ingresar como Iglesia [DEV]",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Muted,
+            )
+        }
+        Spacer(Modifier.height(8.dp))
     }
 
         // ── Overlay splash: logo desliza hacia el header ─────────────────────
@@ -671,6 +715,39 @@ private fun LoginScreenContent(
             }
         }
     } // BoxWithConstraints
+
+    // ── Diálogo contraseña iglesia (DEV — entra sin escribir) ─────────────────
+    if (uiState.showIglesiaPasswordDialog) {
+        AlertDialog(
+            onDismissRequest = onDismissIglesiaPasswordDialog,
+            title = {
+                Text(
+                    text  = uiState.pendingIglesiaLogin?.nombre ?: "",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Ink,
+                )
+            },
+            text = {
+                Text(
+                    text  = "Acceso DEV — confirma para ingresar sin contraseña.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Mid,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = onConfirmarAccesoIglesia) {
+                    Text("Entrar", color = Accent, fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismissIglesiaPasswordDialog) {
+                    Text("Cancelar", color = Muted)
+                }
+            },
+            containerColor = Background,
+        )
+    }
+
     } // SharedTransitionLayout
 }
 
@@ -1332,6 +1409,85 @@ private fun Modifier.dashedBorder(
 }
 
 // ── Previews ──────────────────────────────────────────────────────────────────
+
+// ── Sección búsqueda de iglesia (DEV mode) ────────────────────────────────────
+
+@Composable
+private fun IglesiaLoginSection(
+    query:             String,
+    allIglesias:       List<IglesiaItem>,
+    onQueryChange:     (String) -> Unit,
+    onIglesiaSelected: (IglesiaItem) -> Unit,
+    onVolver:          () -> Unit,
+) {
+    val filtradas = remember(query, allIglesias) {
+        if (query.isBlank()) allIglesias
+        else allIglesias.filter {
+            it.nombre.contains(query, ignoreCase = true) ||
+            it.districtNombre.contains(query, ignoreCase = true) ||
+            it.campoNombre.contains(query, ignoreCase = true)
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier          = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onVolver)
+                .padding(bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector        = Icons.Default.ExpandLess,
+                contentDescription = "Volver",
+                tint               = Accent,
+                modifier           = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text  = "Volver",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Accent,
+            )
+        }
+
+        Text(
+            text     = "IGLESIA",
+            style    = MaterialTheme.typography.labelSmall,
+            color    = Muted,
+            modifier = Modifier.padding(bottom = 4.dp),
+        )
+
+        DropdownSearchBox(
+            query         = query,
+            selectedName  = "",
+            placeholder   = "Buscar iglesia…",
+            expanded      = true,
+            isActive      = true,
+            leadingIcon   = {
+                Icon(Icons.Default.Search, null, tint = Muted, modifier = Modifier.size(18.dp))
+            },
+            onQueryChange = onQueryChange,
+            onFocused     = {},
+            onToggle      = {},
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            IglesiaItemList(
+                items      = filtradas,
+                selected   = null,
+                onSelected = onIglesiaSelected,
+            )
+        }
+    }
+}
 
 @Preview(showSystemUi = true, name = "Login — vacío")
 @Composable

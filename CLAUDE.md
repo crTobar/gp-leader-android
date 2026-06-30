@@ -9,6 +9,7 @@ App móvil Android para líderes de grupos pequeños SDA. Registra asistencia se
 - @docs/database.md — tablas Supabase, RLS, auth, patrones de repositorio
 - @docs/rules.md — reglas de negocio, flujos críticos, lo que NO hacer
 - @docs/screens.md — estado actual de cada pantalla y pendientes
+- @docs/ios-resumen-style.md — guía (EN) para replicar la pantalla de Resumen (Paso 3) en iOS/SwiftUI
 
 ## Stack
 

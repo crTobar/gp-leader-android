@@ -2,22 +2,12 @@ package com.gpleader.app.feature.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gpleader.app.core.data.repository.GpAuthRepository
 import com.gpleader.app.core.data.repository.MiembroRepository
 import com.gpleader.app.core.data.repository.iniciales
 import com.gpleader.app.core.data.repository.nombreCompleto
 import com.gpleader.app.core.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
-import io.github.jan.supabase.SupabaseClient
-import io.github.jan.supabase.auth.auth
-import io.github.jan.supabase.auth.providers.builtin.Email
-import io.github.jan.supabase.postgrest.postgrest
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.put
-import kotlinx.serialization.json.Json
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -58,8 +48,8 @@ data class QuienEresUiState(
 @HiltViewModel
 class QuienEresViewModel @Inject constructor(
     private val miembroRepo: MiembroRepository,
+    private val gpAuthRepo: GpAuthRepository,
     private val session: SessionManager,
-    private val supabase: SupabaseClient,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(QuienEresUiState())
@@ -132,41 +122,34 @@ class QuienEresViewModel @Inject constructor(
             _uiState.update { it.copy(authError = "Este grupo no tiene acceso digital configurado") }
             return
         }
+        val gpCode = session.gpCode
+        if (gpCode.isBlank()) {
+            _uiState.update { it.copy(authError = "Este grupo no tiene código de acceso configurado") }
+            return
+        }
         val lider = _uiState.value.pendingLider ?: return
 
         _uiState.update { it.copy(isAuthenticating = true, authError = null) }
         viewModelScope.launch {
-            runCatching {
-                supabase.auth.signInWith(Email) {
-                    email    = "$username@login.presencia.app"
-                    password = contrasena
-                }
-            }.onSuccess {
-                session.miembroId     = lider.id
-                session.miembroNombre = lider.nombre
-                // Crear sesión gp_sessions para gp_set_password (si el grupo tiene gp_code)
-                val gpCode = session.gpCode
-                if (gpCode.isNotBlank()) {
-                    runCatching {
-                        val resp = supabase.postgrest.rpc("gp_login", buildJsonObject {
-                            put("p_gp_code",    gpCode)
-                            put("p_password",   contrasena)
-                            put("p_device_info", "Android")
-                        })
-                        val row = Json.parseToJsonElement(resp.data).jsonArray.firstOrNull()?.jsonObject
-                        row?.get("session_token")?.jsonPrimitive?.contentOrNull
-                    }.getOrNull()?.let { token ->
-                        session.sessionToken = token
+            gpAuthRepo.validateGroupPassword(gpCode, username, contrasena)
+                .onSuccess { result ->
+                    session.miembroId        = lider.id
+                    session.miembroNombre    = lider.nombre
+                    session.grupoPasswordSet = result.passwordSet
+                    session.sessionToken     = result.sessionToken ?: ""
+                    val canChangePassword    = !result.passwordSet && !result.sessionToken.isNullOrBlank()
+                    _uiState.update {
+                        it.copy(
+                            isAuthenticating       = false,
+                            showPasswordDialog       = false,
+                            navigateToCambiarContrasena = canChangePassword,
+                            navigateToHome           = !canChangePassword,
+                        )
                     }
                 }
-                if (!session.grupoPasswordSet) {
-                    _uiState.update { it.copy(isAuthenticating = false, showPasswordDialog = false, navigateToCambiarContrasena = true) }
-                } else {
-                    _uiState.update { it.copy(isAuthenticating = false, showPasswordDialog = false, navigateToHome = true) }
+                .onFailure {
+                    _uiState.update { it.copy(isAuthenticating = false, authError = "Contraseña incorrecta") }
                 }
-            }.onFailure {
-                _uiState.update { it.copy(isAuthenticating = false, authError = "Contraseña incorrecta") }
-            }
         }
     }
 

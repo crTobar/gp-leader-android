@@ -434,6 +434,19 @@
         <item quantity="other">%d Justificados</item>
     </plurals>
 
+    <plurals name="paso3_stat_presente">
+        <item quantity="one">Presente</item>
+        <item quantity="other">Presentes</item>
+    </plurals>
+    <plurals name="paso3_stat_ausente">
+        <item quantity="one">Ausente</item>
+        <item quantity="other">Ausentes</item>
+    </plurals>
+    <plurals name="paso3_stat_justificado">
+        <item quantity="one">Justificado</item>
+        <item quantity="other">Justificados</item>
+    </plurals>
+
     <!-- ── Sábado ───────────────────────────────────────────────────────────── -->
     <string name="login_btn_continuar">Ver miembros del grupo</string>
     <string name="quien_eres_password_titulo">Contraseña del grupo</string>

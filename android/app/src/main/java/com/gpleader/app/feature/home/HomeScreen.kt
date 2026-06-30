@@ -86,7 +86,7 @@ import com.gpleader.app.core.ui.theme.Mid
 import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.Sage
 import com.gpleader.app.core.ui.theme.Violet
-import com.gpleader.app.core.ui.components.AppBottomNavBar
+import com.gpleader.app.core.ui.components.FloatingNavScaffold
 import com.gpleader.app.core.ui.components.NAV_TAB_ACTIVIDADES
 import com.gpleader.app.core.ui.components.NAV_TAB_INICIO
 import com.gpleader.app.core.ui.components.NAV_TAB_PERFIL
@@ -186,21 +186,16 @@ private fun HomeScreenContent(
     var selectedTab        by remember { mutableIntStateOf(NAV_TAB_INICIO) }
     var showRegistrarSheet by remember { mutableStateOf(false) }
 
-    Scaffold(
-        containerColor = Background,
-        bottomBar = {
-            AppBottomNavBar(
-                selectedTab        = selectedTab,
-                onInicioClick      = { selectedTab = NAV_TAB_INICIO },
-                onActividadesClick = {
-                    selectedTab = NAV_TAB_ACTIVIDADES
-                    onActividadesTabClick()
-                },
-                onPerfilClick      = {
-                    selectedTab = NAV_TAB_PERFIL
-                    onPerfilClick()
-                },
-            )
+    FloatingNavScaffold(
+        selectedTab        = selectedTab,
+        onInicioClick      = { selectedTab = NAV_TAB_INICIO },
+        onActividadesClick = {
+            selectedTab = NAV_TAB_ACTIVIDADES
+            onActividadesTabClick()
+        },
+        onPerfilClick      = {
+            selectedTab = NAV_TAB_PERFIL
+            onPerfilClick()
         },
     ) { innerPadding ->
         PullToRefreshBox(

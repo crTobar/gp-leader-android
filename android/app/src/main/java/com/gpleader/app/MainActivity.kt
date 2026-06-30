@@ -20,6 +20,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 val startDestination = when {
             session.isMiembroGuardado -> NavRoutes.MIEMBRO_HOME
+            session.isIglesiaLeader   -> NavRoutes.IGLESIA_HOME
             session.isLoggedIn        -> NavRoutes.HOME
             else                      -> NavRoutes.LOGIN
         }

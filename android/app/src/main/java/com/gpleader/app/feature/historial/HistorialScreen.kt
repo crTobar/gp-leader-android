@@ -89,7 +89,7 @@ import com.gpleader.app.core.ui.theme.Sage
 import com.gpleader.app.core.ui.theme.Shadow
 import com.gpleader.app.core.ui.theme.neuElevated
 import com.gpleader.app.core.ui.theme.neuElevatedSm
-import com.gpleader.app.core.ui.components.AppBottomNavBar
+import com.gpleader.app.core.ui.components.FloatingNavScaffold
 import com.gpleader.app.core.ui.components.NAV_TAB_INICIO
 import com.gpleader.app.core.ui.components.NAV_TAB_ACTIVIDADES
 import com.gpleader.app.core.ui.components.NAV_TAB_PERFIL
@@ -153,16 +153,11 @@ private fun HistorialContent(
     onRefresh:               () -> Unit = {},
     onTipoChange:            (TipoHistorial) -> Unit = {},
 ) {
-    Scaffold(
-        containerColor = Background,
-        bottomBar = {
-            AppBottomNavBar(
-                selectedTab        = -1,
-                onInicioClick      = onNavigateToHome,
-                onActividadesClick = onNavigateToActividades,
-                onPerfilClick      = onNavigateToPerfil,
-            )
-        },
+    FloatingNavScaffold(
+        selectedTab        = -1,
+        onInicioClick      = onNavigateToHome,
+        onActividadesClick = onNavigateToActividades,
+        onPerfilClick      = onNavigateToPerfil,
     ) { innerPadding ->
         if (uiState.isLoading) {
             HistorialSkeletonContent(modifier = Modifier.padding(innerPadding))

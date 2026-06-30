@@ -40,8 +40,15 @@ data class LoginUiState(
     val isLoading: Boolean = false,
     val error:     String? = null,
 
+    // Modo iglesia (DEV)
+    val iglesiaMode:                Boolean      = false,
+    val iglesiaSearchQuery:          String       = "",
+    val showIglesiaPasswordDialog:   Boolean      = false,
+    val pendingIglesiaLogin:         IglesiaItem? = null,
+
     // Navegación
-    val navigateToQuienEres: Boolean = false,
+    val navigateToQuienEres:    Boolean = false,
+    val navigateToIglesiaHome:  Boolean = false,
 )
 
 // ── ViewModel ─────────────────────────────────────────────────────────────────
@@ -192,4 +199,42 @@ class LoginViewModel @Inject constructor(
     }
 
     fun consumeQuienEresNavigation() { _uiState.update { it.copy(navigateToQuienEres = false) } }
+
+    // ── Modo Iglesia (DEV) ─────────────────────────────────────────────────────
+
+    fun onIngresarComoIglesia() {
+        _uiState.update { it.copy(iglesiaMode = true) }
+    }
+
+    fun onVolverDesdeModoIglesia() {
+        _uiState.update { it.copy(iglesiaMode = false, iglesiaSearchQuery = "", showIglesiaPasswordDialog = false, pendingIglesiaLogin = null) }
+    }
+
+    fun onIglesiaSearchQueryChange(query: String) {
+        _uiState.update { it.copy(iglesiaSearchQuery = query) }
+    }
+
+    fun onIglesiaParaLoginSelected(iglesia: IglesiaItem) {
+        _uiState.update { it.copy(pendingIglesiaLogin = iglesia, showIglesiaPasswordDialog = true) }
+    }
+
+    fun onDismissIglesiaPasswordDialog() {
+        _uiState.update { it.copy(showIglesiaPasswordDialog = false, pendingIglesiaLogin = null) }
+    }
+
+    fun onConfirmarAccesoIglesia() {
+        val iglesia = _uiState.value.pendingIglesiaLogin ?: return
+        val distrito = _uiState.value.allDistritos.find { it.id == iglesia.districtId }
+        val campo    = distrito?.let { _uiState.value.allCampos.find { c -> c.id == it.campoId } }
+        session.iglesiaId      = iglesia.id
+        session.iglesiaNombre  = iglesia.nombre
+        session.districtId     = distrito?.id ?: ""
+        session.districtNombre = distrito?.nombre ?: ""
+        session.campoId        = campo?.id ?: ""
+        session.campoNombre    = campo?.nombre ?: ""
+        session.isIglesiaLeader = true
+        _uiState.update { it.copy(showIglesiaPasswordDialog = false, navigateToIglesiaHome = true) }
+    }
+
+    fun consumeIglesiaHomeNavigation() { _uiState.update { it.copy(navigateToIglesiaHome = false) } }
 }

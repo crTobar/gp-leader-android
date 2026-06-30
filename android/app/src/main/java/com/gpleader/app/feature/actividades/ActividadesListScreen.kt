@@ -1,5 +1,6 @@
 package com.gpleader.app.feature.actividades
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -19,23 +20,20 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.draw.alpha
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -75,11 +73,8 @@ import com.gpleader.app.core.ui.theme.neuElevated
 import com.gpleader.app.core.ui.theme.neuElevatedSm
 import com.gpleader.app.core.ui.theme.neuGlow
 import com.gpleader.app.core.ui.theme.neuInsetInner
-import com.gpleader.app.core.ui.theme.neuInsetSm
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.unit.sp
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
@@ -119,7 +114,7 @@ fun ActividadesListScreen(
 
 // ── Content ───────────────────────────────────────────────────────────────────
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun ActividadesListContent(
     uiState:                       ActividadesListUiState,
@@ -136,21 +131,15 @@ private fun ActividadesListContent(
     onRefresh:                     () -> Unit = {},
     onModoChange:                  (Boolean) -> Unit = {},
 ) {
+    var collapsedNiveles by remember { mutableStateOf(setOf<String>()) }
+
     Scaffold(
         containerColor = Background,
-        bottomBar = {
-            AppBottomNavBar(
-                selectedTab        = NAV_TAB_ACTIVIDADES,
-                onInicioClick      = onNavigateToHome,
-                onActividadesClick = {},
-                onPerfilClick      = onNavigateToPerfil,
-            )
-        },
     ) { innerPadding ->
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(innerPadding)
+            .padding(top = innerPadding.calculateTopPadding())
             .background(Background),
     ) {
         val modoGP = uiState.modoGP
@@ -226,59 +215,69 @@ private fun ActividadesListContent(
                 return@Column
             }
 
-            // ── Filtros ───────────────────────────────────────────────────────
-            NeuCard(
-                modifier = Modifier
+            // ── Filtros (chips planos) ────────────────────────────────────────
+            Row(
+                modifier              = Modifier
                     .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Column(
-                    modifier            = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    // Nivel
-                    Row(
-                        modifier              = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        FiltroNivel.entries.forEach { filtro ->
-                            FiltroChip(
-                                label    = filtro.label,
-                                selected = uiState.filtroNivel == filtro,
-                                onClick  = { onFiltroNivel(filtro) },
-                            )
-                        }
-                    }
-                    HorizontalDivider(
-                        color    = BackgroundDeep,
-                        modifier = Modifier.padding(vertical = 2.dp),
+                FiltroNivel.entries.forEach { filtro ->
+                    FiltroChip(
+                        label    = filtro.label,
+                        selected = uiState.filtroNivel == filtro,
+                        onClick  = { onFiltroNivel(filtro) },
                     )
-                    // Estado
-                    Row(
-                        modifier              = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        FiltroEstado.entries.forEach { filtro ->
-                            FiltroChip(
-                                label         = filtro.label,
-                                selected      = uiState.filtroEstado == filtro,
-                                onClick       = { onFiltroEstado(filtro) },
-                                selectedColor = when (filtro) {
-                                    FiltroEstado.ACTIVAS   -> Sage
-                                    FiltroEstado.INACTIVAS -> Muted
-                                    else                   -> Accent
-                                },
-                            )
-                        }
-                    }
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Row(
+                modifier              = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                FiltroEstado.entries.forEach { filtro ->
+                    FiltroChip(
+                        label         = filtro.label,
+                        selected      = uiState.filtroEstado == filtro,
+                        onClick       = { onFiltroEstado(filtro) },
+                        selectedColor = when (filtro) {
+                            FiltroEstado.ACTIVAS   -> Sage
+                            FiltroEstado.INACTIVAS -> Muted
+                            else                   -> Accent
+                        },
+                    )
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            // ── Resumen de conteo ─────────────────────────────────────────────
+            val totalVisibles = uiState.visibles.size
+            val conRegistros  = uiState.visibles.count { it.totalCantidad > 0 || it.montoTotal > 0 }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 12.dp, bottom = 8.dp),
+            ) {
+                Text(
+                    text  = "$totalVisibles actividades",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Muted,
+                )
+                Text(
+                    text  = "  ·  ",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Muted,
+                )
+                Text(
+                    text  = "$conRegistros con registros",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Sage,
+                )
+            }
 
             // ── Lista ─────────────────────────────────────────────────────────
             if (uiState.visibles.isEmpty()) {
@@ -305,39 +304,42 @@ private fun ActividadesListContent(
                     contentPadding      = androidx.compose.foundation.layout.PaddingValues(
                         start  = 20.dp,
                         end    = 20.dp,
-                        bottom = 96.dp,
+                        bottom = 110.dp,
                     ),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    nivelesOrdenados.forEachIndexed { idx, nivel ->
+                    nivelesOrdenados.forEach { nivel ->
                         val actividadesNivel = porNivel[nivel].orEmpty()
+                        val isCollapsed      = nivel in collapsedNiveles
 
-                        // ── Marcador de nivel (una vez por grupo) ─────────────
-                        item(key = "nivel-$nivel") {
-                            NivelBadge(
-                                level    = nivel,
-                                modifier = Modifier.padding(
-                                    top    = if (idx == 0) 0.dp else 8.dp,
-                                    start  = 4.dp,
-                                    bottom = 2.dp,
-                                ),
+                        stickyHeader(key = "nivel-$nivel") {
+                            NivelSectionHeader(
+                                level       = nivel,
+                                count       = actividadesNivel.size,
+                                isCollapsed = isCollapsed,
+                                onToggle    = {
+                                    collapsedNiveles = if (isCollapsed) collapsedNiveles - nivel
+                                                       else collapsedNiveles + nivel
+                                },
                             )
                         }
 
-                        items(actividadesNivel, key = { it.tipo.id }) { item ->
-                            ActividadCard(
-                                item    = item,
-                                onClick = {
-                                    if (item.tipo.frecuencia == "diaria") {
-                                        val hoy   = java.time.LocalDate.now()
-                                        val desde = (item.tipo.startDate ?: hoy.minusDays(30)).toString()
-                                        val hasta = (item.tipo.endDate?.let { if (it.isBefore(hoy)) it else hoy } ?: hoy).toString()
-                                        onNavigateToCampana(item.tipo.id, item.tipo.nombre, desde, hasta)
-                                    } else {
-                                        onNavigateToHistorial(item.tipo.id)
-                                    }
-                                },
-                            )
+                        if (!isCollapsed) {
+                            items(actividadesNivel, key = { it.tipo.id }) { item ->
+                                ActividadCard(
+                                    item    = item,
+                                    onClick = {
+                                        if (item.tipo.frecuencia == "diaria") {
+                                            val hoy   = java.time.LocalDate.now()
+                                            val desde = (item.tipo.startDate ?: hoy.minusDays(30)).toString()
+                                            val hasta = (item.tipo.endDate?.let { if (it.isBefore(hoy)) it else hoy } ?: hoy).toString()
+                                            onNavigateToCampana(item.tipo.id, item.tipo.nombre, desde, hasta)
+                                        } else {
+                                            onNavigateToHistorial(item.tipo.id)
+                                        }
+                                    },
+                                )
+                            }
                         }
                     }
                 }
@@ -345,26 +347,34 @@ private fun ActividadesListContent(
             }
         }
 
-        // ── FAB neumórfico — solo en modo GP ─────────────────────────────────
-        if (modoGP) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 20.dp, bottom = 20.dp)
-                    .neuGlow(cornerRadius = 20.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Accent)
-                    .clickable(onClick = onNavigateToCrear)
-                    .size(56.dp),
-            ) {
-                Icon(
-                    imageVector        = Icons.Default.Add,
-                    contentDescription = "Nueva actividad",
-                    tint               = Color.White,
-                    modifier           = Modifier.size(24.dp),
-                )
+        // ── Overlay inferior: FAB (solo GP) + menú flotante sobre el contenido ─
+        Column(modifier = Modifier.align(Alignment.BottomCenter)) {
+            if (modoGP) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .padding(end = 20.dp, bottom = 8.dp)
+                        .neuGlow(cornerRadius = 20.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Accent)
+                        .clickable(onClick = onNavigateToCrear)
+                        .size(56.dp),
+                ) {
+                    Icon(
+                        imageVector        = Icons.Default.Add,
+                        contentDescription = "Nueva actividad",
+                        tint               = Color.White,
+                        modifier           = Modifier.size(24.dp),
+                    )
+                }
             }
+            AppBottomNavBar(
+                selectedTab        = NAV_TAB_ACTIVIDADES,
+                onInicioClick      = onNavigateToHome,
+                onActividadesClick = {},
+                onPerfilClick      = onNavigateToPerfil,
+            )
         }
     }   // Box
     }   // Scaffold
@@ -409,7 +419,7 @@ private fun DuoActividadesContent(
         } else {
             LazyColumn(
                 modifier            = Modifier.fillMaxSize(),
-                contentPadding      = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 96.dp),
+                contentPadding      = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 110.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(actividades, key = { it.tipo.id }) { item ->
@@ -418,12 +428,13 @@ private fun DuoActividadesContent(
             }
         }
 
-        // FAB
+        // FAB — sobre el menú flotante (navigationBarsPadding + altura del menú)
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 20.dp, bottom = 20.dp)
+                .navigationBarsPadding()
+                .padding(end = 20.dp, bottom = 110.dp)
                 .alpha(fabAlpha)
                 .neuGlow(cornerRadius = 20.dp)
                 .clip(RoundedCornerShape(20.dp))
@@ -582,216 +593,206 @@ private fun FiltroChip(
     }
 }
 
-// ── Card de actividad ─────────────────────────────────────────────────────────
+// ── Card de actividad (compacta) ──────────────────────────────────────────────
 
 @Composable
 private fun ActividadCard(
     item:    ActividadConResumen,
     onClick: () -> Unit,
 ) {
-    val fmt        = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.forLanguageTag("es"))
     val levelColor = levelColor(item.tipo.level)
-    val estadoBadge = when {
-        item.esProxima -> EstadoActividad.PROXIMA
-        item.esActiva  -> EstadoActividad.ACTIVA
-        else           -> EstadoActividad.VENCIDA
-    }
+    val esCheckbox = item.tipo.markerType == "realizado" || item.tipo.markerType == "checkbox"
+    val tieneValor = item.totalCantidad > 0 || item.montoTotal > 0
 
-    NeuCard(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (item.esProxima) Modifier.alpha(0.6f) else Modifier),
-        onClick  = if (item.esProxima) null else onClick,
+            .then(if (item.esProxima) Modifier.alpha(0.6f) else Modifier)
+            .neuElevated(cornerRadius = 20.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Background)
+            .then(if (item.esProxima) Modifier else Modifier.clickable(onClick = onClick))
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column {
-            // ── Nombre + estado + flecha ──────────────────────────────────────
-            Row(
-                modifier          = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text       = item.tipo.nombre,
-                    style      = MaterialTheme.typography.bodyLarge,
-                    color      = Ink,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier   = Modifier.weight(1f),
-                )
-                EstadoBadge(estado = estadoBadge)
-                Spacer(Modifier.width(8.dp))
-                if (item.esProxima) {
-                    Icon(
-                        imageVector        = Icons.Default.Schedule,
-                        contentDescription = null,
-                        tint               = Muted,
-                        modifier           = Modifier.size(18.dp),
-                    )
-                } else {
-                    Icon(
-                        imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint               = Muted,
-                        modifier           = Modifier.size(20.dp),
-                    )
-                }
-            }
-
-            HorizontalDivider(
-                color    = BackgroundDeep,
-                modifier = Modifier.padding(horizontal = 16.dp),
-            )
-
-            // ── Total acumulado ───────────────────────────────────────────────
-            Row(
-                modifier              = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment     = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                if (item.tipo.markerType == "realizado" || item.tipo.markerType == "checkbox") {
-                    // Tipo realizado: ícono en pozo neumórfico hundido
-                    val hecho = item.totalCantidad > 0
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .size(36.dp)
-                                .neuInsetSm(cornerRadius = 18.dp)
-                                .clip(CircleShape)
-                                .background(Background),
-                        ) {
-                            Icon(
-                                imageVector = if (hecho) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                                contentDescription = null,
-                                tint     = if (hecho) Sage else Muted,
-                                modifier = Modifier.size(22.dp),
-                            )
-                        }
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            text  = if (hecho) "Realizado" else "Pendiente",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = if (hecho) Sage else Muted,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                    }
-                } else {
-                Column {
-                    Text(
-                        text  = "ACUMULADO",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Muted,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Box(
-                        modifier = Modifier
-                            .neuInsetSm(cornerRadius = 10.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Background)
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                    ) {
-                        Text(
-                            text       = formatTotalValor(item),
-                            style      = MaterialTheme.typography.titleLarge,
-                            color      = levelColor,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
-                }
-                }
-
-                // Rango de fechas (compacto)
-                if (item.tipo.startDate != null || item.tipo.endDate != null) {
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            text  = "PERÍODO",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Muted,
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        val rango = when {
-                            item.tipo.startDate != null && item.tipo.endDate != null ->
-                                "${item.tipo.startDate.format(fmt)} –\n${item.tipo.endDate.format(fmt)}"
-                            item.tipo.startDate != null ->
-                                "Desde\n${item.tipo.startDate.format(fmt)}"
-                            else ->
-                                "Hasta\n${item.tipo.endDate!!.format(fmt)}"
-                        }
-                        Text(
-                            text      = rango,
-                            style     = MaterialTheme.typography.labelSmall,
-                            color     = Mid,
-                            textAlign = TextAlign.End,
-                        )
-                    }
-                }
-            }
-        }
-    }   // NeuCard
-}
-
-// ── Badges ────────────────────────────────────────────────────────────────────
-
-@Composable
-private fun NivelBadge(level: String, modifier: Modifier = Modifier) {
-    val label = when (level) { "union" -> "NIVEL UNIÓN"; "pastor" -> "NIVEL PASTOR"; else -> "NIVEL MI GP" }
-    val icon: ImageVector = when (level) {
-        "union"  -> Icons.Filled.AccountBalance
-        "pastor" -> Icons.Filled.Star
-        else     -> Icons.Filled.Group
-    }
-    Row(
-        modifier              = modifier,
-        verticalAlignment     = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
+        // ── Ícono de tipo (tile hundido) ──────────────────────────────────────
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
-                .size(28.dp)
-                .neuInsetSm(cornerRadius = 8.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Background),
+                .size(46.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Background)
+                .neuInsetInner(shadowSize = 10.dp),
         ) {
+            ActividadTipoIcon(markerType = item.tipo.markerType, tint = levelColor)
+        }
+
+        Spacer(Modifier.width(14.dp))
+
+        // ── Nombre + badge de nivel ───────────────────────────────────────────
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text       = item.tipo.nombre,
+                style      = MaterialTheme.typography.bodyLarge,
+                color      = Ink,
+                fontWeight = FontWeight.SemiBold,
+                maxLines   = 2,
+            )
+            Spacer(Modifier.height(4.dp))
+            NivelPill(level = item.tipo.level)
+        }
+
+        Spacer(Modifier.width(10.dp))
+
+        // ── Valor a la derecha ────────────────────────────────────────────────
+        if (item.esProxima) {
+            Icon(Icons.Default.Schedule, null, tint = Muted, modifier = Modifier.size(18.dp))
+        } else {
+            when {
+                esCheckbox -> {
+                    Icon(
+                        imageVector        = if (tieneValor) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                        contentDescription = null,
+                        tint               = if (tieneValor) Sage else Muted,
+                        modifier           = Modifier.size(24.dp),
+                    )
+                }
+                item.tipo.markerType == "monetary" -> {
+                    Text(
+                        text       = "₡${item.montoTotal.toLong()}",
+                        style      = MaterialTheme.typography.headlineSmall,
+                        color      = levelColor,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                else -> {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text       = item.totalCantidad.toString(),
+                            style      = MaterialTheme.typography.headlineSmall,
+                            color      = if (tieneValor) levelColor else Muted,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        if (item.tipo.unitLabel.isNotBlank()) {
+                            Text(
+                                text  = item.tipo.unitLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Muted,
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.width(6.dp))
             Icon(
-                imageVector        = icon,
+                imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
-                tint               = Mid,
-                modifier           = Modifier.size(15.dp),
+                tint               = Muted,
+                modifier           = Modifier.size(20.dp),
             )
         }
-        Text(
-            text       = label,
-            style      = MaterialTheme.typography.labelSmall,
-            color      = Mid,
-            fontWeight = FontWeight.Bold,
+    }
+}
+
+// ── Ícono de tipo de actividad ────────────────────────────────────────────────
+
+@Composable
+private fun ActividadTipoIcon(markerType: String, tint: Color) {
+    when (markerType) {
+        "monetary" -> Text(
+            text       = "₡",
+            style      = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+            color      = tint,
+        )
+        "realizado", "checkbox" -> Icon(
+            imageVector        = Icons.Default.CheckCircle,
+            contentDescription = null,
+            tint               = tint,
+            modifier           = Modifier.size(22.dp),
+        )
+        "participants" -> Icon(
+            imageVector        = Icons.Filled.Group,
+            contentDescription = null,
+            tint               = tint,
+            modifier           = Modifier.size(22.dp),
+        )
+        else -> Text(
+            text       = "#",
+            style      = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+            color      = tint,
         )
     }
 }
 
-private enum class EstadoActividad { ACTIVA, VENCIDA, PROXIMA }
+// ── Pill de nivel (badge bajo el nombre) ──────────────────────────────────────
 
 @Composable
-private fun EstadoBadge(estado: EstadoActividad) {
-    val (color, label) = when (estado) {
-        EstadoActividad.ACTIVA  -> Sage  to "Activa"
-        EstadoActividad.VENCIDA -> Blush to "Vencida"
-        EstadoActividad.PROXIMA -> Accent to "Próxima"
+private fun NivelPill(level: String) {
+    val (label, color) = when (level) {
+        "union"  -> "Unión" to Gold
+        "pastor" -> "Pastor" to Ink
+        else     -> "Mi GP" to Accent
     }
     Box(
         modifier = Modifier
-            .neuElevatedSm(cornerRadius = 8.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(6.dp))
             .background(color.copy(alpha = 0.12f))
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .padding(horizontal = 8.dp, vertical = 2.dp),
     ) {
         Text(
             text       = label,
             style      = MaterialTheme.typography.labelSmall,
             color      = color,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+}
+
+// ── Header de sección por nivel (colapsable) ──────────────────────────────────
+
+@Composable
+private fun NivelSectionHeader(
+    level:       String,
+    count:       Int,
+    isCollapsed: Boolean,
+    onToggle:    () -> Unit,
+) {
+    val color = levelColor(level)
+    val label = when (level) { "union" -> "UNIÓN"; "pastor" -> "PASTOR"; else -> "MI GP" }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Background)
+            .clickable(onClick = onToggle)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .height(16.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(color),
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text       = label,
+            style      = MaterialTheme.typography.labelSmall,
+            color      = Ink,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text  = "· $count",
+            style = MaterialTheme.typography.labelSmall,
+            color = Muted,
+        )
+        Spacer(Modifier.weight(1f))
+        Icon(
+            imageVector        = if (isCollapsed) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
+            contentDescription = if (isCollapsed) "Expandir" else "Colapsar",
+            tint               = Muted,
+            modifier           = Modifier.size(20.dp),
         )
     }
 }
@@ -802,12 +803,6 @@ private fun levelColor(level: String): Color = when (level) {
     "union"  -> Gold
     "pastor" -> Ink
     else     -> Accent
-}
-
-private fun formatTotalValor(item: ActividadConResumen): String = when (item.tipo.markerType) {
-    "monetary"                  -> "₡${item.montoTotal.toLong()}"
-    "realizado", "checkbox"     -> ""
-    else                        -> "${item.totalCantidad} ${item.tipo.unitLabel}"
 }
 
 // ── Segmented control GP / Duos ───────────────────────────────────────────────

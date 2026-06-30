@@ -24,6 +24,11 @@ data class AsignadoPotencial(
     val rol: String,
 )
 
+data class DeputyCodeResult(
+    val codeId: String,
+    val code: String,
+)
+
 // ── Interfaz ──────────────────────────────────────────────────────────────────
 
 interface SolicitudRepository {
@@ -54,6 +59,9 @@ interface SolicitudRepository {
 
     /** Invalida todos los códigos de suplente activos del grupo. */
     suspend fun revokeDeputyCode(grupoId: String)
+
+    /** Genera un código de 6 dígitos y lo asocia al miembro suplente. */
+    suspend fun createDeputyCodeForMember(grupoId: String, memberId: String): DeputyCodeResult
 
     /** Devuelve miembros del grupo con rol assignable (co_leader, anciano, leader). */
     suspend fun getAsignadosPotenciales(grupoId: String): List<AsignadoPotencial>

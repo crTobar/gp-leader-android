@@ -6,6 +6,8 @@ import com.gpleader.app.core.data.repository.BibleStudyRepository
 import com.gpleader.app.core.data.repository.BibleStudyRepositoryImpl
 import com.gpleader.app.core.data.repository.DuoRepository
 import com.gpleader.app.core.data.repository.DuoRepositoryImpl
+import com.gpleader.app.core.data.repository.GpAuthRepository
+import com.gpleader.app.core.data.repository.GpAuthRepositoryImpl
 import com.gpleader.app.core.data.repository.GroupLogRepository
 import com.gpleader.app.core.data.repository.GroupLogRepositoryImpl
 import com.gpleader.app.core.data.repository.GrupoRepository
@@ -31,6 +33,10 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindActividadRepository(impl: ActividadRepositoryImpl): ActividadRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindGpAuthRepository(impl: GpAuthRepositoryImpl): GpAuthRepository
 
     @Binds
     @Singleton

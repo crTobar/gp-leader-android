@@ -103,6 +103,25 @@ class SolicitudRepositoryImpl @Inject constructor(
         })
     }
 
+    override suspend fun createDeputyCodeForMember(grupoId: String, memberId: String): DeputyCodeResult {
+        val resp = supabase.postgrest.rpc("create_deputy_code", buildJsonObject {
+            put("p_small_group_id", grupoId)
+        })
+        val row = Json.parseToJsonElement(resp.data).jsonArray.first().jsonObject
+        val codeId = row["deputy_code_id"]?.jsonPrimitive?.contentOrNull
+            ?: error("Respuesta sin deputy_code_id")
+        val code = row["code"]?.jsonPrimitive?.contentOrNull
+            ?: error("Respuesta sin código")
+
+        supabase.from("deputy_code").update(buildJsonObject {
+            put("assigned_member_id", memberId)
+        }) {
+            filter { eq("id", codeId) }
+        }
+
+        return DeputyCodeResult(codeId = codeId, code = code)
+    }
+
     override suspend fun getAsignadosPotenciales(grupoId: String): List<AsignadoPotencial> {
         val data = supabase.from("member").select {
             filter {

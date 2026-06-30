@@ -27,14 +27,17 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -45,7 +48,6 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -134,6 +136,7 @@ fun RegistroPaso2Screen(
 
 // ── Content (previewable) ─────────────────────────────────────────────────────
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RegistroPaso2Content(
     uiState:            RegistroUiState,
@@ -161,7 +164,17 @@ private fun RegistroPaso2Content(
     val listState        = rememberLazyListState()
     val errorShakeOffset = remember { Animatable(0f) }
 
-    // índices en LazyColumn: 0=TopBar, 1=Stepper, 2=Progress, 3=Spacer, 4=UNION, 5=Spacer, 6=PASTOR, 7=Spacer, 8=GP
+    // Estado de secciones colapsadas (puro estado UI)
+    var collapsedSections by remember { mutableStateOf(setOf<NivelActividad>()) }
+    fun toggleSection(nivel: NivelActividad) {
+        collapsedSections = if (nivel in collapsedSections) collapsedSections - nivel
+                            else collapsedSections + nivel
+    }
+
+    // índices fijos en LazyColumn (cabecera/stepper/progreso están FUERA):
+    // 0=header_union 1=content_union 2=spacer
+    // 3=header_pastor 4=content_pastor 5=spacer
+    // 6=header_gp 7=content_gp 8=spacer
     fun ActividadRegistro.tieneErrorNuevo() =
         !bloqueada && (
             (tipoMarcador == TipoMarcador.CONTADOR  && cantidad == null) ||
@@ -170,11 +183,18 @@ private fun RegistroPaso2Content(
 
     LaunchedEffect(uiState.errorActividadesObligatoriasTrigger) {
         if (uiState.errorActividadesObligatoriasTrigger > 0) {
-            val targetIndex = when {
-                actividadesUnion .any { it.tieneErrorNuevo() } -> 4
-                actividadesPastor.any { it.tieneErrorNuevo() } -> 6
-                actividadesGP    .any { it.tieneErrorNuevo() } -> 8
-                else -> 6
+            val nivelError = when {
+                actividadesUnion .any { it.tieneErrorNuevo() } -> NivelActividad.UNION
+                actividadesPastor.any { it.tieneErrorNuevo() } -> NivelActividad.PASTOR
+                actividadesGP    .any { it.tieneErrorNuevo() } -> NivelActividad.GP
+                else -> NivelActividad.PASTOR
+            }
+            // Asegurar que la sección con error esté expandida
+            collapsedSections = collapsedSections - nivelError
+            val targetIndex = when (nivelError) {
+                NivelActividad.UNION  -> 0
+                NivelActividad.PASTOR -> 3
+                NivelActividad.GP     -> 6
             }
             listState.animateScrollToItem(targetIndex)
             repeat(3) {
@@ -190,73 +210,114 @@ private fun RegistroPaso2Content(
             .fillMaxSize()
             .background(Background),
     ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+        // Cabecera fija arriba — no hace scroll: título + stepper + progreso
+        Paso2TopBar(pasoActivo = 2, onNavigateBack = onNavigateBack)
+        StepperRow(pasoActivo = 2)
+        ProgressSection(registradas = registradas, total = totalActividades)
+        Spacer(Modifier.height(16.dp))
         LazyColumn(
             state          = listState,
-            modifier       = Modifier.fillMaxSize(),
+            modifier       = Modifier.weight(1f).fillMaxWidth(),
             contentPadding = PaddingValues(bottom = 96.dp),
         ) {
-            item { Paso2TopBar(pasoActivo = 2, onNavigateBack = onNavigateBack) }
-            item { StepperRow(pasoActivo = 2) }
-            item { ProgressSection(registradas = registradas, total = totalActividades) }
-            item { Spacer(Modifier.height(16.dp)) }
-
             // ── UNIÓN ─────────────────────────────────────────────────────────
-            item {
-                SeccionActividades(
-                    labelNivel          = stringResource(R.string.registro_nivel_union),
-                    sectionIcon         = Icons.Filled.AccountBalance,
-                    actividades         = actividadesUnion,
-                    onActividadClick    = onActividadClick,
-                    onCheckboxToggle    = onCheckboxToggle,
-                    onCantidadChange    = onCantidadChange,
-                    onMontoInicializar  = onMontoInicializar,
-                    onAgregarExtra      = null,
-                    hayError            = uiState.errorActividadesObligatorias,
-                    shakeOffset         = errorShakeOffset.value,
-                    modifier            = Modifier.padding(horizontal = 16.dp),
+            stickyHeader(key = "header_union") {
+                SeccionHeader(
+                    labelNivel  = stringResource(R.string.registro_nivel_union),
+                    headerBg    = Ink,
+                    textColor   = Color.White,
+                    isCollapsed = NivelActividad.UNION in collapsedSections,
+                    onToggle    = { toggleSection(NivelActividad.UNION) },
                 )
             }
-
-            item { Spacer(Modifier.height(12.dp)) }
+            item(key = "content_union") {
+                AnimatedVisibility(
+                    visible = NivelActividad.UNION !in collapsedSections,
+                    enter   = expandVertically(),
+                    exit    = shrinkVertically(),
+                ) {
+                    SeccionContent(
+                        actividades        = actividadesUnion,
+                        onActividadClick   = onActividadClick,
+                        onCheckboxToggle   = onCheckboxToggle,
+                        onCantidadChange   = onCantidadChange,
+                        onMontoInicializar = onMontoInicializar,
+                        onAgregarExtra     = null,
+                        hayError           = uiState.errorActividadesObligatorias,
+                        shakeOffset        = errorShakeOffset.value,
+                    )
+                }
+            }
+            item(key = "spacer_union") { Spacer(Modifier.height(12.dp)) }
 
             // ── PASTOR ────────────────────────────────────────────────────────
-            item {
-                SeccionActividades(
-                    labelNivel          = stringResource(R.string.registro_nivel_pastor),
-                    sectionIcon         = Icons.Filled.Star,
-                    actividades         = actividadesPastor,
-                    onActividadClick    = onActividadClick,
-                    onCheckboxToggle    = onCheckboxToggle,
-                    onCantidadChange    = onCantidadChange,
-                    onMontoInicializar  = onMontoInicializar,
-                    onAgregarExtra      = null,
-                    hayError            = uiState.errorActividadesObligatorias,
-                    shakeOffset         = errorShakeOffset.value,
-                    modifier            = Modifier.padding(horizontal = 16.dp),
+            stickyHeader(key = "header_pastor") {
+                SeccionHeader(
+                    labelNivel  = stringResource(R.string.registro_nivel_pastor),
+                    headerBg    = Mid,
+                    textColor   = Color.White,
+                    isCollapsed = NivelActividad.PASTOR in collapsedSections,
+                    onToggle    = { toggleSection(NivelActividad.PASTOR) },
+                    leadingIcon = {
+                        Icon(Icons.Filled.Star, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                    },
                 )
             }
-
-            item { Spacer(Modifier.height(12.dp)) }
+            item(key = "content_pastor") {
+                AnimatedVisibility(
+                    visible = NivelActividad.PASTOR !in collapsedSections,
+                    enter   = expandVertically(),
+                    exit    = shrinkVertically(),
+                ) {
+                    SeccionContent(
+                        actividades        = actividadesPastor,
+                        onActividadClick   = onActividadClick,
+                        onCheckboxToggle   = onCheckboxToggle,
+                        onCantidadChange   = onCantidadChange,
+                        onMontoInicializar = onMontoInicializar,
+                        onAgregarExtra     = null,
+                        hayError           = uiState.errorActividadesObligatorias,
+                        shakeOffset        = errorShakeOffset.value,
+                    )
+                }
+            }
+            item(key = "spacer_pastor") { Spacer(Modifier.height(12.dp)) }
 
             // ── MI GP ─────────────────────────────────────────────────────────
-            item {
-                SeccionActividades(
-                    labelNivel          = stringResource(R.string.registro_nivel_mi_gp),
-                    sectionIcon         = Icons.Filled.Group,
-                    actividades         = actividadesGP,
-                    onActividadClick    = onActividadClick,
-                    onCheckboxToggle    = onCheckboxToggle,
-                    onCantidadChange    = onCantidadChange,
-                    onMontoInicializar  = onMontoInicializar,
-                    onAgregarExtra      = if (uiState.registryKind == RegistryKind.SATURDAY_WORSHIP) null else onAgregarExtra,
-                    hayError            = uiState.errorActividadesObligatorias,
-                    shakeOffset         = errorShakeOffset.value,
-                    modifier            = Modifier.padding(horizontal = 16.dp),
+            stickyHeader(key = "header_gp") {
+                SeccionHeader(
+                    labelNivel  = stringResource(R.string.registro_nivel_mi_gp),
+                    headerBg    = BackgroundDeep,
+                    textColor   = Accent,
+                    isCollapsed = NivelActividad.GP in collapsedSections,
+                    onToggle    = { toggleSection(NivelActividad.GP) },
+                    leadingIcon = {
+                        Icon(Icons.Filled.Star, null, tint = Accent, modifier = Modifier.size(14.dp))
+                    },
                 )
             }
-
-            item { Spacer(Modifier.height(8.dp)) }
+            item(key = "content_gp") {
+                AnimatedVisibility(
+                    visible = NivelActividad.GP !in collapsedSections,
+                    enter   = expandVertically(),
+                    exit    = shrinkVertically(),
+                ) {
+                    SeccionContent(
+                        actividades        = actividadesGP,
+                        onActividadClick   = onActividadClick,
+                        onCheckboxToggle   = onCheckboxToggle,
+                        onCantidadChange   = onCantidadChange,
+                        onMontoInicializar = onMontoInicializar,
+                        onAgregarExtra     = if (uiState.registryKind == RegistryKind.SATURDAY_WORSHIP) null else onAgregarExtra,
+                        hayError           = uiState.errorActividadesObligatorias,
+                        shakeOffset        = errorShakeOffset.value,
+                    )
+                }
+            }
+            item(key = "spacer_gp") { Spacer(Modifier.height(8.dp)) }
         }
+        } // Column
 
         // ── Botón flotante ────────────────────────────────────────────────────
         Box(
@@ -424,12 +485,58 @@ private fun StepperRow(pasoActivo: Int) {
     }
 }
 
-// ── Sección de actividades ────────────────────────────────────────────────────
+// ── Encabezado de sección (sticky + colapsable) ───────────────────────────────
 
 @Composable
-private fun SeccionActividades(
-    labelNivel:         String,
-    sectionIcon:        ImageVector? = null,
+private fun SeccionHeader(
+    labelNivel:  String,
+    headerBg:    Color,
+    textColor:   Color,
+    isCollapsed: Boolean,
+    onToggle:    () -> Unit,
+    modifier:    Modifier = Modifier,
+    leadingIcon: (@Composable () -> Unit)? = null,
+) {
+    // El background(Background) ocluye los items que pasan por detrás cuando está fijo
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(Background)
+            .clickable(onClick = onToggle)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Pill compacto que abraza el contenido
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(headerBg)
+                .padding(horizontal = 14.dp, vertical = 7.dp),
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (leadingIcon != null) leadingIcon()
+            Text(
+                text       = labelNivel.uppercase(),
+                style      = MaterialTheme.typography.labelSmall,
+                color      = textColor,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+        Spacer(Modifier.weight(1f))
+        Icon(
+            imageVector        = if (isCollapsed) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
+            contentDescription = if (isCollapsed) "Expandir" else "Colapsar",
+            tint               = Muted,
+            modifier           = Modifier.size(20.dp),
+        )
+    }
+}
+
+// ── Contenido de sección (tarjetas de actividad) ──────────────────────────────
+
+@Composable
+private fun SeccionContent(
     actividades:        List<ActividadRegistro>,
     onActividadClick:   (String) -> Unit,
     onCheckboxToggle:   (String) -> Unit,
@@ -442,37 +549,11 @@ private fun SeccionActividades(
 ) {
     if (actividades.isEmpty() && onAgregarExtra == null) return
 
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        // ── Encabezado de sección ─────────────────────────────────────────────
-        Row(
-            modifier              = Modifier.fillMaxWidth().padding(bottom = 2.dp),
-            verticalAlignment     = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            if (sectionIcon != null) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(30.dp)
-                        .neuInsetSm(cornerRadius = 9.dp)
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(Background),
-                ) {
-                    Icon(
-                        imageVector        = sectionIcon,
-                        contentDescription = null,
-                        tint               = Mid,
-                        modifier           = Modifier.size(16.dp),
-                    )
-                }
-            }
-            Text(
-                text       = labelNivel.uppercase(),
-                style      = MaterialTheme.typography.labelSmall,
-                color      = Mid,
-                fontWeight = FontWeight.Bold,
-            )
-        }
+    Column(
+        modifier            = modifier.padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Spacer(Modifier.height(8.dp))
 
         // Primera actividad editable sin marcar de esta sección (para mostrar el error)
         val primeraVaciaId = if (hayError) {
@@ -485,7 +566,6 @@ private fun SeccionActividades(
             }?.id
         } else null
 
-        // ── Tarjeta individual por actividad ──────────────────────────────────
         actividades.forEach { actividad ->
             val mostrarError = primeraVaciaId != null && actividad.id == primeraVaciaId
             ActividadCard(

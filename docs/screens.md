@@ -117,7 +117,13 @@ feature/registro/
                                   - CHECKBOX: toggle inline en su NeuCard
                                   - Sin controles inline (ContadorInline/MontoInline eliminados)
                                   - Toda edición numérica ocurre en DetalleActividadScreen
-  RegistroPaso3Screen.kt      ✅
+  RegistroPaso3Screen.kt      ✅ REDISEÑADO (2026-06-28):
+                                  - ResumenCard: sección MIEMBROS con 3 tiles AsistenciaStat (número grande
+                                    + label singular/plural), gris si 0; ASISTENCIA solo barra (sin headline)
+                                  - Secciones de actividad: pill flotante del nivel POR FUERA (neuElevatedSm)
+                                    + card HUNDIDA neuInsetInner (solo lectura) con franja de acento + tinte 5%
+                                  - Stepper sticky: TopBar+StepperRow fuera del LazyColumn (fijos arriba)
+                                  - Colores nivel: Unión=Gold, Pastor=Ink, Mi GP=Accent
   AgregarActividadScreen.kt   ✅ chips tipo marcador en horizontalScroll, nombre neuInsetSm,
                                   monto MontoGrande ₡, sección PERÍODO con DatePickerDialog
                                   startDate default = hoy, endDate default = null

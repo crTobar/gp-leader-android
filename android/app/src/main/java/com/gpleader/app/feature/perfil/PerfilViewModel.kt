@@ -387,14 +387,9 @@ class PerfilViewModel @Inject constructor(
         _uiState.update { it.copy(miembroSeleccionadoId = id, codigoSuplente = "", isGenerandoCodigo = true, solicitudError = null) }
         viewModelScope.launch {
             runCatching {
-                val resp = supabase.postgrest.rpc("create_deputy_code", buildJsonObject {
-                    put("p_small_group_id", session.grupoId)
-                    put("p_member_id", id)
-                })
-                val arr = Json.parseToJsonElement(resp.data).jsonArray
-                arr.first().jsonObject["code"]?.jsonPrimitive?.contentOrNull ?: ""
-            }.onSuccess { code ->
-                _uiState.update { it.copy(codigoSuplente = code, isGenerandoCodigo = false) }
+                solicitudRepo.createDeputyCodeForMember(session.grupoId, id)
+            }.onSuccess { result ->
+                _uiState.update { it.copy(codigoSuplente = result.code, isGenerandoCodigo = false) }
             }.onFailure {
                 _uiState.update { it.copy(isGenerandoCodigo = false, solicitudError = "No se pudo generar el código") }
             }

@@ -73,7 +73,7 @@ import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.data.repository.AsignadoPotencial
 import com.gpleader.app.core.ui.theme.Gold
 import com.gpleader.app.core.ui.theme.Shadow
-import com.gpleader.app.core.ui.components.AppBottomNavBar
+import com.gpleader.app.core.ui.components.FloatingNavScaffold
 import com.gpleader.app.core.ui.components.NAV_TAB_ACTIVIDADES
 import com.gpleader.app.core.ui.components.NAV_TAB_PERFIL
 import com.gpleader.app.core.ui.theme.neuElevated
@@ -190,16 +190,11 @@ private fun PerfilContent(
     onDismissConfirmacion:       () -> Unit = {},
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
-        Scaffold(
-            containerColor = Background,
-            bottomBar = {
-                AppBottomNavBar(
-                    selectedTab        = NAV_TAB_PERFIL,
-                    onInicioClick      = onNavigateToHome,
-                    onActividadesClick = onNavigateToActividades,
-                    onPerfilClick      = { },
-                )
-            },
+        FloatingNavScaffold(
+            selectedTab        = NAV_TAB_PERFIL,
+            onInicioClick      = onNavigateToHome,
+            onActividadesClick = onNavigateToActividades,
+            onPerfilClick      = { },
         ) { innerPadding ->
             LazyColumn(
                 modifier       = Modifier

@@ -67,6 +67,9 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation(libs.androidx.compose.ui.text.google.fonts)
 
+    // Lucide icons (ImageVectors en Kotlin puro)
+    implementation("com.composables:icons-lucide:1.0.0")
+
     // Hilt
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
@@ -89,6 +92,9 @@ dependencies {
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
+
+    // Bcrypt — validación local de gp_password cuando gp_login falla en servidor
+    implementation("at.favre.lib:bcrypt:0.10.2")
 
     // Lifecycle ViewModel
     implementation(libs.lifecycle.viewmodel.compose)

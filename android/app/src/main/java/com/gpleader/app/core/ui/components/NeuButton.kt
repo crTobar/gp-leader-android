@@ -2,12 +2,18 @@ package com.gpleader.app.core.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -15,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -39,8 +46,10 @@ private fun NeuButtonBase(
     shadowModifier: Modifier,
     cornerRadius: Dp,
     enabled: Boolean = true,
+    leadingIcon: ImageVector? = null,
 ) {
     val shape = RoundedCornerShape(cornerRadius)
+    val contentColor = if (enabled) textColor else textColor.copy(alpha = 0.5f)
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
@@ -50,12 +59,26 @@ private fun NeuButtonBase(
             .clickable(enabled = enabled, onClick = onClick)
             .padding(ButtonPadding),
     ) {
-        Text(
-            text      = text,
-            style     = MaterialTheme.typography.titleLarge,
-            color     = if (enabled) textColor else textColor.copy(alpha = 0.5f),
-            textAlign = TextAlign.Center,
-        )
+        Row(
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            if (leadingIcon != null) {
+                Icon(
+                    imageVector        = leadingIcon,
+                    contentDescription = null,
+                    tint               = contentColor,
+                    modifier           = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(10.dp))
+            }
+            Text(
+                text      = text,
+                style     = MaterialTheme.typography.titleLarge,
+                color     = contentColor,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 
@@ -71,6 +94,7 @@ fun NeuButtonPrimary(
     modifier: Modifier = Modifier,
     cornerRadius: Dp = 14.dp,
     enabled: Boolean = true,
+    leadingIcon: ImageVector? = null,
 ) {
     NeuButtonBase(
         text           = text,
@@ -81,11 +105,13 @@ fun NeuButtonPrimary(
         shadowModifier = Modifier.neuGlow(cornerRadius = cornerRadius),
         cornerRadius   = cornerRadius,
         enabled        = enabled,
+        leadingIcon    = leadingIcon,
     )
 }
 
 /**
- * Botón secundario — fondo [Background] gris perla, texto [Accent] azul, sombra elevada.
+ * Botón secundario — fondo [Background] gris perla, sombra elevada.
+ * El color del texto es [Accent] azul por defecto; se puede sobreescribir con [textColor].
  */
 @Composable
 fun NeuButtonSecondary(
@@ -93,15 +119,18 @@ fun NeuButtonSecondary(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     cornerRadius: Dp = 14.dp,
+    textColor: Color = Accent,
+    leadingIcon: ImageVector? = null,
 ) {
     NeuButtonBase(
         text           = text,
         onClick        = onClick,
         modifier       = modifier,
         background     = Background,
-        textColor      = Accent,
+        textColor      = textColor,
         shadowModifier = Modifier.neuElevated(cornerRadius = cornerRadius),
         cornerRadius   = cornerRadius,
+        leadingIcon    = leadingIcon,
     )
 }
 

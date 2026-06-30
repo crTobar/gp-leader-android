@@ -8,11 +8,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -52,7 +54,6 @@ import com.gpleader.app.R
 import com.gpleader.app.core.ui.components.NeuButtonPrimary
 import com.gpleader.app.core.ui.components.NeuCard
 import com.gpleader.app.core.ui.theme.Accent
-import com.gpleader.app.core.ui.theme.AccentLight
 import com.gpleader.app.core.ui.theme.Background
 import com.gpleader.app.core.ui.theme.BackgroundDeep
 import com.gpleader.app.core.ui.theme.Blush
@@ -62,8 +63,8 @@ import com.gpleader.app.core.ui.theme.Mid
 import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.Gold
 import com.gpleader.app.core.ui.theme.Sage
-import com.gpleader.app.core.ui.theme.neuElevated
 import com.gpleader.app.core.ui.theme.neuElevatedSm
+import com.gpleader.app.core.ui.theme.neuInsetInner
 import java.time.DayOfWeek
 import java.time.LocalDate
 
@@ -117,38 +118,41 @@ private fun RegistroPaso3Content(
             .fillMaxSize()
             .background(Background),
     ) {
-        LazyColumn(
-            modifier       = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 128.dp),
-        ) {
-            item { Paso3TopBar(pasoActivo = 3, esSabado = esSabado, onNavigateBack = onNavigateBack) }
-            item { StepperRow(pasoActivo = 3, esSabado = esSabado) }
-            item { Spacer(Modifier.height(20.dp)) }
-            item {
-                ResumenCard(
-                    uiState  = uiState,
-                    nombreGrupo = uiState.nombreGrupo.ifBlank {
-                        stringResource(R.string.paso3_grupo_sin_nombre)
-                    },
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-            }
-            if (!esSabado) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Cabecera fija arriba — no hace scroll: título + stepper
+            Paso3TopBar(pasoActivo = 3, esSabado = esSabado, onNavigateBack = onNavigateBack)
+            StepperRow(pasoActivo = 3, esSabado = esSabado)
+            LazyColumn(
+                modifier       = Modifier.weight(1f).fillMaxWidth(),
+                contentPadding = PaddingValues(bottom = 128.dp),
+            ) {
                 item { Spacer(Modifier.height(20.dp)) }
                 item {
-                    ActividadesSeparador(
+                    ResumenCard(
+                        uiState  = uiState,
+                        nombreGrupo = uiState.nombreGrupo.ifBlank {
+                            stringResource(R.string.paso3_grupo_sin_nombre)
+                        },
                         modifier = Modifier.padding(horizontal = 16.dp),
                     )
                 }
-                item { Spacer(Modifier.height(12.dp)) }
-                item {
-                    ActividadesResumen(
-                        actividades = uiState.actividades,
-                        modifier    = Modifier.padding(horizontal = 16.dp),
-                    )
+                if (!esSabado) {
+                    item { Spacer(Modifier.height(20.dp)) }
+                    item {
+                        ActividadesSeparador(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                        )
+                    }
+                    item { Spacer(Modifier.height(12.dp)) }
+                    item {
+                        ActividadesResumen(
+                            actividades = uiState.actividades,
+                            modifier    = Modifier.padding(horizontal = 16.dp),
+                        )
+                    }
                 }
+                item { Spacer(Modifier.height(108.dp)) }
             }
-            item { Spacer(Modifier.height(108.dp)) }
         }
 
         // ── Botones flotantes ──────────────────────────────────────────────────
@@ -376,10 +380,6 @@ private fun ResumenCard(
     else
         stringResource(R.string.paso3_visitas_plural, visitasCount)
 
-    val chipPresente = pluralStringResource(R.plurals.paso3_chip_presente, miembrosPresentes, miembrosPresentes)
-    val chipAusente  = pluralStringResource(R.plurals.paso3_chip_ausente, miembrosAusentes, miembrosAusentes)
-    val chipJust     = pluralStringResource(R.plurals.paso3_chip_justificado, miembrosJustificados, miembrosJustificados)
-
     NeuCard(modifier = modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp)) {
             Row(
@@ -418,24 +418,27 @@ private fun ResumenCard(
                 style    = MaterialTheme.typography.labelSmall,
                 color    = Muted,
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
             Row(
-                modifier          = Modifier.fillMaxWidth(),
+                modifier              = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                AsistenciaChip(
-                    text       = chipPresente,
-                    textColor  = if (miembrosPresentes > 0) Sage else Muted,
+                AsistenciaStat(
+                    count  = miembrosPresentes,
+                    label  = pluralStringResource(R.plurals.paso3_stat_presente, miembrosPresentes),
+                    color  = Sage,
                 )
-                AsistenciaChip(
-                    text       = chipAusente,
-                    textColor  = if (miembrosAusentes > 0) Blush else Muted,
+                AsistenciaStat(
+                    count  = miembrosAusentes,
+                    label  = pluralStringResource(R.plurals.paso3_stat_ausente, miembrosAusentes),
+                    color  = Blush,
                 )
                 // En culto de sábado no existe "justificado"
                 if (!esSabado) {
-                    AsistenciaChip(
-                        text       = chipJust,
-                        textColor  = if (miembrosJustificados > 0) Gold else Muted,
+                    AsistenciaStat(
+                        count  = miembrosJustificados,
+                        label  = pluralStringResource(R.plurals.paso3_stat_justificado, miembrosJustificados),
+                        color  = Gold,
                     )
                 }
             }
@@ -448,13 +451,6 @@ private fun ResumenCard(
                 text     = stringResource(R.string.paso3_label_asistencia),
                 style    = MaterialTheme.typography.labelSmall,
                 color    = Muted,
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text       = stringResource(R.string.paso3_asistencia_fraccion, presentes, total),
-                style      = MaterialTheme.typography.headlineSmall,
-                color      = Ink,
-                fontWeight = FontWeight.Bold,
             )
             Spacer(Modifier.height(10.dp))
             Row(
@@ -517,19 +513,31 @@ private fun ResumenRowLight(label: String, value: String) {
 }
 
 @Composable
-private fun AsistenciaChip(text: String, textColor: Color) {
-    Box(
-        contentAlignment = Alignment.Center,
+private fun RowScope.AsistenciaStat(count: Int, label: String, color: Color) {
+    val activo  = count > 0
+    val tinte   = if (activo) color else Muted
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(textColor.copy(alpha = 0.14f))
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .weight(1f)
+            .clip(RoundedCornerShape(14.dp))
+            .background(tinte.copy(alpha = if (activo) 0.12f else 0.08f))
+            .padding(vertical = 12.dp, horizontal = 6.dp),
     ) {
         Text(
-            text       = text,
-            style      = MaterialTheme.typography.labelSmall,
-            color      = textColor,
-            fontWeight = FontWeight.SemiBold,
+            text       = count.toString(),
+            style      = MaterialTheme.typography.headlineSmall,
+            color      = tinte,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text       = label,
+            style      = MaterialTheme.typography.bodySmall,
+            color      = tinte,
+            fontWeight = FontWeight.Medium,
+            maxLines   = 1,
+            textAlign  = TextAlign.Center,
         )
     }
 }
@@ -588,14 +596,14 @@ private fun ActividadesResumen(
         if (pastor.isNotEmpty()) {
             SeccionActividadesCard(
                 labelNivel  = stringResource(R.string.detalle_actividad_nivel_pastor),
-                accentColor = Accent,
+                accentColor = Ink,
                 actividades = pastor,
             )
         }
         if (gp.isNotEmpty()) {
             SeccionActividadesCard(
                 labelNivel  = stringResource(R.string.registro_nivel_mi_gp),
-                accentColor = AccentLight,
+                accentColor = Accent,
                 actividades = gp,
             )
         }
@@ -608,51 +616,100 @@ private fun SeccionActividadesCard(
     accentColor:  Color,
     actividades:  List<ActividadRegistro>,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .neuElevated(cornerRadius = 16.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(Background),
-    ) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // ── Pill flotante del nivel (sobresale sobre la card) ─────────────────
         Row(
-            modifier          = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .padding(start = 12.dp)
+                .neuElevatedSm(cornerRadius = 14.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Background)
+                .padding(start = 12.dp, end = 16.dp, top = 9.dp, bottom = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 modifier = Modifier
-                    .width(4.dp)
-                    .heightIn(min = 48.dp)
+                    .width(3.dp)
+                    .height(14.dp)
+                    .clip(RoundedCornerShape(2.dp))
                     .background(accentColor),
             )
+            Spacer(Modifier.width(9.dp))
             Text(
                 text       = labelNivel,
                 style      = MaterialTheme.typography.labelSmall,
                 color      = Ink,
                 fontWeight = FontWeight.Bold,
-                modifier   = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
             )
-        }
-        HorizontalDivider(color = BackgroundDeep, thickness = 1.dp)
-        actividades.forEach { act ->
-            Row(
-                modifier          = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            Spacer(Modifier.width(6.dp))
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(accentColor.copy(alpha = 0.14f))
+                    .padding(horizontal = 7.dp, vertical = 1.dp),
             ) {
                 Text(
-                    text     = act.nombre,
-                    style    = MaterialTheme.typography.bodyLarge,
-                    color    = Ink,
-                    modifier = Modifier.weight(1f),
+                    text       = "${actividades.size}",
+                    style      = MaterialTheme.typography.labelSmall,
+                    color      = if (accentColor == Ink) Mid else accentColor,
+                    fontWeight = FontWeight.Bold,
                 )
-                Text(
-                    text       = "${act.cantidad} ${act.unidad}",
-                    style      = MaterialTheme.typography.bodyLarge,
-                    color      = Accent,
-                    fontWeight = FontWeight.SemiBold,
-                )
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        // ── Card hundida (inset) — solo lectura, no clickeable ────────────────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min)
+                .clip(RoundedCornerShape(20.dp))
+                .background(accentColor.copy(alpha = 0.05f))
+                .neuInsetInner(shadowSize = 16.dp),
+        ) {
+            // Franja de acento del nivel
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(accentColor),
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(vertical = 6.dp),
+            ) {
+            actividades.forEachIndexed { idx, act ->
+                if (idx > 0) {
+                    HorizontalDivider(
+                        color     = BackgroundDeep,
+                        thickness = 1.dp,
+                        modifier  = Modifier.padding(horizontal = 16.dp),
+                    )
+                }
+                val tieneValor = (act.cantidad ?: 0) > 0
+                Row(
+                    modifier          = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 13.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text     = act.nombre,
+                        style    = MaterialTheme.typography.bodyLarge,
+                        color    = Ink,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        text       = "${act.cantidad ?: 0} ${act.unidad}",
+                        style      = MaterialTheme.typography.bodyLarge,
+                        color      = if (tieneValor) accentColor else Muted,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
             }
         }
     }

@@ -2,7 +2,7 @@ package com.gpleader.app.feature.historial
 
 import com.gpleader.app.core.ui.components.NeuAvatar
 import com.gpleader.app.core.ui.components.NAV_TAB_INICIO
-import com.gpleader.app.core.ui.components.AppBottomNavBar
+import com.gpleader.app.core.ui.components.FloatingNavScaffold
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -135,8 +135,11 @@ private fun DetalleReunionContent(
     onEditarClick:           () -> Unit = {},
     onRefresh:               () -> Unit = {},
 ) {
-    Scaffold(
-        containerColor = Background,
+    FloatingNavScaffold(
+        selectedTab        = -1,
+        onInicioClick      = onNavigateToHome,
+        onActividadesClick = onNavigateToActividades,
+        onPerfilClick      = onNavigateToPerfil,
         topBar = {
             DetalleTopBar(
                 fecha          = uiState.fecha,
@@ -144,14 +147,6 @@ private fun DetalleReunionContent(
                 modifier       = Modifier
                     .statusBarsPadding()
                     .padding(horizontal = 20.dp, vertical = 12.dp),
-            )
-        },
-        bottomBar = {
-            AppBottomNavBar(
-                selectedTab        = -1,
-                onInicioClick      = onNavigateToHome,
-                onActividadesClick = onNavigateToActividades,
-                onPerfilClick      = onNavigateToPerfil,
             )
         },
     ) { innerPadding ->

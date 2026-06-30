@@ -14,14 +14,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,21 +33,33 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import java.time.LocalDate
+import java.util.Locale
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gpleader.app.core.ui.components.NeuAvatar
-import com.gpleader.app.core.ui.components.NeuButtonPrimary
-import com.gpleader.app.core.ui.components.NeuButtonSecondary
 import com.gpleader.app.core.ui.components.NeuCard
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Users
+import com.composables.icons.lucide.BookOpen
+import com.composables.icons.lucide.ChevronRight
+import com.composables.icons.lucide.History
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.gpleader.app.core.ui.components.FloatingNavScaffold
+import com.gpleader.app.core.ui.components.NAV_TAB_INICIO
 import com.gpleader.app.core.ui.theme.Accent
 import com.gpleader.app.core.ui.theme.Background
-import com.gpleader.app.core.ui.theme.BackgroundDeep
 import com.gpleader.app.core.ui.theme.Blush
 import com.gpleader.app.core.ui.theme.GpLeaderTheme
+import com.gpleader.app.core.ui.theme.Gold
 import com.gpleader.app.core.ui.theme.Ink
 import com.gpleader.app.core.ui.theme.Mid
 import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.Sage
-import com.gpleader.app.core.ui.theme.neuElevated
+import com.gpleader.app.core.ui.theme.neuInsetInner
 import com.gpleader.app.core.ui.components.OnResumeEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,9 +67,10 @@ import com.gpleader.app.core.ui.components.OnResumeEffect
 fun MiembroHomeScreen(
     onCerrarSesion:               () -> Unit,
     onNavigateToActividades:      () -> Unit = {},
+    onNavigateToPerfil:           () -> Unit = {},
     onNavigateToDuoMisionero:     () -> Unit = {},
     onNavigateToEstudiosBiblicos: () -> Unit = {},
-    onEntrarComoSuplente:         (solicitudId: String) -> Unit = {},
+    onNavigateToHistorial:        () -> Unit = {},
     viewModel: MiembroHomeViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -74,11 +86,11 @@ fun MiembroHomeScreen(
 
     MiembroHomeContent(
         uiState                      = uiState,
-        onCerrarSesion               = viewModel::onCerrarSesion,
         onNavigateToActividades      = onNavigateToActividades,
+        onNavigateToPerfil           = onNavigateToPerfil,
         onNavigateToDuoMisionero     = onNavigateToDuoMisionero,
         onNavigateToEstudiosBiblicos = onNavigateToEstudiosBiblicos,
-        onEntrarComoSuplente         = onEntrarComoSuplente,
+        onNavigateToHistorial        = onNavigateToHistorial,
         onRefresh                    = viewModel::onRefresh,
     )
 }
@@ -87,11 +99,11 @@ fun MiembroHomeScreen(
 @Composable
 private fun MiembroHomeContent(
     uiState:                      MiembroHomeUiState,
-    onCerrarSesion:               () -> Unit = {},
     onNavigateToActividades:      () -> Unit = {},
+    onNavigateToPerfil:           () -> Unit = {},
     onNavigateToDuoMisionero:     () -> Unit = {},
     onNavigateToEstudiosBiblicos: () -> Unit = {},
-    onEntrarComoSuplente:         (String) -> Unit = {},
+    onNavigateToHistorial:        () -> Unit = {},
     onRefresh:                    () -> Unit = {},
 ) {
     if (uiState.isValidandoPerfil) {
@@ -104,191 +116,232 @@ private fun MiembroHomeContent(
         return
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Background),
-    ) {
-        // ── Cabecera: avatar + nombre ─────────────────────────────────────────
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            NeuAvatar(iniciales = uiState.miembroIniciales, size = 52.dp)
-            Spacer(Modifier.width(14.dp))
-            Column {
-                Text(
-                    text       = uiState.miembroNombre,
-                    style      = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color      = Ink,
-                )
-                Text(
-                    text  = "Culto sábado",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Muted,
-                )
-            }
-        }
-
-        HorizontalDivider(color = Muted.copy(alpha = 0.15f))
-
-        // ── Contenido scrollable ──────────────────────────────────────────────
-        PullToRefreshBox(
-            isRefreshing = uiState.isRefreshing,
-            onRefresh    = onRefresh,
-            modifier     = Modifier.weight(1f).fillMaxWidth(),
-        indicator = {},
-        ) {
+    FloatingNavScaffold(
+        selectedTab        = NAV_TAB_INICIO,
+        onInicioClick      = {},
+        onActividadesClick = onNavigateToActividades,
+        onPerfilClick      = onNavigateToPerfil,
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 24.dp),
+                .background(Background)
+                .padding(innerPadding),
         ) {
-            // ── IGLESIA ───────────────────────────────────────────────────────
-            Text("IGLESIA", style = MaterialTheme.typography.labelSmall, color = Muted)
-            Spacer(Modifier.height(8.dp))
-            NeuCard(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier          = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(BackgroundDeep),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text       = uiState.iglesiaNombre.firstOrNull()?.uppercase() ?: "I",
-                            style      = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Bold,
-                            color      = Accent,
-                        )
-                    }
-                    Spacer(Modifier.width(14.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text       = uiState.iglesiaNombre,
-                            style      = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            color      = Ink,
-                        )
-                        val ubicacion = listOf(uiState.districtNombre, uiState.campoNombre)
-                            .filter { it.isNotBlank() }.joinToString(" · ")
-                        if (ubicacion.isNotBlank()) {
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                text  = ubicacion,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Muted,
+            // ── Cabecera: fecha + avatar con nombre al lado ───────────────────
+            MiembroHeader(
+                iniciales   = uiState.miembroIniciales,
+                nombre      = uiState.miembroNombre,
+                grupoNombre = uiState.grupoNombre,
+            )
+
+            // ── Contenido scrollable ──────────────────────────────────────────
+            PullToRefreshBox(
+                isRefreshing = uiState.isRefreshing,
+                onRefresh    = onRefresh,
+                modifier     = Modifier.weight(1f).fillMaxWidth(),
+                indicator    = {},
+            ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp)
+                    .padding(top = 20.dp, bottom = 24.dp),
+            ) {
+                // ── Métricas del trimestre (asistencia) ───────────────────────
+                Text("ESTE TRIMESTRE", style = MaterialTheme.typography.labelSmall, color = Muted)
+                Spacer(Modifier.height(8.dp))
+                NeuCard(modifier = Modifier.fillMaxWidth()) {
+                    if (uiState.isLoadingStats) {
+                        Box(
+                            modifier         = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator(color = Accent, modifier = Modifier.size(24.dp))
+                        }
+                    } else {
+                        Row(
+                            modifier              = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 24.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment     = Alignment.CenterVertically,
+                        ) {
+                            StatItem(
+                                value = uiState.cultosAsistidos.toString(),
+                                label = "asistidos",
+                                color = Accent,
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .width(1.dp)
+                                    .height(40.dp)
+                                    .background(Muted.copy(alpha = 0.25f)),
+                            )
+                            StatItem(
+                                value = uiState.totalCultosGP.toString(),
+                                label = "cultos",
+                                color = Ink,
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .width(1.dp)
+                                    .height(40.dp)
+                                    .background(Muted.copy(alpha = 0.25f)),
+                            )
+                            StatItem(
+                                value = "${uiState.porcentajeAsistencia}%",
+                                label = "promedio",
+                                color = when {
+                                    uiState.porcentajeAsistencia >= 75 -> Sage
+                                    uiState.porcentajeAsistencia >= 50 -> Accent
+                                    else                               -> Blush
+                                },
                             )
                         }
                     }
                 }
-            }
 
-            Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(16.dp))
 
-            // ── Botones de acción ─────────────────────────────────────────────
-            if (uiState.tieneDuo) {
-                NeuButtonSecondary(
-                    text     = "Mi Dúo Misionero",
-                    onClick  = onNavigateToDuoMisionero,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(8.dp))
-            }
-            NeuButtonSecondary(
-                text     = "Mis Estudios Bíblicos",
-                onClick  = onNavigateToEstudiosBiblicos,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(8.dp))
-            NeuButtonSecondary(
-                text     = "Mis Actividades",
-                onClick  = onNavigateToActividades,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Spacer(Modifier.height(24.dp))
-
-            // ── HISTORIAL DEL TRIMESTRE (al fondo) ───────────────────────────
-            Text("HISTORIAL DEL TRIMESTRE", style = MaterialTheme.typography.labelSmall, color = Muted)
-            Spacer(Modifier.height(8.dp))
-            NeuCard(modifier = Modifier.fillMaxWidth()) {
-                if (uiState.isLoadingStats) {
-                    Box(
-                        modifier         = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator(color = Accent, modifier = Modifier.size(24.dp))
-                    }
-                } else {
-                    Row(
-                        modifier              = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 24.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment     = Alignment.CenterVertically,
-                    ) {
-                        StatItem(
-                            value = uiState.cultosAsistidos.toString(),
-                            label = "asistidos",
-                            color = Accent,
-                        )
-                        Box(
-                            modifier = Modifier
-                                .width(1.dp)
-                                .height(40.dp)
-                                .background(Muted.copy(alpha = 0.25f)),
-                        )
-                        StatItem(
-                            value = uiState.totalCultosGP.toString(),
-                            label = "cultos",
-                            color = Ink,
-                        )
-                        Box(
-                            modifier = Modifier
-                                .width(1.dp)
-                                .height(40.dp)
-                                .background(Muted.copy(alpha = 0.25f)),
-                        )
-                        StatItem(
-                            value = "${uiState.porcentajeAsistencia}%",
-                            label = "promedio",
-                            color = when {
-                                uiState.porcentajeAsistencia >= 75 -> Sage
-                                uiState.porcentajeAsistencia >= 50 -> Accent
-                                else                               -> Blush
-                            },
-                        )
-                    }
+                // ── Tarjetas de acceso ────────────────────────────────────────
+                if (uiState.tieneDuo) {
+                    MiembroOpcionCard(
+                        icon      = Lucide.Users,
+                        iconTint  = Sage,
+                        titulo    = "Ver Dúo Misionero",
+                        subtitulo = "Tu pareja misionera y registros compartidos",
+                        onClick   = onNavigateToDuoMisionero,
+                    )
+                    Spacer(Modifier.height(12.dp))
                 }
+                MiembroOpcionCard(
+                    icon      = Lucide.BookOpen,
+                    iconTint  = Accent,
+                    titulo    = "Ver Mis Estudios Bíblicos",
+                    subtitulo = "Estudios bíblicos que estás dando",
+                    onClick   = onNavigateToEstudiosBiblicos,
+                )
+                Spacer(Modifier.height(12.dp))
+                MiembroOpcionCard(
+                    icon      = Lucide.History,
+                    iconTint  = Gold,
+                    titulo    = "Ver Historial",
+                    subtitulo = "Tu asistencia a reuniones y cultos de sábado",
+                    onClick   = onNavigateToHistorial,
+                )
             }
+            } // PullToRefreshBox
+        }
+    }
+}
 
-            Spacer(Modifier.height(24.dp))
+@Composable
+private fun MiembroHeader(
+    iniciales:   String,
+    nombre:      String,
+    grupoNombre: String,
+) {
+    val today          = LocalDate.now()
+    val diaSemanaLabel = today.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, Locale("es")).uppercase()
+    val diaN           = today.dayOfMonth
+    val mes            = today.month.getDisplayName(java.time.format.TextStyle.FULL, Locale("es")).uppercase()
+    val fechaLabel     = "$diaSemanaLabel, $diaN DE $mes"
 
-            // ── Entrar como suplente ──────────────────────────────────────────
-            NeuButtonPrimary(
-                text     = "Entrar como suplente",
-                onClick  = { onEntrarComoSuplente("") },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(8.dp))
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp)
+            .padding(top = 24.dp, bottom = 4.dp),
+    ) {
+        Text(
+            text  = fechaLabel,
+            style = MaterialTheme.typography.labelSmall,
+            color = Muted,
+        )
+        Spacer(Modifier.height(14.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            NeuAvatar(iniciales = iniciales, size = 56.dp)
+            Spacer(Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text       = nombre,
+                    style      = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color      = Ink,
+                )
+                Text(
+                    text  = "Miembro",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Muted,
+                )
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        val nameStyle = MaterialTheme.typography.displayLarge.copy(
+            fontSize   = 38.sp,
+            fontWeight = FontWeight.Bold,
+            lineHeight = 40.sp,
+        )
+        Text(text = "Grupo",     style = nameStyle, color = Ink)
+        Text(text = grupoNombre, style = nameStyle, color = Ink)
+    }
+}
 
-            // ── Cerrar sesión ─────────────────────────────────────────────────
-            NeuButtonSecondary(
-                text     = "Cerrar sesión",
-                onClick  = onCerrarSesion,
-                modifier = Modifier.fillMaxWidth(),
+@Composable
+private fun MiembroOpcionCard(
+    icon:      ImageVector,
+    iconTint:  Color,
+    titulo:    String,
+    subtitulo: String,
+    onClick:   () -> Unit,
+) {
+    NeuCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+    ) {
+        Row(
+            modifier          = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Background)
+                    .neuInsetInner(shadowSize = 10.dp),
+            ) {
+                Icon(
+                    imageVector        = icon,
+                    contentDescription = null,
+                    tint               = iconTint,
+                    modifier           = Modifier.size(22.dp),
+                )
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text       = titulo,
+                    style      = MaterialTheme.typography.bodyLarge,
+                    color      = Ink,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text  = subtitulo,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Mid,
+                )
+            }
+            Icon(
+                imageVector        = Lucide.ChevronRight,
+                contentDescription = null,
+                tint               = Muted,
+                modifier           = Modifier.size(20.dp),
             )
         }
-        } // PullToRefreshBox
-
     }
 }
 
