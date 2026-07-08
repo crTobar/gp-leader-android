@@ -4,7 +4,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gpleader.app.core.data.repository.ActividadRepository
-import com.gpleader.app.core.data.repository.MemberActivitySubmission
+import com.gpleader.app.core.data.repository.MemberEntryAggregate
+import com.gpleader.app.core.data.repository.MemberEntryRepository
 import com.gpleader.app.core.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,26 +13,27 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.ZoneId
 import javax.inject.Inject
 
 data class ActividadHistorialUiState(
-    val actividadNombre: String                         = "",
-    val actividadUnidad: String                         = "",
-    val markerType:      String                         = "counter",
-    val submissions:     List<MemberActivitySubmission> = emptyList(),
-    val grupoTotal:      Int                            = 0,
-    val grupoMonto:      Double                         = 0.0,
-    val isLoading:       Boolean                        = true,
-    val isRefreshing:    Boolean                        = false,
-    val error:           String?                        = null,
+    val actividadNombre: String = "",
+    val actividadUnidad: String = "",
+    val markerType:      String = "counter",
+    val approvedTotal:   Double = 0.0,
+    val pendingTotal:    Double = 0.0,
+    val pendingCount:    Int    = 0,
+    val perMember:       List<MemberEntryAggregate> = emptyList(),
+    val isLoading:       Boolean = true,
+    val isRefreshing:    Boolean = false,
+    val error:           String? = null,
 )
 
 @HiltViewModel
 class ActividadHistorialViewModel @Inject constructor(
-    savedStateHandle:      SavedStateHandle,
-    private val actividadRepo: ActividadRepository,
-    private val session:       SessionManager,
+    savedStateHandle:            SavedStateHandle,
+    private val actividadRepo:   ActividadRepository,
+    private val memberEntryRepo: MemberEntryRepository,
+    private val session:         SessionManager,
 ) : ViewModel() {
 
     private val actividadTipoId: String = checkNotNull(savedStateHandle["actividadTipoId"])
@@ -63,31 +65,23 @@ class ActividadHistorialViewModel @Inject constructor(
         ).onSuccess { tipos ->
             tipos.find { it.id == actividadTipoId }?.let { tipo ->
                 _uiState.update { s ->
-                    s.copy(
-                        actividadNombre = tipo.nombre,
-                        actividadUnidad = tipo.unitLabel,
-                        markerType      = tipo.markerType,
+                    s.copy(actividadNombre = tipo.nombre, actividadUnidad = tipo.unitLabel, markerType = tipo.markerType)
+                }
+            }
+        }
+
+        memberEntryRepo.getActivityMemberSummary(session.grupoId, actividadTipoId).fold(
+            onSuccess = { sum ->
+                _uiState.update {
+                    it.copy(
+                        approvedTotal = sum.approvedTotal,
+                        pendingTotal  = sum.pendingTotal,
+                        pendingCount  = sum.pendingCount,
+                        perMember     = sum.perMember,
                     )
                 }
-            }
-        }
-
-        actividadRepo.getActividadesConTotales(session.grupoId).onSuccess { totales ->
-            totales[actividadTipoId]?.let { t ->
-                _uiState.update { it.copy(grupoTotal = t.totalCantidad, grupoMonto = t.montoTotal) }
-            }
-        }
-
-        actividadRepo.getActividadSubmissions(actividadTipoId, session.grupoId).fold(
-            onSuccess = { subs ->
-                val sorted = subs.sortedByDescending {
-                    it.markedAt ?: it.recordDate.atStartOfDay(ZoneId.systemDefault()).toInstant()
-                }
-                _uiState.update { it.copy(submissions = sorted) }
             },
-            onFailure = { e ->
-                _uiState.update { it.copy(error = e.message) }
-            },
+            onFailure = { e -> _uiState.update { it.copy(error = e.message) } },
         )
     }
 }

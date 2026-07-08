@@ -74,6 +74,18 @@ class GrupoRepositoryImpl @Inject constructor(
         )
     }
 
+    override suspend fun getUnionByCampo(campoId: String): CampoItem? {
+        val cData = supabase.from("campo").select { filter { eq("id", campoId) }; limit(1) }.data
+        val unionId = Json.parseToJsonElement(cData).jsonArray.firstOrNull()
+            ?.jsonObject?.get("union_id")?.jsonPrimitive?.contentOrNull ?: return null
+        val uData = supabase.from("union_org").select { filter { eq("id", unionId) }; limit(1) }.data
+        val uObj = Json.parseToJsonElement(uData).jsonArray.firstOrNull()?.jsonObject ?: return null
+        return CampoItem(
+            id     = uObj["id"]?.jsonPrimitive?.contentOrNull ?: unionId,
+            nombre = uObj["name"]?.jsonPrimitive?.contentOrNull ?: "",
+        )
+    }
+
     private fun formatMeetingTime(timeStr: String): String = try {
         val time      = java.time.LocalTime.parse(timeStr)
         val formatter = java.time.format.DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.ENGLISH)

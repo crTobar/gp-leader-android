@@ -4,7 +4,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gpleader.app.core.data.repository.ActividadRepository
-import com.gpleader.app.core.data.repository.RegistroHistorial
+import com.gpleader.app.core.data.repository.MemberEntry
+import com.gpleader.app.core.data.repository.MemberEntryRepository
 import com.gpleader.app.core.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,28 +13,29 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.LocalDate
 import javax.inject.Inject
 
 data class MiembroActividadHistorialUiState(
-    val isLoading:      Boolean = true,
-    val isRefreshing:   Boolean = false,
+    val isLoading:       Boolean = true,
+    val isRefreshing:    Boolean = false,
     val nombreActividad: String = "",
-    val markerType:     String = "counter",
-    val unitLabel:      String = "",
-    val totalHistorico: Int = 0,
-    val registros:      List<RegistroHistorial> = emptyList(),
-    val showAddDialog:  Boolean = false,
-    val nuevaCantidad:  Int = 1,
-    val isGuardando:    Boolean = false,
-    val error:          String? = null,
+    val markerType:      String = "counter",
+    val unitLabel:       String = "",
+    val total:           Double = 0.0,
+    val entries:         List<MemberEntry> = emptyList(),
+    val showAddDialog:   Boolean = false,
+    val nuevaCantidad:   Int = 1,
+    val editando:        MemberEntry? = null,   // entry en edición (null = no)
+    val isGuardando:     Boolean = false,
+    val error:           String? = null,
 )
 
 @HiltViewModel
 class MiembroActividadHistorialViewModel @Inject constructor(
-    savedStateHandle:      SavedStateHandle,
-    private val actividadRepo: ActividadRepository,
-    private val session:       SessionManager,
+    savedStateHandle:          SavedStateHandle,
+    private val actividadRepo:   ActividadRepository,
+    private val memberEntryRepo: MemberEntryRepository,
+    private val session:         SessionManager,
 ) : ViewModel() {
 
     private val actividadTipoId: String = checkNotNull(savedStateHandle["actividadTipoId"])
@@ -65,50 +67,70 @@ class MiembroActividadHistorialViewModel @Inject constructor(
         ).onSuccess { tipos ->
             tipos.find { it.id == actividadTipoId }?.let { tipo ->
                 _uiState.update { s ->
-                    s.copy(
-                        nombreActividad = tipo.nombre,
-                        markerType      = tipo.markerType,
-                        unitLabel       = tipo.unitLabel,
-                    )
+                    s.copy(nombreActividad = tipo.nombre, markerType = tipo.markerType, unitLabel = tipo.unitLabel)
                 }
             }
         }
-        actividadRepo.getMiembroActividadHistorial(session.miembroId, actividadTipoId).onSuccess { registros ->
-            _uiState.update { it.copy(registros = registros) }
+        memberEntryRepo.getEntries(session.miembroId, actividadTipoId).onSuccess { entries ->
+            _uiState.update { it.copy(entries = entries) }
         }.onFailure { e ->
             _uiState.update { it.copy(error = e.message) }
         }
-        actividadRepo.getMiembroActividadTotalHistorico(session.miembroId, actividadTipoId).onSuccess { total ->
-            _uiState.update { it.copy(totalHistorico = total) }
+        memberEntryRepo.getEntryTotal(session.miembroId, actividadTipoId).onSuccess { total ->
+            _uiState.update { it.copy(total = total) }
         }
     }
 
-    fun onShowAddDialog()  = _uiState.update { it.copy(showAddDialog = true, nuevaCantidad = 1) }
-    fun onDismissDialog()  = _uiState.update { it.copy(showAddDialog = false) }
-    fun onCantidadChange(v: Int) = _uiState.update { it.copy(nuevaCantidad = v.coerceAtLeast(1)) }
+    // ── Agregar ────────────────────────────────────────────────────────────────
+    fun onShowAddDialog()        = _uiState.update { it.copy(showAddDialog = true, nuevaCantidad = 1, editando = null) }
+    fun onDismissDialog()        = _uiState.update { it.copy(showAddDialog = false, editando = null) }
+    fun onCantidadChange(v: Int) = _uiState.update { it.copy(nuevaCantidad = v.coerceAtLeast(0)) }
 
     fun onGuardar() {
-        val state    = _uiState.value
-        val cantidad = state.nuevaCantidad
+        val cantidad = _uiState.value.nuevaCantidad
         if (cantidad <= 0) return
-        val autoApprove = state.markerType != "monetary"
         viewModelScope.launch {
             _uiState.update { it.copy(isGuardando = true) }
-            actividadRepo.agregarRegistroMiembro(
+            memberEntryRepo.addEntry(
                 miembroId       = session.miembroId,
                 actividadTipoId = actividadTipoId,
-                fecha           = LocalDate.now(),
-                count           = cantidad,
-                autoApprove     = autoApprove,
+                grupoId         = session.grupoId,
+                value           = cantidad.toDouble(),
             ).fold(
-                onSuccess = {
-                    _uiState.update { it.copy(isGuardando = false, showAddDialog = false) }
-                    cargarInterno()
-                },
-                onFailure = { e ->
-                    _uiState.update { it.copy(isGuardando = false, error = e.message) }
-                },
+                onSuccess = { _uiState.update { it.copy(isGuardando = false, showAddDialog = false) }; cargarInterno() },
+                onFailure = { e -> _uiState.update { it.copy(isGuardando = false, error = e.message) } },
             )
+        }
+    }
+
+    // ── Editar ───────────────────────────────────────────────────────────────
+    fun onEditarEntry(entry: MemberEntry) =
+        _uiState.update { it.copy(editando = entry, nuevaCantidad = entry.value.toInt(), showAddDialog = true) }
+
+    fun onConfirmarEdicion() {
+        val entry    = _uiState.value.editando ?: return
+        val cantidad = _uiState.value.nuevaCantidad
+        if (cantidad <= 0) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isGuardando = true) }
+            memberEntryRepo.editEntry(
+                entryId   = entry.id,
+                newValue  = cantidad.toDouble(),
+                actorRole = "member",
+                actorId   = session.miembroId,
+            ).fold(
+                onSuccess = { _uiState.update { it.copy(isGuardando = false, showAddDialog = false, editando = null) }; cargarInterno() },
+                onFailure = { e -> _uiState.update { it.copy(isGuardando = false, error = e.message) } },
+            )
+        }
+    }
+
+    // ── Borrar ───────────────────────────────────────────────────────────────
+    fun onBorrarEntry(entry: MemberEntry) {
+        viewModelScope.launch {
+            memberEntryRepo.deleteEntry(entry.id, actorRole = "member", actorId = session.miembroId)
+                .onSuccess { cargarInterno() }
+                .onFailure { e -> _uiState.update { it.copy(error = e.message) } }
         }
     }
 }

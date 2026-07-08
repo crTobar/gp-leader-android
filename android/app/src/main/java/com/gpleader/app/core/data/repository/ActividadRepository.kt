@@ -75,6 +75,16 @@ data class MemberActivitySubmission(
     val markedAt:      Instant? = null,
 )
 
+data class MemberPendingItem(
+    val recordId:        String,
+    val miembroNombre:   String,
+    val actividadNombre: String,
+    val markerType:      String,   // "monetary", "counter", ...
+    val unitLabel:       String,
+    val valor:           Int,      // valor enviado (columna count)
+    val recordDate:      LocalDate,
+)
+
 data class MemberContribution(
     val recordId:      String,
     val miembroId:     String,
@@ -112,6 +122,7 @@ interface ActividadRepository {
 
     // ── Aprobación de actividades de miembros ─────────────────────────────────
     suspend fun getPendingMemberActivities(grupoId: String, actividadTipoId: String): Result<List<MemberActivitySubmission>>
+    suspend fun getPendingMemberActivitiesForGroup(grupoId: String): Result<List<MemberPendingItem>>
     suspend fun getPendingCountPerTipo(grupoId: String): Result<Map<String, Int>>
     suspend fun approveMemberActivity(recordId: String, correctedCount: Int?, correctedMonto: Double?, isMonetary: Boolean): Result<Unit>
     suspend fun rejectMemberActivity(recordId: String): Result<Unit>

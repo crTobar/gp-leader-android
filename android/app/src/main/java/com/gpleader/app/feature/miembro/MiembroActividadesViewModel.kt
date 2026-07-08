@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gpleader.app.core.data.repository.ActividadRepository
 import com.gpleader.app.core.data.repository.ActividadTipoData
+import com.gpleader.app.core.data.repository.MemberEntryRepository
 import com.gpleader.app.core.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
@@ -47,7 +48,8 @@ data class MiembroActividadesUiState(
 
 @HiltViewModel
 class MiembroActividadesViewModel @Inject constructor(
-    private val actividadRepo: ActividadRepository,
+    private val actividadRepo:   ActividadRepository,
+    private val memberEntryRepo: MemberEntryRepository,
     private val session: SessionManager,
 ) : ViewModel() {
 
@@ -98,12 +100,12 @@ class MiembroActividadesViewModel @Inject constructor(
                                         horaMarcada         = null,
                                     )
                                 } else {
-                                    val total = actividadRepo
-                                        .getMiembroActividadTotalHistorico(miembroId, tipo.id)
-                                        .getOrElse { 0 }
+                                    val total = memberEntryRepo
+                                        .getEntryTotal(miembroId, tipo.id)
+                                        .getOrElse { 0.0 }
                                     ActividadMiembroUi.Semanal(
                                         tipo           = tipo,
-                                        totalHistorico = total,
+                                        totalHistorico = total.toInt(),
                                     )
                                 }
                             }

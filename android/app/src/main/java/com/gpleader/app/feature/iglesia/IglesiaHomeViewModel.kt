@@ -2,7 +2,9 @@ package com.gpleader.app.feature.iglesia
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gpleader.app.core.data.repository.ApprovalLevel
 import com.gpleader.app.core.data.repository.IglesiaRepository
+import com.gpleader.app.core.data.repository.MoneyApprovalRepository
 import com.gpleader.app.core.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,8 +25,9 @@ data class IglesiaHomeUiState(
 
 @HiltViewModel
 class IglesiaHomeViewModel @Inject constructor(
-    private val iglesiaRepo: IglesiaRepository,
-    private val session:     SessionManager,
+    private val iglesiaRepo:     IglesiaRepository,
+    private val moneyRepo:       MoneyApprovalRepository,
+    private val session:         SessionManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(IglesiaHomeUiState())
@@ -41,7 +44,11 @@ class IglesiaHomeViewModel @Inject constructor(
             runCatching { iglesiaRepo.getGruposByIglesia(session.iglesiaId) }
                 .onSuccess { grupos ->
                     val totalMiembros     = grupos.sumOf { it.totalMiembros }
-                    val pendingBoardCount = grupos.sumOf { it.pendingBoardCount }
+                    // Nº de actividades monetarias con monto pendiente por aprobar (badge).
+                    val pendingBoardCount = moneyRepo
+                        .getMonetaryActivitiesWithPending(ApprovalLevel.CHURCH, session.iglesiaId)
+                        .getOrDefault(emptyList())
+                        .count { it.pendienteTotal > 0.0 }
                     _uiState.update {
                         it.copy(
                             isLoading         = false,

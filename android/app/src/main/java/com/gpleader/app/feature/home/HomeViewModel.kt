@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gpleader.app.core.data.repository.GroupLogRepository
 import com.gpleader.app.core.data.repository.GrupoRepository
+import com.gpleader.app.core.data.repository.MemberEntryRepository
 import com.gpleader.app.core.data.repository.MiembroRepository
 import com.gpleader.app.core.data.repository.ReunionRepository
 import com.gpleader.app.core.data.repository.SabbathMeetingResumen
@@ -70,6 +71,10 @@ data class HomeUiState(
     val navigateToHistorial:  Boolean                  = false,
     val navigateToDetalle:    String?                  = null,
     val navigateToSabadoCulto: Boolean                 = false,
+    val navigateToAprobaciones: Boolean                = false,
+
+    // Aportes de miembros pendientes de aprobar (status="draft")
+    val pendingMemberCount:   Int                      = 0,
 
     // ── Delegaciones activas (deputy_code con miembro asignado) ─────────────
     val delegaciones:          List<DelegacionActiva>   = emptyList(),
@@ -92,6 +97,7 @@ class HomeViewModel @Inject constructor(
     private val miembroRepo:   MiembroRepository,
     private val solicitudRepo: SolicitudRepository,
     private val groupLogRepo:  GroupLogRepository,
+    private val memberEntryRepo: MemberEntryRepository,
     private val supabase:      SupabaseClient,
     private val session:       SessionManager,
 ) : ViewModel() {
@@ -117,6 +123,7 @@ class HomeViewModel @Inject constructor(
         cargarGrupoDetalle()
         cargarTotalMiembros()
         cargarSolicitudes()
+        cargarPendientes()
     }
 
     fun onRefresh() {
@@ -126,7 +133,15 @@ class HomeViewModel @Inject constructor(
             cargarSabadoRecientes()
             cargarGrupoDetalle()
             cargarSolicitudes()
+            cargarPendientes()
             _uiState.update { it.copy(isRefreshing = false) }
+        }
+    }
+
+    private fun cargarPendientes() {
+        viewModelScope.launch {
+            val total = memberEntryRepo.getPendingEntriesCount(session.grupoId).getOrDefault(0)
+            _uiState.update { it.copy(pendingMemberCount = total) }
         }
     }
 
@@ -238,6 +253,15 @@ class HomeViewModel @Inject constructor(
     fun reloadHome() {
         cargarReuniones()
         cargarSabadoRecientes()
+        cargarPendientes()
+    }
+
+    fun onAprobacionesClick() {
+        _uiState.update { it.copy(navigateToAprobaciones = true) }
+    }
+
+    fun consumeAprobacionesNavigation() {
+        _uiState.update { it.copy(navigateToAprobaciones = false) }
     }
 
     fun onSabadoCultoClick() {

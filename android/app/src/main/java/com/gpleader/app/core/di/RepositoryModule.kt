@@ -14,6 +14,10 @@ import com.gpleader.app.core.data.repository.GrupoRepository
 import com.gpleader.app.core.data.repository.GrupoRepositoryImpl
 import com.gpleader.app.core.data.repository.IglesiaRepository
 import com.gpleader.app.core.data.repository.IglesiaRepositoryImpl
+import com.gpleader.app.core.data.repository.MemberEntryRepository
+import com.gpleader.app.core.data.repository.MemberEntryRepositoryImpl
+import com.gpleader.app.core.data.repository.MoneyApprovalRepository
+import com.gpleader.app.core.data.repository.MoneyApprovalRepositoryImpl
 import com.gpleader.app.core.data.repository.MiembroRepository
 import com.gpleader.app.core.data.repository.MiembroRepositoryImpl
 import com.gpleader.app.core.data.repository.ReunionRepository
@@ -45,6 +49,14 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindMiembroRepository(impl: MiembroRepositoryImpl): MiembroRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindMemberEntryRepository(impl: MemberEntryRepositoryImpl): MemberEntryRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindMoneyApprovalRepository(impl: MoneyApprovalRepositoryImpl): MoneyApprovalRepository
 
     @Binds
     @Singleton

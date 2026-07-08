@@ -113,6 +113,7 @@ import com.gpleader.app.core.ui.theme.neuInsetInner
 fun LoginScreen(
     onNavigateToQuienEres: () -> Unit,
     onNavigateToIglesiaHome: () -> Unit = {},
+    onNavigateToNivelHome: (nivel: String) -> Unit = {},
     viewModel: LoginViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -131,6 +132,13 @@ fun LoginScreen(
         }
     }
 
+    LaunchedEffect(uiState.navigateToNivelHome) {
+        uiState.navigateToNivelHome?.let {
+            onNavigateToNivelHome(it)
+            viewModel.consumeNivelHomeNavigation()
+        }
+    }
+
     LoginScreenContent(
         uiState                        = uiState,
         onCampoSelected                = viewModel::onCampoSelected,
@@ -143,6 +151,42 @@ fun LoginScreen(
         onIglesiaParaLoginSelected     = viewModel::onIglesiaParaLoginSelected,
         onDismissIglesiaPasswordDialog = viewModel::onDismissIglesiaPasswordDialog,
         onConfirmarAccesoIglesia       = viewModel::onConfirmarAccesoIglesia,
+    )
+
+    if (uiState.showNivelChooser) {
+        NivelChooserDialog(
+            onElegir  = viewModel::onNivelElegido,
+            onDismiss = viewModel::onDismissNivelChooser,
+        )
+    }
+}
+
+/** Selector DEV del nivel con el que entrar tras confirmar una iglesia. */
+@Composable
+private fun NivelChooserDialog(
+    onElegir:  (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor   = Background,
+        title = { Text("Entrar como", style = MaterialTheme.typography.titleLarge, color = Ink) },
+        text  = { Text("Elige el nivel con el que quieres ingresar.", style = MaterialTheme.typography.bodyMedium, color = Mid) },
+        confirmButton = {
+            Column {
+                listOf(
+                    "CHURCH"   to "Iglesia (anciano)",
+                    "DISTRICT" to "Pastor (distrito)",
+                    "CAMPO"    to "Asociación (campo)",
+                    "UNION"    to "Unión",
+                ).forEach { (nivel, label) ->
+                    androidx.compose.material3.TextButton(onClick = { onElegir(nivel) }) {
+                        Text(label, color = Accent, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cancelar", color = Mid) } },
     )
 }
 

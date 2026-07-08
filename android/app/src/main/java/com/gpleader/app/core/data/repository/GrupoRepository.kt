@@ -37,4 +37,6 @@ interface GrupoRepository {
     suspend fun getIglesias(distritoId: String? = null): List<IglesiaItem> // null = todas
     suspend fun getGrupos(iglesiaId: String? = null): List<GrupoItem>  // null = todos
     suspend fun getGrupoDetalle(grupoId: String): GrupoDetalle?
+    /** Unión (id + nombre) a la que pertenece un campo, para setear la sesión de nivel Unión. */
+    suspend fun getUnionByCampo(campoId: String): CampoItem?
 }

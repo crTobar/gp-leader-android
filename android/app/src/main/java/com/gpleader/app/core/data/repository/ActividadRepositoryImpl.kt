@@ -162,6 +162,30 @@ class ActividadRepositoryImpl @Inject constructor(
             }
         }
 
+        // Aportes individuales de miembros (member_entry) — enrutados por marker_type
+        val entryData = supabase.from("member_entry").select(
+            Columns.raw("activity_type_id, value, status, activity_type!inner(marker_type)")
+        ) {
+            filter {
+                eq("small_group_id", grupoId)
+                eq("is_deleted", false)
+                neq("status", "rejected")
+            }
+        }.data
+        Json.parseToJsonElement(entryData).jsonArray.forEach { elem ->
+            val obj    = elem.jsonObject
+            val tipoId = obj["activity_type_id"]?.jsonPrimitive?.contentOrNull ?: return@forEach
+            val value  = obj["value"]?.jsonPrimitive?.doubleOrNull ?: 0.0
+            val marker = obj["activity_type"]?.takeIf { it !is JsonNull }?.jsonObject
+                ?.get("marker_type")?.jsonPrimitive?.contentOrNull ?: "counter"
+            val prev   = totals[tipoId] ?: (0 to 0.0)
+            totals[tipoId] = if (marker == "monetary") {
+                prev.first to (prev.second + value)
+            } else {
+                (prev.first + value.toInt()) to prev.second
+            }
+        }
+
         totals.mapValues { (_, v) -> ActividadTotalData(v.first, v.second) }
     }
 
@@ -409,6 +433,47 @@ class ActividadRepositoryImpl @Inject constructor(
                 monto         = obj["monto"]?.jsonPrimitive?.doubleOrNull,
                 isDone        = obj["is_done"]?.jsonPrimitive?.booleanOrNull ?: false,
                 status        = obj["status"]?.jsonPrimitive?.contentOrNull ?: "draft",
+            )
+        }.sortedByDescending { it.recordDate }
+    }
+
+    override suspend fun getPendingMemberActivitiesForGroup(grupoId: String): Result<List<MemberPendingItem>> = runCatching {
+        val data = supabase.from("member_activity_record").select(
+            Columns.raw("id, record_date, count, monto, member!inner(first_name, last_name, small_group_id), activity_type!inner(name, marker_type, unit_label)")
+        ) {
+            filter {
+                eq("status", "draft")
+                eq("member.small_group_id", grupoId)
+            }
+        }.data
+
+        Json.parseToJsonElement(data).jsonArray.mapNotNull { elem ->
+            val obj      = elem.jsonObject
+            val recordId = obj["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            val recordDate = obj["record_date"]?.jsonPrimitive?.contentOrNull?.let {
+                runCatching { LocalDate.parse(it) }.getOrNull()
+            } ?: LocalDate.now()
+            val count = obj["count"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.intOrNull
+            val monto = obj["monto"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull?.toDoubleOrNull()?.toInt()
+            val valor = count ?: monto ?: 0
+
+            val member    = obj["member"]?.takeIf { it !is JsonNull }?.jsonObject ?: return@mapNotNull null
+            val firstName = member["first_name"]?.jsonPrimitive?.contentOrNull ?: ""
+            val lastName  = member["last_name"]?.jsonPrimitive?.contentOrNull ?: ""
+
+            val actividad  = obj["activity_type"]?.takeIf { it !is JsonNull }?.jsonObject ?: return@mapNotNull null
+            val actNombre  = actividad["name"]?.jsonPrimitive?.contentOrNull ?: ""
+            val markerType = actividad["marker_type"]?.jsonPrimitive?.contentOrNull ?: "counter"
+            val unitLabel  = actividad["unit_label"]?.jsonPrimitive?.contentOrNull ?: ""
+
+            MemberPendingItem(
+                recordId        = recordId,
+                miembroNombre   = "$firstName $lastName".trim(),
+                actividadNombre = actNombre,
+                markerType      = markerType,
+                unitLabel       = unitLabel,
+                valor           = valor,
+                recordDate      = recordDate,
             )
         }.sortedByDescending { it.recordDate }
     }

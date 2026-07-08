@@ -46,6 +46,7 @@ import com.gpleader.app.feature.actividades.ActividadesMisionerasScreen
 import com.gpleader.app.feature.actividades.ActividadesListScreen
 import com.gpleader.app.feature.actividades.CampanaDetalleScreen
 import com.gpleader.app.feature.actividades.ActividadHistorialScreen
+import com.gpleader.app.feature.actividades.MiembroAporteHistorialScreen
 import com.gpleader.app.feature.actividades.AgregarAporteScreen
 import com.gpleader.app.feature.actividades.CrearActividadDuoScreen
 import com.gpleader.app.feature.actividades.DuoActividadDetalleScreen
@@ -56,6 +57,7 @@ import com.gpleader.app.feature.actividades.DuoEstudioDetalleScreen
 import com.gpleader.app.feature.actividades.DuosListScreen
 import com.gpleader.app.feature.actividades.EstudiosBiblicosMiembrosScreen
 import com.gpleader.app.feature.miembro.ActividadCampanaScreen
+import com.gpleader.app.feature.miembro.MemberEntryDetalleScreen
 import com.gpleader.app.feature.miembro.MiembroActividadHistorialScreen
 import com.gpleader.app.feature.miembro.MiembroActividadesScreen
 import com.gpleader.app.feature.miembro.DuoMisioneroScreen
@@ -63,7 +65,14 @@ import com.gpleader.app.feature.miembro.EstudiosBiblicosListScreen
 import com.gpleader.app.feature.miembro.EstudioDetalleScreen
 import com.gpleader.app.feature.iglesia.IglesiaHomeScreen
 import com.gpleader.app.feature.iglesia.IglesiaGruposScreen
-import com.gpleader.app.feature.iglesia.AprobacionesScreen
+import com.gpleader.app.feature.actividades.LiderAprobacionesScreen
+import com.gpleader.app.feature.iglesia.AprobacionNivelScreen
+import com.gpleader.app.feature.iglesia.MovimientosHistorialScreen
+import com.gpleader.app.feature.actividades.HistorialAportesActividadesScreen
+import com.gpleader.app.feature.actividades.HistorialAportesMiembrosScreen
+import com.gpleader.app.feature.actividades.HistorialAportesMiembroScreen
+import com.gpleader.app.core.data.repository.HistFiltroTrimestre
+import com.gpleader.app.feature.nivel.NivelHomeScreen
 
 object NavRoutes {
     const val LOGIN                      = "login"
@@ -92,6 +101,7 @@ object NavRoutes {
     const val MIEMBRO_ESTUDIO_DETALLE_RO    = "miembro_estudio_detalle_ro/{estudioId}"
     const val MIEMBRO_ACTIVIDAD_CAMPANA     = "miembro_actividad_campana/{actividadTipoId}/{nombreCampana}/{desde}/{hasta}"
     const val MIEMBRO_ACTIVIDAD_HISTORIAL   = "miembro_actividad_historial/{actividadTipoId}"
+    const val MEMBER_ENTRY_DETALLE          = "member_entry_detalle/{entryId}"
 
     fun confirmarIdentidad(miembroId: String, miembroNombre: String) =
         "confirmar_identidad/${android.net.Uri.encode(miembroId)}/${android.net.Uri.encode(miembroNombre)}"
@@ -101,10 +111,11 @@ object NavRoutes {
     fun miembroActividadCampana(tipoId: String, nombre: String, desde: String, hasta: String) =
         "miembro_actividad_campana/$tipoId/${android.net.Uri.encode(nombre)}/$desde/$hasta"
     fun miembroActividadHistorial(tipoId: String) = "miembro_actividad_historial/$tipoId"
+    fun memberEntryDetalle(entryId: String) = "member_entry_detalle/$entryId"
 
     // ── Sábado ────────────────────────────────────────────────────────────────
     const val SABADO_AUTOMARCAR   = "sabado_automarcar/{miembroId}"
-    const val SABADO_CONFIRMACION = "sabado_confirmacion/{iglesiaName}"
+    const val SABADO_CONFIRMACION = "sabado_confirmacion?iglesiaName={iglesiaName}"
     const val SABADO_CULTO        = "sabado_culto"
 
     // ── Miembros nested graph ─────────────────────────────────────────────────
@@ -135,6 +146,19 @@ object NavRoutes {
 
     fun actividadHistorial(actividadTipoId: String) = "actividad_historial/$actividadTipoId"
     fun agregarAporte(actividadTipoId: String)      = "agregar_aporte/$actividadTipoId"
+    fun aprobacionesLiderActividad(actividadTipoId: String) = "aprobaciones_lider_actividad/$actividadTipoId"
+    fun aprobacionNivel(nivel: String) = "aprobacion_nivel/$nivel"
+    fun nivelHome(nivel: String) = "nivel_home/$nivel"
+    fun movimientosHistorial(sourceLevel: String, sourceId: String, activityId: String, marker: String, titulo: String) =
+        "movimientos/$sourceLevel/$sourceId/${activityId.ifBlank { "-" }}/$marker?titulo=${android.net.Uri.encode(titulo)}"
+    fun historialAportesActividades(scope: String, scopeId: String) =
+        "historial_aportes_actividades/$scope/$scopeId"
+    fun historialAportesMiembros(scope: String, scopeId: String, activityId: String, filtro: String, marker: String, titulo: String) =
+        "historial_aportes_miembros/$scope/$scopeId/$activityId/$filtro/$marker?titulo=${android.net.Uri.encode(titulo)}"
+    fun historialAportesMiembro(activityId: String, miembroId: String, filtro: String, marker: String, nombre: String) =
+        "historial_aportes_miembro/$activityId/$miembroId/$filtro/$marker?nombre=${android.net.Uri.encode(nombre)}"
+    fun miembroAporteHistorial(miembroId: String, actividadTipoId: String, nombre: String) =
+        "miembro_aporte_historial/$miembroId/$actividadTipoId/${android.net.Uri.encode(nombre)}"
     fun campanaDetalle(tipoId: String, nombre: String, desde: String, hasta: String) =
         "campana_detalle/$tipoId/${android.net.Uri.encode(nombre)}/$desde/$hasta"
     fun duoDetalle(duoId: String) = "duo_detalle/$duoId"
@@ -148,6 +172,15 @@ object NavRoutes {
     const val IGLESIA_HOME    = "iglesia_home"
     const val IGLESIA_GRUPOS  = "iglesia_grupos"
     const val APROBACIONES    = "aprobaciones"
+    const val APROBACION_NIVEL = "aprobacion_nivel/{nivel}"   // nivel = CHURCH|DISTRICT|CAMPO|UNION
+    const val NIVEL_HOME       = "nivel_home/{nivel}"         // home pastor/campo/unión (DEV)
+    const val MOVIMIENTOS_HISTORIAL = "movimientos/{sourceLevel}/{sourceId}/{activityId}/{marker}?titulo={titulo}"
+    const val HISTORIAL_APORTES_ACTIVIDADES = "historial_aportes_actividades/{scope}/{scopeId}"
+    const val HISTORIAL_APORTES_MIEMBROS = "historial_aportes_miembros/{scope}/{scopeId}/{activityId}/{filtro}/{marker}?titulo={titulo}"
+    const val HISTORIAL_APORTES_MIEMBRO = "historial_aportes_miembro/{activityId}/{miembroId}/{filtro}/{marker}?nombre={nombre}"
+    const val APROBACIONES_LIDER = "aprobaciones_lider"
+    const val APROBACIONES_LIDER_ACTIVIDAD = "aprobaciones_lider_actividad/{actividadTipoId}"
+    const val MIEMBRO_APORTE_HISTORIAL = "miembro_aporte_historial/{miembroId}/{actividadTipoId}/{nombre}"
 
     // ── Registro nested graph ─────────────────────────────────────────────────
     const val REGISTRO_GRAPH         = "registro"
@@ -163,7 +196,7 @@ object NavRoutes {
     fun detalleReunion(reunionId: String)     = "detalle_reunion/$reunionId"
     fun detalleActividad(actividadId: String) = "registro/detalle/$actividadId"
     fun sabadoAutoMarcar(miembroId: String)   = "sabado_automarcar/$miembroId"
-    fun sabadoConfirmacion(iglesiaName: String) = "sabado_confirmacion/${android.net.Uri.encode(iglesiaName)}"
+    fun sabadoConfirmacion(iglesiaName: String) = "sabado_confirmacion?iglesiaName=${android.net.Uri.encode(iglesiaName)}"
     fun registroGraph(kind: String = "gp_meeting") = "registro?kind=$kind"
 }
 
@@ -185,6 +218,11 @@ fun AppNavGraph(
                 },
                 onNavigateToIglesiaHome = {
                     navController.navigate(NavRoutes.IGLESIA_HOME) {
+                        popUpTo(NavRoutes.LOGIN) { inclusive = true }
+                    }
+                },
+                onNavigateToNivelHome = { nivel ->
+                    navController.navigate(NavRoutes.nivelHome(nivel)) {
                         popUpTo(NavRoutes.LOGIN) { inclusive = true }
                     }
                 },
@@ -324,6 +362,16 @@ fun AppNavGraph(
             arguments = listOf(navArgument("actividadTipoId") { type = NavType.StringType }),
         ) {
             MiembroActividadHistorialScreen(
+                onNavigateBack      = { navController.popBackStack() },
+                onNavigateToDetalle = { entryId -> navController.navigate(NavRoutes.memberEntryDetalle(entryId)) },
+            )
+        }
+
+        composable(
+            route     = NavRoutes.MEMBER_ENTRY_DETALLE,
+            arguments = listOf(navArgument("entryId") { type = NavType.StringType }),
+        ) {
+            MemberEntryDetalleScreen(
                 onNavigateBack = { navController.popBackStack() },
             )
         }
@@ -411,11 +459,9 @@ fun AppNavGraph(
 
         composable(
             route     = NavRoutes.SABADO_CONFIRMACION,
-            arguments = listOf(navArgument("iglesiaName") { type = NavType.StringType }),
+            arguments = listOf(navArgument("iglesiaName") { type = NavType.StringType; defaultValue = "" }),
         ) { backStackEntry ->
-            val iglesiaName = backStackEntry.arguments?.getString("iglesiaName")?.let {
-                android.net.Uri.decode(it)
-            } ?: ""
+            val iglesiaName = backStackEntry.arguments?.getString("iglesiaName") ?: ""
             SabadoConfirmacionScreen(
                 iglesiaNombre = iglesiaName,
                 onCerrar = {
@@ -448,6 +494,16 @@ fun AppNavGraph(
                 onNavigateToActividades            = { navController.navigate(NavRoutes.ACTIVIDADES_LISTA) },
                 onNavigateToSabadoCulto            = { navController.navigate(NavRoutes.SABADO_CULTO) },
                 onNavigateToActividadesMisioneras  = { navController.navigate(NavRoutes.ACTIVIDADES_MISIONERAS) },
+                onNavigateToAprobaciones           = { navController.navigate(NavRoutes.APROBACIONES_LIDER) },
+            )
+        }
+
+        composable(NavRoutes.APROBACIONES_LIDER) {
+            LiderAprobacionesScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onVerHistorial = { scope, scopeId ->
+                    navController.navigate(NavRoutes.historialAportesActividades(scope, scopeId))
+                },
             )
         }
 
@@ -654,8 +710,38 @@ fun AppNavGraph(
         ) { backStackEntry ->
             val tipoId = backStackEntry.arguments?.getString("actividadTipoId") ?: return@composable
             ActividadHistorialScreen(
-                onNavigateBack             = { navController.popBackStack() },
-                onNavigateToAgregarAporte  = { navController.navigate(NavRoutes.agregarAporte(tipoId)) },
+                onNavigateBack              = { navController.popBackStack() },
+                onNavigateToAprobaciones    = { navController.navigate(NavRoutes.aprobacionesLiderActividad(tipoId)) },
+                onNavigateToAgregarAporte   = { navController.navigate(NavRoutes.agregarAporte(tipoId)) },
+                onNavigateToMiembroAportes  = { miembroId, nombre ->
+                    navController.navigate(NavRoutes.miembroAporteHistorial(miembroId, tipoId, nombre))
+                },
+            )
+        }
+
+        composable(
+            route     = NavRoutes.APROBACIONES_LIDER_ACTIVIDAD,
+            arguments = listOf(navArgument("actividadTipoId") { type = NavType.StringType }),
+        ) {
+            LiderAprobacionesScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onVerHistorial = { scope, scopeId ->
+                    navController.navigate(NavRoutes.historialAportesActividades(scope, scopeId))
+                },
+            )
+        }
+
+        composable(
+            route     = NavRoutes.MIEMBRO_APORTE_HISTORIAL,
+            arguments = listOf(
+                navArgument("miembroId")       { type = NavType.StringType },
+                navArgument("actividadTipoId") { type = NavType.StringType },
+                navArgument("nombre")          { type = NavType.StringType },
+            ),
+        ) {
+            MiembroAporteHistorialScreen(
+                onNavigateBack      = { navController.popBackStack() },
+                onNavigateToDetalle = { entryId -> navController.navigate(NavRoutes.memberEntryDetalle(entryId)) },
             )
         }
 
@@ -904,7 +990,7 @@ fun AppNavGraph(
                 onNavigateToRegistro              = { kind -> navController.navigate(NavRoutes.registroGraph(kind)) },
                 onNavigateToActividadesMisioneras = { navController.navigate(NavRoutes.ACTIVIDADES_MISIONERAS) },
                 onNavigateToGrupos                = { navController.navigate(NavRoutes.IGLESIA_GRUPOS) },
-                onNavigateToAprobaciones          = { navController.navigate(NavRoutes.APROBACIONES) },
+                onNavigateToAprobaciones          = { navController.navigate(NavRoutes.aprobacionNivel("CHURCH")) },
                 onNavigateToHistorial             = { navController.navigate(NavRoutes.HISTORIAL) },
                 onNavigateToActividades           = { navController.navigate(NavRoutes.ACTIVIDADES_LISTA) },
                 onNavigateToPerfil                = { navController.navigate(NavRoutes.PERFIL) },
@@ -917,9 +1003,105 @@ fun AppNavGraph(
             )
         }
 
-        composable(NavRoutes.APROBACIONES) {
-            AprobacionesScreen(
+        composable(
+            route     = NavRoutes.APROBACION_NIVEL,
+            arguments = listOf(navArgument("nivel") { type = NavType.StringType }),
+        ) {
+            AprobacionNivelScreen(
                 onNavigateBack = { navController.popBackStack() },
+                onVerHistorial = { sourceLevel, childId, activityId, marker, titulo ->
+                    navController.navigate(NavRoutes.movimientosHistorial(sourceLevel, childId, activityId, marker, titulo))
+                },
+                onVerHistorialMiembros = { scope, scopeId ->
+                    navController.navigate(NavRoutes.historialAportesActividades(scope, scopeId))
+                },
+            )
+        }
+
+        composable(
+            route     = NavRoutes.MOVIMIENTOS_HISTORIAL,
+            arguments = listOf(
+                navArgument("sourceLevel") { type = NavType.StringType },
+                navArgument("sourceId")    { type = NavType.StringType },
+                navArgument("activityId")  { type = NavType.StringType },
+                navArgument("marker")      { type = NavType.StringType },
+                navArgument("titulo")      { type = NavType.StringType; defaultValue = "" },
+            ),
+        ) {
+            MovimientosHistorialScreen(
+                onNavigateBack = { navController.popBackStack() },
+            )
+        }
+
+        // ── Historial de aportes (líder scope=gp · iglesia scope=church) ──────────
+        composable(
+            route     = NavRoutes.HISTORIAL_APORTES_ACTIVIDADES,
+            arguments = listOf(
+                navArgument("scope")   { type = NavType.StringType },
+                navArgument("scopeId") { type = NavType.StringType },
+            ),
+        ) { entry ->
+            val scope   = entry.arguments?.getString("scope") ?: "gp"
+            val scopeId = entry.arguments?.getString("scopeId") ?: ""
+            HistorialAportesActividadesScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToMiembros = { activityId, marker, titulo, filtro ->
+                    navController.navigate(
+                        NavRoutes.historialAportesMiembros(scope, scopeId, activityId, filtro.name, marker, titulo)
+                    )
+                },
+            )
+        }
+
+        composable(
+            route     = NavRoutes.HISTORIAL_APORTES_MIEMBROS,
+            arguments = listOf(
+                navArgument("scope")      { type = NavType.StringType },
+                navArgument("scopeId")    { type = NavType.StringType },
+                navArgument("activityId") { type = NavType.StringType },
+                navArgument("filtro")     { type = NavType.StringType },
+                navArgument("marker")     { type = NavType.StringType },
+                navArgument("titulo")     { type = NavType.StringType; defaultValue = "" },
+            ),
+        ) { entry ->
+            val activityId = entry.arguments?.getString("activityId") ?: ""
+            val filtro     = entry.arguments?.getString("filtro") ?: "ACTUAL"
+            val marker     = entry.arguments?.getString("marker") ?: "monetary"
+            HistorialAportesMiembrosScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToMiembro = { miembroId, nombre ->
+                    navController.navigate(
+                        NavRoutes.historialAportesMiembro(activityId, miembroId, filtro, marker, nombre)
+                    )
+                },
+            )
+        }
+
+        composable(
+            route     = NavRoutes.HISTORIAL_APORTES_MIEMBRO,
+            arguments = listOf(
+                navArgument("activityId") { type = NavType.StringType },
+                navArgument("miembroId")  { type = NavType.StringType },
+                navArgument("filtro")     { type = NavType.StringType },
+                navArgument("marker")     { type = NavType.StringType },
+                navArgument("nombre")     { type = NavType.StringType; defaultValue = "" },
+            ),
+        ) {
+            HistorialAportesMiembroScreen(
+                onNavigateBack      = { navController.popBackStack() },
+                onNavigateToDetalle = { entryId -> navController.navigate(NavRoutes.memberEntryDetalle(entryId)) },
+            )
+        }
+
+        composable(
+            route     = NavRoutes.NIVEL_HOME,
+            arguments = listOf(navArgument("nivel") { type = NavType.StringType }),
+        ) {
+            NivelHomeScreen(
+                onNavigateToAprobaciones = { nivel -> navController.navigate(NavRoutes.aprobacionNivel(nivel)) },
+                onLogout                 = {
+                    navController.navigate(NavRoutes.LOGIN) { popUpTo(0) { inclusive = true } }
+                },
             )
         }
     }

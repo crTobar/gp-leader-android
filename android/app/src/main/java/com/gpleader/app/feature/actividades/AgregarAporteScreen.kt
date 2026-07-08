@@ -52,8 +52,7 @@ import com.gpleader.app.core.ui.theme.Mid
 import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.Sage
 import com.gpleader.app.core.ui.theme.neuElevatedSm
-import com.gpleader.app.core.ui.theme.neuGlow
-import com.gpleader.app.core.ui.theme.neuInsetSm
+import com.gpleader.app.feature.miembro.MontoFieldCompact
 
 @Composable
 fun AgregarAporteScreen(
@@ -141,12 +140,12 @@ fun AgregarAporteScreen(
                                 onToggle  = { viewModel.onToggle(miembro.id) },
                             )
                         } else {
-                            MiembroContadorRow(
-                                miembro     = miembro,
-                                count       = uiState.contadores[miembro.id] ?: 0,
-                                unitLabel   = uiState.unitLabel,
-                                onIncrement = { viewModel.onIncrement(miembro.id) },
-                                onDecrement = { viewModel.onDecrement(miembro.id) },
+                            MiembroMontoRow(
+                                miembro    = miembro,
+                                markerType = uiState.markerType,
+                                unitLabel  = uiState.unitLabel,
+                                valor      = uiState.valores[miembro.id] ?: 0,
+                                onChange   = { viewModel.onValorChange(miembro.id, it) },
                             )
                         }
                     }
@@ -182,12 +181,12 @@ fun AgregarAporteScreen(
 }
 
 @Composable
-private fun MiembroContadorRow(
-    miembro:     MiembroData,
-    count:       Int,
-    unitLabel:   String,
-    onIncrement: () -> Unit,
-    onDecrement: () -> Unit,
+private fun MiembroMontoRow(
+    miembro:    MiembroData,
+    markerType: String,
+    unitLabel:  String,
+    valor:      Int,
+    onChange:   (Int) -> Unit,
 ) {
     NeuCard(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -198,70 +197,22 @@ private fun MiembroContadorRow(
         ) {
             NeuAvatar(iniciales = miembro.iniciales, size = 40.dp)
             Spacer(Modifier.width(12.dp))
-            Text(
-                text       = miembro.nombreCompleto,
-                style      = MaterialTheme.typography.bodyLarge,
-                color      = Ink,
-                fontWeight = FontWeight.Medium,
-                modifier   = Modifier.weight(1f),
-            )
-            // Botón −
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .neuElevatedSm(cornerRadius = 10.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Background)
-                    .clickable(enabled = count > 0, onClick = onDecrement)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-            ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text  = "−",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = if (count > 0) Ink else Muted,
+                    text       = miembro.nombreCompleto,
+                    style      = MaterialTheme.typography.bodyLarge,
+                    color      = Ink,
+                    fontWeight = FontWeight.Medium,
                 )
+                if (markerType != "monetary" && unitLabel.isNotBlank()) {
+                    Text(unitLabel, style = MaterialTheme.typography.labelSmall, color = Muted)
+                }
             }
-            // Valor
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .neuInsetSm(cornerRadius = 8.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Background)
-                    .padding(horizontal = 14.dp, vertical = 8.dp)
-                    .width(32.dp),
-            ) {
-                Text(
-                    text      = count.toString(),
-                    style     = MaterialTheme.typography.titleLarge,
-                    color     = if (count > 0) Accent else Mid,
-                    fontWeight = if (count > 0) FontWeight.SemiBold else FontWeight.Normal,
-                    textAlign = TextAlign.Center,
-                )
-            }
-            // Botón +
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .neuGlow(cornerRadius = 10.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Accent)
-                    .clickable(onClick = onIncrement)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-            ) {
-                Text(
-                    text  = "+",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = androidx.compose.ui.graphics.Color.White,
-                )
-            }
-        }
-        if (unitLabel.isNotBlank() && count > 0) {
-            Text(
-                text     = "$count $unitLabel",
-                style    = MaterialTheme.typography.labelSmall,
-                color    = Accent,
-                modifier = Modifier.padding(start = 68.dp, bottom = 8.dp),
+            Spacer(Modifier.width(12.dp))
+            MontoFieldCompact(
+                markerType = markerType,
+                value      = valor,
+                onChange   = onChange,
             )
         }
     }

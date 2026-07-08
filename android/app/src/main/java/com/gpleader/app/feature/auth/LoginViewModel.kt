@@ -45,10 +45,12 @@ data class LoginUiState(
     val iglesiaSearchQuery:          String       = "",
     val showIglesiaPasswordDialog:   Boolean      = false,
     val pendingIglesiaLogin:         IglesiaItem? = null,
+    val showNivelChooser:            Boolean      = false,   // elegir nivel tras confirmar iglesia (DEV)
 
     // Navegación
     val navigateToQuienEres:    Boolean = false,
     val navigateToIglesiaHome:  Boolean = false,
+    val navigateToNivelHome:    String? = null,              // "DISTRICT" | "CAMPO" | "UNION"
 )
 
 // ── ViewModel ─────────────────────────────────────────────────────────────────
@@ -232,9 +234,29 @@ class LoginViewModel @Inject constructor(
         session.districtNombre = distrito?.nombre ?: ""
         session.campoId        = campo?.id ?: ""
         session.campoNombre    = campo?.nombre ?: ""
-        session.isIglesiaLeader = true
-        _uiState.update { it.copy(showIglesiaPasswordDialog = false, navigateToIglesiaHome = true) }
+        // Resolver la unión del campo para poder entrar también como nivel Unión.
+        viewModelScope.launch {
+            campo?.id?.takeIf { it.isNotBlank() }?.let { cid ->
+                runCatching { grupoRepo.getUnionByCampo(cid) }.getOrNull()?.let { union ->
+                    session.unionId     = union.id
+                    session.unionNombre = union.nombre
+                }
+            }
+            _uiState.update { it.copy(showIglesiaPasswordDialog = false, showNivelChooser = true) }
+        }
     }
 
+    /** El usuario elige con qué nivel entrar (DEV). */
+    fun onNivelElegido(nivel: String) {
+        session.isIglesiaLeader = true
+        _uiState.update {
+            if (nivel == "CHURCH") it.copy(showNivelChooser = false, navigateToIglesiaHome = true)
+            else it.copy(showNivelChooser = false, navigateToNivelHome = nivel)
+        }
+    }
+
+    fun onDismissNivelChooser() = _uiState.update { it.copy(showNivelChooser = false) }
+
     fun consumeIglesiaHomeNavigation() { _uiState.update { it.copy(navigateToIglesiaHome = false) } }
+    fun consumeNivelHomeNavigation()   { _uiState.update { it.copy(navigateToNivelHome = null) } }
 }

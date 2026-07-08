@@ -4,6 +4,7 @@ import com.gpleader.app.core.ui.components.NeuAvatar
 import com.gpleader.app.core.ui.components.NeuCard
 import com.gpleader.app.core.ui.components.NeuButtonSecondary
 import com.gpleader.app.core.ui.components.NeuButtonPrimary
+import com.gpleader.app.core.ui.components.NeuTextField
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -17,8 +18,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -26,11 +31,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gpleader.app.core.ui.theme.Accent
 import com.gpleader.app.core.ui.theme.Background
+import com.gpleader.app.core.ui.theme.Blush
 import com.gpleader.app.core.ui.theme.GpLeaderTheme
 import com.gpleader.app.core.ui.theme.Ink
 import com.gpleader.app.core.ui.theme.Mid
@@ -58,6 +65,61 @@ fun ConfirmarIdentidadScreen(
         onConfirmar   = viewModel::onConfirmarIdentidad,
         onNoSoyYo     = onNoSoyYo,
     )
+
+    if (uiState.showPasswordDialog) {
+        AlertDialog(
+            onDismissRequest = viewModel::onDismissPasswordDialog,
+            containerColor   = Background,
+            title = {
+                Text(
+                    text  = "Ingresa tu contraseña",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Ink,
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text  = "Hola, ${uiState.miembroNombre}. Ingresá tu contraseña para continuar.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Mid,
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    NeuTextField(
+                        value           = uiState.passwordInput,
+                        onValueChange   = viewModel::onPasswordChange,
+                        label           = null,
+                        placeholder     = "Contraseña",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        isPassword      = true,
+                        isError         = uiState.passwordError != null,
+                        modifier        = Modifier.fillMaxWidth(),
+                    )
+                    val error = uiState.passwordError
+                    if (error != null) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text  = error,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Blush,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                if (uiState.isAuthenticating) {
+                    CircularProgressIndicator(color = Accent, modifier = Modifier.size(24.dp))
+                } else {
+                    NeuButtonPrimary(text = "Entrar", onClick = viewModel::onSubmitPassword)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::onDismissPasswordDialog) {
+                    Text(text = "Cancelar", color = Mid)
+                }
+            },
+        )
+    }
 }
 
 @Composable

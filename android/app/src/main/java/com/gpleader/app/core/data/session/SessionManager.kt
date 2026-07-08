@@ -60,6 +60,14 @@ class SessionManager @Inject constructor(
         get() = prefs.getString("campoNombre", "") ?: ""
         set(value) { prefs.edit { putString("campoNombre", value) } }
 
+    var unionId: String
+        get() = prefs.getString("unionId", "") ?: ""
+        set(value) { prefs.edit { putString("unionId", value) } }
+
+    var unionNombre: String
+        get() = prefs.getString("unionNombre", "") ?: ""
+        set(value) { prefs.edit { putString("unionNombre", value) } }
+
     var gpCode: String
         get() = prefs.getString("gpCode", "") ?: ""
         set(value) { prefs.edit { putString("gpCode", value) } }

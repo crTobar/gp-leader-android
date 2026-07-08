@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gpleader.app.core.data.repository.ActividadRepository
+import com.gpleader.app.core.data.repository.MemberEntryRepository
 import com.gpleader.app.core.data.repository.MiembroData
 import com.gpleader.app.core.data.repository.MiembroRepository
 import com.gpleader.app.core.data.session.SessionManager
@@ -14,16 +15,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.LocalDate
 import javax.inject.Inject
 
 data class AgregarAporteUiState(
-    val actividadNombre: String          = "",
-    val markerType:      String          = "counter",
-    val unitLabel:       String          = "",
+    val actividadNombre: String            = "",
+    val markerType:      String            = "counter",
+    val unitLabel:       String            = "",
     val miembros:        List<MiembroData> = emptyList(),
-    val contadores:      Map<String, Int>  = emptyMap(),   // miembroId → count
-    val toggleados:      Set<String>       = emptySet(),   // miembroId (para checkbox)
+    val valores:         Map<String, Int>  = emptyMap(),   // miembroId → monto/cantidad
+    val toggleados:      Set<String>       = emptySet(),   // miembroId (checkbox)
     val isLoading:       Boolean           = true,
     val isGuardando:     Boolean           = false,
     val guardadoOk:      Boolean           = false,
@@ -32,10 +32,11 @@ data class AgregarAporteUiState(
 
 @HiltViewModel
 class AgregarAporteViewModel @Inject constructor(
-    savedStateHandle:      SavedStateHandle,
-    private val actividadRepo: ActividadRepository,
-    private val miembroRepo:   MiembroRepository,
-    private val session:       SessionManager,
+    savedStateHandle:            SavedStateHandle,
+    private val actividadRepo:   ActividadRepository,
+    private val memberEntryRepo: MemberEntryRepository,
+    private val miembroRepo:     MiembroRepository,
+    private val session:         SessionManager,
 ) : ViewModel() {
 
     private val actividadTipoId: String = checkNotNull(savedStateHandle["actividadTipoId"])
@@ -43,96 +44,79 @@ class AgregarAporteViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(AgregarAporteUiState())
     val uiState: StateFlow<AgregarAporteUiState> = _uiState.asStateFlow()
 
+    private val isCheckbox: Boolean get() = _uiState.value.markerType.let { it == "checkbox" || it == "realizado" }
+    private val isMonetary: Boolean get() = _uiState.value.markerType == "monetary"
+
     init { cargar() }
 
     private fun cargar() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
-
             actividadRepo.getTodasActividadesTipo(
                 session.iglesiaId, session.districtId, session.campoId, session.grupoId
             ).onSuccess { tipos ->
                 tipos.find { it.id == actividadTipoId }?.let { tipo ->
                     _uiState.update { s ->
-                        s.copy(
-                            actividadNombre = tipo.nombre,
-                            markerType      = tipo.markerType,
-                            unitLabel       = tipo.unitLabel,
-                        )
+                        s.copy(actividadNombre = tipo.nombre, markerType = tipo.markerType, unitLabel = tipo.unitLabel)
                     }
                 }
             }
-
-            val miembros = miembroRepo.getMiembrosActivos(session.grupoId).first()
+            val miembros = runCatching { miembroRepo.getMiembrosActivos(session.grupoId).first() }.getOrDefault(emptyList())
             _uiState.update { it.copy(miembros = miembros, isLoading = false) }
         }
     }
 
-    fun onIncrement(miembroId: String) {
+    fun onValorChange(miembroId: String, valor: Int) {
         _uiState.update { s ->
-            val current = s.contadores[miembroId] ?: 0
-            s.copy(contadores = s.contadores + (miembroId to current + 1))
-        }
-    }
-
-    fun onDecrement(miembroId: String) {
-        _uiState.update { s ->
-            val current = s.contadores[miembroId] ?: 0
-            if (current <= 0) return@update s
-            val newVal = current - 1
-            val newMap = if (newVal == 0) s.contadores - miembroId else s.contadores + (miembroId to newVal)
-            s.copy(contadores = newMap)
+            val v = valor.coerceAtLeast(0)
+            s.copy(valores = if (v == 0) s.valores - miembroId else s.valores + (miembroId to v))
         }
     }
 
     fun onToggle(miembroId: String) {
         _uiState.update { s ->
-            val newSet = if (miembroId in s.toggleados) s.toggleados - miembroId
-                         else s.toggleados + miembroId
-            s.copy(toggleados = newSet)
+            s.copy(toggleados = if (miembroId in s.toggleados) s.toggleados - miembroId else s.toggleados + miembroId)
         }
     }
 
     fun onGuardar() {
         val state = _uiState.value
-        val isCheckbox = state.markerType == "checkbox" || state.markerType == "realizado"
-        val hoy = LocalDate.now()
+        // Líder registra → aprobado directo. Monetario mantiene el paso de Junta.
+        val status = if (isMonetary) "pending_board" else "approved"
+        val aportes: List<Pair<String, Double>> = if (isCheckbox) {
+            state.toggleados.map { it to 1.0 }
+        } else {
+            state.valores.filter { it.value > 0 }.map { it.key to it.value.toDouble() }
+        }
+        if (aportes.isEmpty()) return
 
         viewModelScope.launch {
             _uiState.update { it.copy(isGuardando = true, error = null) }
             var huboError = false
-
-            if (isCheckbox) {
-                for (miembroId in state.toggleados) {
-                    actividadRepo.toggleMiembroActividad(
-                        miembroId       = miembroId,
-                        actividadTipoId = actividadTipoId,
-                        fecha           = hoy,
-                        isDone          = true,
-                        autoApprove     = true,
-                    ).onFailure { huboError = true }
-                }
-            } else {
-                for ((miembroId, count) in state.contadores) {
-                    if (count <= 0) continue
-                    actividadRepo.agregarRegistroMiembro(
-                        miembroId       = miembroId,
-                        actividadTipoId = actividadTipoId,
-                        fecha           = hoy,
-                        count           = count,
-                        autoApprove     = true,
-                    ).onFailure { huboError = true }
-                }
+            for ((miembroId, valor) in aportes) {
+                memberEntryRepo.addEntry(
+                    miembroId       = miembroId,
+                    actividadTipoId = actividadTipoId,
+                    grupoId         = session.grupoId,
+                    value           = valor,
+                    status          = status,
+                    actorRole       = "leader",
+                    actorId         = session.miembroId.takeIf { it.isNotBlank() },
+                ).onFailure { huboError = true }
             }
-
-            _uiState.update { it.copy(isGuardando = false, guardadoOk = !huboError, error = if (huboError) "Hubo un error al guardar algunos registros" else null) }
+            _uiState.update {
+                it.copy(
+                    isGuardando = false,
+                    guardadoOk  = !huboError,
+                    error       = if (huboError) "Hubo un error al guardar algunos aportes" else null,
+                )
+            }
         }
     }
 
     val hayValores: Boolean
         get() {
             val s = _uiState.value
-            val isCheckbox = s.markerType == "checkbox" || s.markerType == "realizado"
-            return if (isCheckbox) s.toggleados.isNotEmpty() else s.contadores.values.any { it > 0 }
+            return if (isCheckbox) s.toggleados.isNotEmpty() else s.valores.values.any { it > 0 }
         }
 }

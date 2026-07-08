@@ -28,6 +28,9 @@ class GpAuthRepositoryImpl @Inject constructor(
     private val supabase: SupabaseClient,
 ) : GpAuthRepository {
 
+    // Contraseña DEV provisional para miembros (la BD aún no soporta contraseña por miembro).
+    private val MEMBER_DEV_PASSWORD = "123456"
+
     override suspend fun validateGroupPassword(
         gpCode: String,
         username: String,
@@ -90,6 +93,27 @@ class GpAuthRepositoryImpl @Inject constructor(
             }
         }
         return false
+    }
+
+    override suspend fun validateMemberPassword(
+        memberId: String,
+        password: String,
+    ): Result<Unit> {
+        // TODO(BD): cuando exista la columna de contraseña en `member`, reemplazar
+        // esta comparación DEV por una llamada al RPC server-side, espejando
+        // tryGpLogin():
+        //
+        // val resp = supabase.postgrest.rpc("member_login", buildJsonObject {
+        //     put("p_member_id", memberId)
+        //     put("p_password", password)
+        // })
+        // val ok = Json.parseToJsonElement(resp.data).jsonArray.firstOrNull() != null
+        // return if (ok) Result.success(Unit) else Result.failure(...)
+        return if (password == MEMBER_DEV_PASSWORD) {
+            Result.success(Unit)
+        } else {
+            Result.failure(IllegalArgumentException("Contraseña incorrecta"))
+        }
     }
 
     private suspend fun signInBestEffort(username: String, password: String) {

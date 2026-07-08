@@ -119,6 +119,7 @@ fun HomeScreen(
     onNavigateToActividades: () -> Unit = {},
     onNavigateToSabadoCulto: () -> Unit = {},
     onNavigateToActividadesMisioneras: () -> Unit = {},
+    onNavigateToAprobaciones: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -150,6 +151,12 @@ fun HomeScreen(
             viewModel.consumeSabadoCultoNavigation()
         }
     }
+    LaunchedEffect(uiState.navigateToAprobaciones) {
+        if (uiState.navigateToAprobaciones) {
+            onNavigateToAprobaciones()
+            viewModel.consumeAprobacionesNavigation()
+        }
+    }
 
     HomeScreenContent(
         uiState                        = uiState,
@@ -162,6 +169,7 @@ fun HomeScreen(
         onSabadoCultoClick             = viewModel::onSabadoCultoClick,
         onCancelarSolicitud            = viewModel::onCancelarSolicitud,
         onActividadesMisionerasClick   = onNavigateToActividadesMisioneras,
+        onAprobacionesClick            = viewModel::onAprobacionesClick,
         onRefresh                      = viewModel::onRefresh,
     )
 }
@@ -181,6 +189,7 @@ private fun HomeScreenContent(
     onSabadoCultoClick: () -> Unit = {},
     onCancelarSolicitud: (String) -> Unit = {},
     onActividadesMisionerasClick: () -> Unit = {},
+    onAprobacionesClick: () -> Unit = {},
     onRefresh: () -> Unit = {},
 ) {
     var selectedTab        by remember { mutableIntStateOf(NAV_TAB_INICIO) }
@@ -252,6 +261,12 @@ private fun HomeScreenContent(
                 Spacer(Modifier.height(12.dp))
 
                 ActividadesMisionerasCard(onClick = onActividadesMisionerasClick)
+
+                Spacer(Modifier.height(12.dp))
+                AprobacionesCard(
+                    pendientes = uiState.pendingMemberCount,
+                    onClick    = onAprobacionesClick,
+                )
 
                 Spacer(Modifier.height(12.dp))
 
@@ -584,6 +599,76 @@ private fun VerHistorialCard(onClick: () -> Unit) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = Mid,
                 )
+            }
+            Icon(
+                imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint               = Muted,
+                modifier           = Modifier.size(20.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AprobacionesCard(pendientes: Int, onClick: () -> Unit) {
+    NeuCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+    ) {
+        Row(
+            modifier          = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Background)
+                    .neuInsetInner(shadowSize = 10.dp),
+            ) {
+                Icon(
+                    imageVector        = Icons.Default.Check,
+                    contentDescription = null,
+                    tint               = Blush,
+                    modifier           = Modifier.size(22.dp),
+                )
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text       = "Aprobaciones",
+                    style      = MaterialTheme.typography.bodyLarge,
+                    color      = Ink,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text  = if (pendientes > 0) "Aportes de miembros pendientes de aprobar"
+                            else "No hay aportes pendientes",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Mid,
+                )
+            }
+            if (pendientes > 0) {
+                Box(
+                    modifier         = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Blush)
+                        .padding(horizontal = 9.dp, vertical = 3.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text       = pendientes.toString(),
+                        style      = MaterialTheme.typography.labelSmall,
+                        color      = Color.White,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
             }
             Icon(
                 imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,

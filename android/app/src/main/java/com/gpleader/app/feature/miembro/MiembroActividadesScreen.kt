@@ -500,7 +500,7 @@ private fun ActividadSemanalCard(
                         modifier           = Modifier.size(24.dp),
                     )
                     "monetary" -> Text(
-                        text       = "₡${item.totalHistorico}",
+                        text       = "₡${miles(item.totalHistorico.toLong())}",
                         style      = MaterialTheme.typography.titleLarge,
                         color      = if (item.totalHistorico > 0) Accent else Muted,
                         fontWeight = FontWeight.Bold,
