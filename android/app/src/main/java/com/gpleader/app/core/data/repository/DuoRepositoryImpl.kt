@@ -1,5 +1,6 @@
 package com.gpleader.app.core.data.repository
 
+import com.gpleader.app.core.data.network.NetworkMonitor
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import kotlinx.serialization.json.JsonNull
@@ -15,9 +16,15 @@ import javax.inject.Inject
 
 class DuoRepositoryImpl @Inject constructor(
     private val supabase: SupabaseClient,
+    private val network:  NetworkMonitor,
 ) : DuoRepository {
 
-    override suspend fun getDuosByGrupo(grupoId: String): Result<List<DuoMisioneroData>> = runCatching {
+    // Dúos aún NO tienen caché offline: si no hay red, degradan a vacío (sin error).
+    // Errores reales con conexión sí se propagan.
+    private suspend fun <T> offlineSafe(fallback: T, block: suspend () -> T): Result<T> =
+        runCatching { block() }.recoverCatching { if (!network.isOnline()) fallback else throw it }
+
+    override suspend fun getDuosByGrupo(grupoId: String): Result<List<DuoMisioneroData>> = offlineSafe(emptyList()) {
         val rows = supabase.from("missionary_duo").select(
             columns = io.github.jan.supabase.postgrest.query.Columns.raw(
                 "id, small_group_id, is_active, " +
@@ -43,7 +50,7 @@ class DuoRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getDuoPorMiembro(miembroId: String): Result<DuoMisioneroData?> = runCatching {
+    override suspend fun getDuoPorMiembro(miembroId: String): Result<DuoMisioneroData?> = offlineSafe(null) {
         // Busca en member1_id O member2_id
         val rows = supabase.from("missionary_duo").select(
             columns = io.github.jan.supabase.postgrest.query.Columns.raw(
@@ -62,7 +69,7 @@ class DuoRepositoryImpl @Inject constructor(
         }.data
 
         val arr = kotlinx.serialization.json.Json.parseToJsonElement(rows).jsonArray
-        if (arr.isEmpty()) return@runCatching null
+        if (arr.isEmpty()) return@offlineSafe null
         val obj = arr[0].jsonObject
         DuoMisioneroData(
             id       = obj["id"]!!.jsonPrimitive.content,
@@ -95,7 +102,7 @@ class DuoRepositoryImpl @Inject constructor(
 
     // ── Actividades del dúo ────────────────────────────────────────────────────
 
-    override suspend fun getActividadesDuo(duoId: String): Result<List<DuoActividadTipo>> = runCatching {
+    override suspend fun getActividadesDuo(duoId: String): Result<List<DuoActividadTipo>> = offlineSafe(emptyList()) {
         val rows = supabase.from("duo_activity_type").select {
             filter { eq("duo_id", duoId) }
         }.data
@@ -127,7 +134,7 @@ class DuoRepositoryImpl @Inject constructor(
         kotlinx.serialization.json.Json.parseToJsonElement(rows).jsonArray[0].jsonObject["id"]!!.jsonPrimitive.content
     }
 
-    override suspend fun getRegistrosDuo(duoId: String, actividadTipoId: String, desde: LocalDate): Result<List<DuoActividadRecord>> = runCatching {
+    override suspend fun getRegistrosDuo(duoId: String, actividadTipoId: String, desde: LocalDate): Result<List<DuoActividadRecord>> = offlineSafe(emptyList()) {
         val rows = supabase.from("duo_activity_record").select {
             filter {
                 eq("duo_id", duoId)
@@ -138,7 +145,7 @@ class DuoRepositoryImpl @Inject constructor(
         parseRegistrosDuo(rows, duoId)
     }
 
-    override suspend fun getRegistrosPorTipoActividad(actividadTipoId: String, duoId: String, desde: LocalDate): Result<List<DuoActividadRecord>> = runCatching {
+    override suspend fun getRegistrosPorTipoActividad(actividadTipoId: String, duoId: String, desde: LocalDate): Result<List<DuoActividadRecord>> = offlineSafe(emptyList()) {
         val rows = supabase.from("duo_activity_record").select {
             filter {
                 eq("activity_type_id", actividadTipoId)
@@ -149,7 +156,7 @@ class DuoRepositoryImpl @Inject constructor(
         parseRegistrosDuo(rows, duoId)
     }
 
-    override suspend fun getActividadesConTotalesPorGrupo(grupoId: String): Result<List<DuoActividadConTotal>> = runCatching {
+    override suspend fun getActividadesConTotalesPorGrupo(grupoId: String): Result<List<DuoActividadConTotal>> = offlineSafe(emptyList()) {
         val duos = getDuosByGrupo(grupoId).getOrThrow().filter { it.isActive }
         val desde = LocalDate.now().minusDays(90)
         val result = mutableListOf<DuoActividadConTotal>()
@@ -205,7 +212,7 @@ class DuoRepositoryImpl @Inject constructor(
 
     // ── Estudios bíblicos del dúo ─────────────────────────────────────────────
 
-    override suspend fun getEstudiosDuo(duoId: String): Result<List<DuoBibleStudy>> = runCatching {
+    override suspend fun getEstudiosDuo(duoId: String): Result<List<DuoBibleStudy>> = offlineSafe(emptyList()) {
         val rows = supabase.from("duo_bible_study").select {
             filter { eq("duo_id", duoId) }
         }.data
@@ -222,13 +229,13 @@ class DuoRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getEstudioDuoById(estudioId: String): Result<DuoBibleStudy?> = runCatching {
+    override suspend fun getEstudioDuoById(estudioId: String): Result<DuoBibleStudy?> = offlineSafe(null) {
         val rows = supabase.from("duo_bible_study").select {
             filter { eq("id", estudioId) }
             limit(1)
         }.data
         val arr = kotlinx.serialization.json.Json.parseToJsonElement(rows).jsonArray
-        if (arr.isEmpty()) return@runCatching null
+        if (arr.isEmpty()) return@offlineSafe null
         val obj = arr[0].jsonObject
         val lessonsArr = obj["completed_lessons"]?.takeIf { it !is JsonNull }
             ?.jsonArray?.mapNotNull { it.jsonPrimitive.intOrNull } ?: emptyList()

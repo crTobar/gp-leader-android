@@ -46,6 +46,7 @@ import com.gpleader.app.core.data.repository.DiaStat
 import com.gpleader.app.core.data.repository.MiembroMarcado
 import com.gpleader.app.core.ui.components.NeuAvatar
 import com.gpleader.app.core.ui.components.NeuCard
+import com.gpleader.app.core.ui.components.rememberIsOnline
 import com.gpleader.app.core.ui.theme.Accent
 import com.gpleader.app.core.ui.theme.Background
 import com.gpleader.app.core.ui.theme.BackgroundDeep
@@ -285,10 +286,13 @@ private fun MiembroRow(
     val iniciales = miembro.nombre.split(" ")
         .take(2).mapNotNull { it.firstOrNull()?.uppercaseChar() }.joinToString("")
 
+    // Marcar/desmarcar escribe en Supabase → solo lectura sin conexión.
+    val isOnline = rememberIsOnline()
+
     Row(
         modifier          = Modifier
             .fillMaxWidth()
-            .clickable(enabled = !isToggling, onClick = onToggle)
+            .clickable(enabled = !isToggling && isOnline, onClick = onToggle)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

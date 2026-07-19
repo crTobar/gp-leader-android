@@ -1,6 +1,7 @@
 package com.gpleader.app.feature.historial
 
 import com.gpleader.app.core.ui.components.NeuAvatar
+import com.gpleader.app.core.ui.components.OfflineBanner
 import com.gpleader.app.core.ui.components.NAV_TAB_INICIO
 import com.gpleader.app.core.ui.components.FloatingNavScaffold
 
@@ -179,6 +180,8 @@ private fun DetalleReunionContent(
             contentPadding      = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            item { OfflineBanner() }
+
             // ── Hero card ─────────────────────────────────────────────────────
             item { HeroCard(uiState = uiState) }
 

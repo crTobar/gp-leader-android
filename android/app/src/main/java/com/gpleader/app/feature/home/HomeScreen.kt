@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AssignmentTurnedIn
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Leaderboard
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -73,6 +74,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.gpleader.app.R
 import com.gpleader.app.core.ui.components.NeuButtonSecondary
 import com.gpleader.app.core.ui.components.NeuCard
+import com.gpleader.app.core.ui.components.OfflineBanner
+import com.gpleader.app.core.ui.components.rememberIsOnline
 import com.gpleader.app.core.ui.components.SkeletonBox
 import com.gpleader.app.core.ui.components.SkeletonText
 import com.gpleader.app.core.ui.theme.Accent
@@ -194,6 +197,7 @@ private fun HomeScreenContent(
 ) {
     var selectedTab        by remember { mutableIntStateOf(NAV_TAB_INICIO) }
     var showRegistrarSheet by remember { mutableStateOf(false) }
+    val isOnline = rememberIsOnline()
 
     FloatingNavScaffold(
         selectedTab        = selectedTab,
@@ -230,6 +234,8 @@ private fun HomeScreenContent(
                     diaSemana     = uiState.grupo?.diaSemana ?: "",
                 )
 
+                OfflineBanner(modifier = Modifier.padding(top = 16.dp))
+
                 Spacer(Modifier.height(20.dp))
 
                 val gpRegistrado     = uiState.reunionGpHoy != null
@@ -238,7 +244,10 @@ private fun HomeScreenContent(
 
                 // Tarjeta "Tomar Asistencia" — siempre arriba mientras falte algo
                 if (faltaRegistrar) {
-                    RegistrarCard(onClick = { showRegistrarSheet = true })
+                    RegistrarCard(
+                        onClick = { showRegistrarSheet = true },
+                        enabled = isOnline,
+                    )
                 }
 
                 // Confirmaciones debajo
@@ -453,7 +462,7 @@ private fun YaRegistrasteBadge(titulo: String, subtitulo: String) {
 // ── Carta de registro ─────────────────────────────────────────────────────────
 
 @Composable
-private fun RegistrarCard(onClick: () -> Unit) {
+private fun RegistrarCard(onClick: () -> Unit, enabled: Boolean = true) {
     NeuCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = 26.dp, vertical = 30.dp)) {
             Text(
@@ -473,14 +482,15 @@ private fun RegistrarCard(onClick: () -> Unit) {
                 color = Ink,
             )
             Spacer(Modifier.height(22.dp))
+            // Registrar una reunión escribe en Supabase → deshabilitado sin conexión.
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .neuGlow(cornerRadius = 14.dp)
+                    .then(if (enabled) Modifier.neuGlow(cornerRadius = 14.dp) else Modifier)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(Accent)
-                    .clickable(onClick = onClick)
+                    .background(if (enabled) Accent else Muted.copy(alpha = 0.35f))
+                    .clickable(enabled = enabled, onClick = onClick)
                     .padding(vertical = 16.dp),
             ) {
                 Row(
@@ -488,16 +498,16 @@ private fun RegistrarCard(onClick: () -> Unit) {
                     horizontalArrangement = Arrangement.Center,
                 ) {
                     Icon(
-                        imageVector        = Icons.Default.AssignmentTurnedIn,
+                        imageVector        = if (enabled) Icons.Default.AssignmentTurnedIn else Icons.Default.CloudOff,
                         contentDescription = null,
-                        tint               = Color.White,
+                        tint               = if (enabled) Color.White else Mid,
                         modifier           = Modifier.size(20.dp),
                     )
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        text       = "Tomar Asistencia",
+                        text       = if (enabled) "Tomar Asistencia" else "Necesitas conexión",
                         style      = MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp),
-                        color      = Color.White,
+                        color      = if (enabled) Color.White else Mid,
                         fontWeight = FontWeight.SemiBold,
                     )
                 }

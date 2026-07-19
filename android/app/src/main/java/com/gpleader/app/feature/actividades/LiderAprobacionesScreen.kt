@@ -45,6 +45,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gpleader.app.core.ui.components.NeuCard
+import com.gpleader.app.core.ui.components.OfflineBanner
+import com.gpleader.app.core.ui.components.rememberIsOnline
+import com.gpleader.app.core.ui.components.OnResumeEffect
 import com.gpleader.app.feature.miembro.miles
 import com.gpleader.app.core.ui.theme.Accent
 import com.gpleader.app.core.ui.theme.Background
@@ -61,10 +64,13 @@ import com.gpleader.app.core.ui.theme.neuInsetSm
 fun LiderAprobacionesScreen(
     onNavigateBack:  () -> Unit,
     onVerHistorial:  (scope: String, scopeId: String) -> Unit = { _, _ -> },
+    onVerDetalle:    (miembroId: String, actividadTipoId: String) -> Unit = { _, _ -> },
     viewModel: LiderAprobacionesViewModel = hiltViewModel(),
 ) {
     val uiState      by viewModel.uiState.collectAsState()
     val snackbarHost = remember { SnackbarHostState() }
+
+    OnResumeEffect { viewModel.cargar() }
 
     LaunchedEffect(uiState.toastMsg) {
         uiState.toastMsg?.let {
@@ -84,6 +90,7 @@ fun LiderAprobacionesScreen(
             onVerHistorial = { onVerHistorial("gp", uiState.grupoId) },
             onAprobar      = viewModel::onAprobar,
             onRechazar     = viewModel::onShowReject,
+            onVerDetalle   = { item -> onVerDetalle(item.miembroId, item.activityTypeId) },
         )
     }
 
@@ -107,6 +114,7 @@ private fun LiderAprobacionesContent(
     onVerHistorial: () -> Unit,
     onAprobar:      (AporteMiembro) -> Unit,
     onRechazar:     (AporteMiembro) -> Unit,
+    onVerDetalle:   (AporteMiembro) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -127,6 +135,8 @@ private fun LiderAprobacionesContent(
                 Text("Aportes enviados por tus miembros", style = MaterialTheme.typography.bodyMedium, color = Mid)
             }
         }
+
+        OfflineBanner(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp))
 
         Spacer(Modifier.height(12.dp))
 
@@ -160,19 +170,19 @@ private fun LiderAprobacionesContent(
                 val porActividad = uiState.items.groupBy { it.actividadNombre }
                 porActividad.forEach { (actividadNombre, registros) ->
                     item(key = "header_$actividadNombre") {
-                        Text(
-                            text     = actividadNombre,
-                            style    = MaterialTheme.typography.labelSmall,
-                            color    = Muted,
+                        ActividadIndicador(
+                            nombre   = actividadNombre,
+                            count    = registros.size,
                             modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
                         )
                     }
                     items(registros, key = { it.key }) { item ->
                         AprobacionMiembroItem(
-                            item       = item,
-                            procesando = item.key in uiState.procesando,
-                            onAprobar  = { onAprobar(item) },
-                            onRechazar = { onRechazar(item) },
+                            item        = item,
+                            procesando  = item.key in uiState.procesando,
+                            onAprobar   = { onAprobar(item) },
+                            onRechazar  = { onRechazar(item) },
+                            onVerDetalle = { onVerDetalle(item) },
                         )
                         Spacer(Modifier.height(12.dp))
                     }
@@ -187,14 +197,37 @@ private fun formatValor(item: AporteMiembro): String = when (item.markerType) {
     else       -> if (item.unitLabel.isNotBlank()) "${miles(item.total.toLong())} ${item.unitLabel}" else miles(item.total.toLong())
 }
 
+/** Indicador de categoría con el nombre de la actividad (barra de acento + nombre + conteo). */
+@Composable
+private fun ActividadIndicador(nombre: String, count: Int, modifier: Modifier = Modifier) {
+    Row(
+        modifier          = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier.width(3.dp).height(16.dp).clip(RoundedCornerShape(2.dp)).background(Accent),
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text       = nombre.uppercase(),
+            style      = MaterialTheme.typography.labelSmall,
+            color      = Ink,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.width(6.dp))
+        Text("· $count", style = MaterialTheme.typography.labelSmall, color = Muted)
+    }
+}
+
 @Composable
 private fun AprobacionMiembroItem(
-    item:       AporteMiembro,
-    procesando: Boolean,
-    onAprobar:  () -> Unit,
-    onRechazar: () -> Unit,
+    item:        AporteMiembro,
+    procesando:  Boolean,
+    onAprobar:   () -> Unit,
+    onRechazar:  () -> Unit,
+    onVerDetalle: () -> Unit,
 ) {
-    NeuCard {
+    NeuCard(modifier = Modifier.clickable(onClick = onVerDetalle)) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -207,6 +240,13 @@ private fun AprobacionMiembroItem(
                     )
                 }
                 Text(formatValor(item), style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold), color = Ink)
+                Spacer(Modifier.width(8.dp))
+                Icon(
+                    imageVector        = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = "Ver detalle",
+                    tint               = Muted,
+                    modifier           = Modifier.size(20.dp),
+                )
             }
 
             Spacer(Modifier.height(12.dp))
@@ -215,6 +255,14 @@ private fun AprobacionMiembroItem(
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Accent, strokeWidth = 2.dp)
                 }
+            } else if (!rememberIsOnline()) {
+                // Aprobar/rechazar escribe en Supabase → no disponible sin conexión.
+                Text(
+                    text     = "Necesitas conexión para aprobar o rechazar",
+                    style    = MaterialTheme.typography.bodyMedium,
+                    color    = Muted,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             } else {
                 Row(modifier = Modifier.fillMaxWidth()) {
                     AccionBtn("✗ Rechazar", Blush, Modifier.weight(1f), onRechazar)

@@ -100,12 +100,16 @@ class HomeViewModel @Inject constructor(
     private val memberEntryRepo: MemberEntryRepository,
     private val supabase:      SupabaseClient,
     private val session:       SessionManager,
+    private val offlinePreloader: com.gpleader.app.core.data.sync.OfflinePreloader,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     init {
+        // Precarga el caché offline del grupo en background (sesión ya lista al llegar al Home).
+        offlinePreloader.start()
+
         _uiState.update {
             it.copy(
                 nombreLider = session.miembroNombre,
@@ -140,7 +144,12 @@ class HomeViewModel @Inject constructor(
 
     private fun cargarPendientes() {
         viewModelScope.launch {
-            val total = memberEntryRepo.getPendingEntriesCount(session.grupoId).getOrDefault(0)
+            // El badge cuenta las aprobaciones que verá el líder: una por (miembro, actividad),
+            // igual que las tarjetas de LiderAprobacionesScreen (que agrupa los aportes draft).
+            val total = memberEntryRepo.getPendingEntriesForGroup(session.grupoId)
+                .getOrDefault(emptyList())
+                .distinctBy { it.miembroId to it.activityTypeId }
+                .size
             _uiState.update { it.copy(pendingMemberCount = total) }
         }
     }

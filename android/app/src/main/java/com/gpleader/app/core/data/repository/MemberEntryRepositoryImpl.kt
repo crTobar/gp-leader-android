@@ -1,10 +1,19 @@
 package com.gpleader.app.core.data.repository
 
+import com.gpleader.app.core.data.local.room.dao.ActivityTypeDao
+import com.gpleader.app.core.data.local.room.dao.MemberDao
+import com.gpleader.app.core.data.local.room.dao.MemberEntryDao
+import com.gpleader.app.core.data.local.room.dao.MemberEntryEventDao
+import com.gpleader.app.core.data.local.room.entity.MemberEntryEntity
+import com.gpleader.app.core.data.local.room.entity.MemberEntryEventEntity
+import com.gpleader.app.core.data.network.NetworkMonitor
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
@@ -17,14 +26,19 @@ import java.time.OffsetDateTime
 import javax.inject.Inject
 
 class MemberEntryRepositoryImpl @Inject constructor(
-    private val supabase: SupabaseClient,
+    private val supabase:            SupabaseClient,
+    private val network:             NetworkMonitor,
+    private val memberEntryDao:      MemberEntryDao,
+    private val memberEntryEventDao: MemberEntryEventDao,
+    private val memberDao:           MemberDao,
+    private val activityTypeDao:     ActivityTypeDao,
 ) : MemberEntryRepository {
 
     // ── Miembro ────────────────────────────────────────────────────────────────
 
-    override suspend fun getEntries(miembroId: String, actividadTipoId: String): Result<List<MemberEntry>> = runCatching {
+    override suspend fun getEntries(miembroId: String, actividadTipoId: String): Result<List<MemberEntry>> = offlineSafe(emptyList()) {
         val data = supabase.from("member_entry").select(
-            Columns.raw("id, value, entered_at, status")
+            Columns.raw("id, value, entered_at, status, is_adjustment")
         ) {
             filter {
                 eq("member_id", miembroId)
@@ -36,7 +50,7 @@ class MemberEntryRepositoryImpl @Inject constructor(
             .sortedByDescending { it.enteredAt ?: Instant.EPOCH }
     }
 
-    override suspend fun getEntry(entryId: String): Result<MemberEntry?> = runCatching {
+    override suspend fun getEntry(entryId: String): Result<MemberEntry?> = offlineSafe(null) {
         val data = supabase.from("member_entry").select(Columns.raw("id, value, entered_at, status, approved_at")) {
             filter { eq("id", entryId) }
             limit(1)
@@ -44,7 +58,7 @@ class MemberEntryRepositoryImpl @Inject constructor(
         Json.parseToJsonElement(data).jsonArray.firstOrNull()?.jsonObject?.toMemberEntry()
     }
 
-    override suspend fun getEntryTotal(miembroId: String, actividadTipoId: String): Result<Double> = runCatching {
+    override suspend fun getEntryTotal(miembroId: String, actividadTipoId: String): Result<Double> = offlineSafe(0.0) {
         val data = supabase.from("member_entry").select(Columns.raw("value, status")) {
             filter {
                 eq("member_id", miembroId)
@@ -58,7 +72,7 @@ class MemberEntryRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getEntryEvents(entryId: String): Result<List<MemberEntryEvent>> = runCatching {
+    override suspend fun getEntryEvents(entryId: String): Result<List<MemberEntryEvent>> = offlineSafe(emptyList()) {
         val data = supabase.from("member_entry_event").select(
             Columns.raw("id, action, old_value, new_value, actor_role, actor_id, note, created_at")
         ) {
@@ -115,6 +129,100 @@ class MemberEntryRepositoryImpl @Inject constructor(
             }.toMap()
         }.getOrDefault(emptyMap())
     }
+
+    /** Lee online (y cachea); si no hay red o la llamada falla, cae al caché de Room. */
+    private suspend fun <T> cachedRead(offline: suspend () -> T, online: suspend () -> T): T {
+        if (!network.isOnline()) return offline()
+        return try { online() }
+        catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (e: Exception) { offline() }
+    }
+
+    /** Degradación sin error: offline (o fallo de red) devuelve `fallback` en Result (lecturas sin caché real). */
+    private suspend fun <T> offlineSafe(fallback: T, block: suspend () -> T): Result<T> =
+        runCatching { block() }.recoverCatching { if (!network.isOnline()) fallback else throw it }
+
+    override suspend fun getMovimientosGrupo(grupoId: String): Result<List<MovimientoAprobacion>> = runCatching {
+        cachedRead(offline = { movimientosDesdeRoom(grupoId) }, online = { getMovimientosOnline(grupoId) })
+    }
+
+    private suspend fun getMovimientosOnline(grupoId: String): List<MovimientoAprobacion> {
+        val data = supabase.from("member_entry_event").select(
+            Columns.raw(
+                "id, action, old_value, new_value, actor_role, actor_id, note, created_at, " +
+                    "member_entry!inner(small_group_id, member!inner(first_name, last_name), " +
+                    "activity_type!inner(name, marker_type, unit_label))"
+            )
+        ) {
+            filter { eq("member_entry.small_group_id", grupoId) }
+        }.data
+
+        data class RawMov(
+            val id: String, val action: String, val old: Double?, val new: Double?,
+            val role: String, val actorId: String?, val note: String?, val createdAt: Instant?,
+            val miembro: String, val actividad: String, val marker: String, val unit: String,
+        )
+        val raws = Json.parseToJsonElement(data).jsonArray.mapNotNull { elem ->
+            val obj   = elem.jsonObject
+            val entry = obj["member_entry"]?.takeIf { it !is JsonNull }?.jsonObject ?: return@mapNotNull null
+            val mem   = entry["member"]?.takeIf { it !is JsonNull }?.jsonObject
+            val act   = entry["activity_type"]?.takeIf { it !is JsonNull }?.jsonObject
+            val nombre = "${mem?.get("first_name")?.jsonPrimitive?.contentOrNull ?: ""} ${mem?.get("last_name")?.jsonPrimitive?.contentOrNull ?: ""}".trim()
+            RawMov(
+                id        = obj["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
+                action    = obj["action"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
+                old       = obj["old_value"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.doubleOrNull,
+                new       = obj["new_value"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.doubleOrNull,
+                role      = obj["actor_role"]?.jsonPrimitive?.contentOrNull ?: "member",
+                actorId   = obj["actor_id"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
+                note      = obj["note"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
+                createdAt = obj["created_at"]?.jsonPrimitive?.contentOrNull?.let(::parseInstant),
+                miembro   = nombre,
+                actividad = act?.get("name")?.jsonPrimitive?.contentOrNull ?: "",
+                marker    = act?.get("marker_type")?.jsonPrimitive?.contentOrNull ?: "counter",
+                unit      = act?.get("unit_label")?.jsonPrimitive?.contentOrNull ?: "",
+            )
+        }
+        val nombres = resolveMemberNames(raws.mapNotNull { it.actorId }.distinct())
+        val movimientos = raws.map { r ->
+            MovimientoAprobacion(
+                id = r.id, action = r.action, actorRole = r.role,
+                actorName = r.actorId?.let { nombres[it] },
+                oldValue = r.old, newValue = r.new, note = r.note, createdAt = r.createdAt,
+                miembroNombre = r.miembro, actividadNombre = r.actividad,
+                markerType = r.marker, unitLabel = r.unit,
+            )
+        }.sortedByDescending { it.createdAt ?: Instant.EPOCH }
+        cacheMovimientos(grupoId, movimientos)
+        return movimientos
+    }
+
+    // ── Caché offline (Room) ─────────────────────────────────────────────────────
+
+    private suspend fun cacheMovimientos(grupoId: String, movs: List<MovimientoAprobacion>) {
+        val rows = movs.map { m ->
+            MemberEntryEventEntity(
+                id = m.id, entryId = "", smallGroupId = grupoId,
+                action = m.action, oldValue = m.oldValue, newValue = m.newValue,
+                actorRole = m.actorRole, actorId = null, actorName = m.actorName,
+                note = m.note, createdAt = m.createdAt?.toString() ?: "",
+                miembroNombre = m.miembroNombre, actividadNombre = m.actividadNombre,
+                markerType = m.markerType, unitLabel = m.unitLabel,
+            )
+        }
+        if (rows.isNotEmpty()) memberEntryEventDao.upsert(rows)
+    }
+
+    private suspend fun movimientosDesdeRoom(grupoId: String): List<MovimientoAprobacion> =
+        memberEntryEventDao.getByGroup(grupoId).map { e ->
+            MovimientoAprobacion(
+                id = e.id, action = e.action, actorRole = e.actorRole, actorName = e.actorName,
+                oldValue = e.oldValue, newValue = e.newValue, note = e.note,
+                createdAt = e.createdAt.takeIf { it.isNotBlank() }?.let(::parseInstant),
+                miembroNombre = e.miembroNombre, actividadNombre = e.actividadNombre,
+                markerType = e.markerType, unitLabel = e.unitLabel,
+            )
+        }
 
     override suspend fun addEntry(
         miembroId: String,
@@ -204,9 +312,74 @@ class MemberEntryRepositoryImpl @Inject constructor(
         ids.forEach { logEvent(it, action = "approved", oldValue = null, newValue = null, actorRole = "leader", actorId = actorId) }
     }
 
+    override suspend fun setMemberDraftTotal(
+        miembroId: String,
+        actividadTipoId: String,
+        grupoId: String,
+        newTotal: Double,
+        actorId: String?,
+    ): Result<Unit> = runCatching {
+        // Todos los aportes draft (no borrados) del miembro para esta actividad.
+        val data = supabase.from("member_entry").select(Columns.raw("id, value, is_adjustment")) {
+            filter {
+                eq("member_id", miembroId)
+                eq("activity_type_id", actividadTipoId)
+                eq("status", "draft")
+                eq("is_deleted", false)
+            }
+        }.data
+        val rows = Json.parseToJsonElement(data).jsonArray.map { it.jsonObject }
+        val ajuste = rows.firstOrNull { it["is_adjustment"]?.jsonPrimitive?.booleanOrNull == true }
+        val ajusteId = ajuste?.get("id")?.jsonPrimitive?.contentOrNull
+        // Suma solo de los aportes reales del miembro (excluye la línea de ajuste).
+        val sumaMiembro = rows.filter { it["is_adjustment"]?.jsonPrimitive?.booleanOrNull != true }
+            .sumOf { it["value"]?.jsonPrimitive?.doubleOrNull ?: 0.0 }
+        val totalAnterior = sumaMiembro + (ajuste?.get("value")?.jsonPrimitive?.doubleOrNull ?: 0.0)
+        if (newTotal == totalAnterior) return@runCatching   // sin cambios
+
+        val delta = newTotal - sumaMiembro
+        val now = Instant.now().toString()
+        // El evento describe el cambio del TOTAL (no del delta) → bitácora legible.
+        when {
+            // El nuevo total coincide con la suma real → sobra el ajuste; se soft-borra.
+            delta == 0.0 && ajusteId != null -> {
+                supabase.from("member_entry").update(
+                    buildJsonObject { put("is_deleted", true); put("updated_at", now) }
+                ) { filter { eq("id", ajusteId) } }
+                logEvent(ajusteId, action = "edited", oldValue = totalAnterior, newValue = newTotal, actorRole = "leader", actorId = actorId)
+            }
+            delta == 0.0 -> Unit
+            // Ya existe una línea de ajuste → actualiza su valor al nuevo delta.
+            ajusteId != null -> {
+                supabase.from("member_entry").update(
+                    buildJsonObject { put("value", delta); put("is_deleted", false); put("updated_at", now) }
+                ) { filter { eq("id", ajusteId) } }
+                logEvent(ajusteId, action = "edited", oldValue = totalAnterior, newValue = newTotal, actorRole = "leader", actorId = actorId)
+            }
+            // No existe → inserta la línea "Ajuste del líder".
+            else -> {
+                val inserted = supabase.from("member_entry").insert(
+                    buildJsonObject {
+                        put("member_id", miembroId)
+                        put("activity_type_id", actividadTipoId)
+                        put("small_group_id", grupoId)
+                        put("value", delta)
+                        put("status", "draft")
+                        put("is_adjustment", true)
+                    }
+                ) { select(Columns.raw("id")) }.data
+                val newId = Json.parseToJsonElement(inserted).jsonArray.firstOrNull()
+                    ?.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull
+                if (newId != null) {
+                    logEvent(newId, action = "edited", oldValue = totalAnterior, newValue = newTotal, actorRole = "leader", actorId = actorId)
+                }
+            }
+        }
+    }
+
     // ── Líder ────────────────────────────────────────────────────────────────
 
-    override suspend fun getActivityMemberSummary(grupoId: String, actividadTipoId: String): Result<ActivityEntrySummary> = runCatching {
+    override suspend fun getActivityMemberSummary(grupoId: String, actividadTipoId: String): Result<ActivityEntrySummary> = offlineSafe(ActivityEntrySummary(0.0, 0.0, 0, emptyList())) {
         val data = supabase.from("member_entry").select(
             Columns.raw("id, member_id, value, status, member!inner(first_name, last_name)")
         ) {
@@ -252,43 +425,108 @@ class MemberEntryRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getPendingEntriesForActivity(grupoId: String, actividadTipoId: String): Result<List<MemberPendingEntry>> = runCatching {
-        val data = supabase.from("member_entry").select(
-            Columns.raw("id, member_id, activity_type_id, value, entered_at, member!inner(first_name, last_name), activity_type!inner(name, marker_type, unit_label)")
-        ) {
-            filter {
-                eq("status", "draft")
-                eq("small_group_id", grupoId)
-                eq("activity_type_id", actividadTipoId)
-                eq("is_deleted", false)
-            }
-        }.data
-        Json.parseToJsonElement(data).jsonArray.mapNotNull { it.jsonObject.toPendingEntry() }
-            .sortedByDescending { it.enteredAt ?: Instant.EPOCH }
+        cachedRead(
+            offline = { pendingDesdeRoom(grupoId, actividadTipoId) },
+            online = {
+                val data = supabase.from("member_entry").select(
+                    Columns.raw("id, member_id, activity_type_id, value, entered_at, is_adjustment, member!inner(first_name, last_name), activity_type!inner(name, marker_type, unit_label)")
+                ) {
+                    filter {
+                        eq("status", "draft")
+                        eq("small_group_id", grupoId)
+                        eq("activity_type_id", actividadTipoId)
+                        eq("is_deleted", false)
+                    }
+                }.data
+                cachePendingEntries(grupoId, data)
+                Json.parseToJsonElement(data).jsonArray.mapNotNull { it.jsonObject.toPendingEntry() }
+                    .sortedByDescending { it.enteredAt ?: Instant.EPOCH }
+            },
+        )
     }
 
     override suspend fun getPendingEntriesForGroup(grupoId: String): Result<List<MemberPendingEntry>> = runCatching {
-        val data = supabase.from("member_entry").select(
-            Columns.raw("id, member_id, activity_type_id, value, entered_at, member!inner(first_name, last_name), activity_type!inner(name, marker_type, unit_label)")
-        ) {
-            filter {
-                eq("status", "draft")
-                eq("small_group_id", grupoId)
-                eq("is_deleted", false)
-            }
-        }.data
-        Json.parseToJsonElement(data).jsonArray.mapNotNull { it.jsonObject.toPendingEntry() }
-            .sortedByDescending { it.enteredAt ?: Instant.EPOCH }
+        cachedRead(
+            offline = { pendingDesdeRoom(grupoId, null) },
+            online = {
+                val data = supabase.from("member_entry").select(
+                    Columns.raw("id, member_id, activity_type_id, value, entered_at, is_adjustment, member!inner(first_name, last_name), activity_type!inner(name, marker_type, unit_label)")
+                ) {
+                    filter {
+                        eq("status", "draft")
+                        eq("small_group_id", grupoId)
+                        eq("is_deleted", false)
+                    }
+                }.data
+                cachePendingEntries(grupoId, data)
+                Json.parseToJsonElement(data).jsonArray.mapNotNull { it.jsonObject.toPendingEntry() }
+                    .sortedByDescending { it.enteredAt ?: Instant.EPOCH }
+            },
+        )
     }
 
     override suspend fun getPendingEntriesCount(grupoId: String): Result<Int> = runCatching {
-        val data = supabase.from("member_entry").select(Columns.raw("id")) {
-            filter {
-                eq("status", "draft")
-                eq("small_group_id", grupoId)
-                eq("is_deleted", false)
-            }
-        }.data
-        Json.parseToJsonElement(data).jsonArray.size
+        cachedRead(
+            offline = { pendingDesdeRoom(grupoId, null).size },
+            online = {
+                val data = supabase.from("member_entry").select(Columns.raw("id")) {
+                    filter {
+                        eq("status", "draft")
+                        eq("small_group_id", grupoId)
+                        eq("is_deleted", false)
+                    }
+                }.data
+                Json.parseToJsonElement(data).jsonArray.size
+            },
+        )
+    }
+
+    // ── Caché offline (Room): aportes pendientes ─────────────────────────────────
+
+    /** Guarda los drafts del grupo para verlos offline. Snapshot best-effort. */
+    private suspend fun cachePendingEntries(grupoId: String, data: String) {
+        val rows = Json.parseToJsonElement(data).jsonArray.mapNotNull { elem ->
+            val obj = elem.jsonObject
+            val id  = obj["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            val enteredAt = obj["entered_at"]?.jsonPrimitive?.contentOrNull ?: ""
+            MemberEntryEntity(
+                id             = id,
+                memberId       = obj["member_id"]?.jsonPrimitive?.contentOrNull ?: "",
+                activityTypeId = obj["activity_type_id"]?.jsonPrimitive?.contentOrNull ?: "",
+                smallGroupId   = grupoId,
+                value          = obj["value"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
+                enteredAt      = enteredAt,
+                status         = "draft",
+                approvedBy     = null,
+                approvedAt     = null,
+                updatedAt      = enteredAt,
+                isDeleted      = false,
+                isAdjustment   = obj["is_adjustment"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.booleanOrNull ?: false,
+            )
+        }
+        if (rows.isNotEmpty()) memberEntryDao.upsert(rows)
+    }
+
+    private suspend fun pendingDesdeRoom(grupoId: String, actividadTipoId: String?): List<MemberPendingEntry> {
+        val entries = if (actividadTipoId == null) memberEntryDao.getByGroup(grupoId)
+                      else memberEntryDao.getByGroupActivity(grupoId, actividadTipoId)
+        return entries.filter { it.status == "draft" }.map { e ->
+            val member = memberDao.getById(e.memberId)
+            val at     = activityTypeDao.getById(e.activityTypeId)
+            MemberPendingEntry(
+                entryId         = e.id,
+                miembroId       = e.memberId,
+                miembroNombre   = member?.let { "${it.firstName} ${it.lastName}".trim() } ?: "",
+                activityTypeId  = e.activityTypeId,
+                actividadNombre = at?.name ?: "",
+                markerType      = at?.markerType ?: "counter",
+                unitLabel       = at?.unitLabel ?: "",
+                value           = e.value,
+                enteredAt       = e.enteredAt.takeIf { it.isNotBlank() }?.let(::parseInstant),
+                grupoNombre     = "",
+                isAdjustment    = e.isAdjustment,
+            )
+        }.sortedByDescending { it.enteredAt ?: Instant.EPOCH }
     }
 
     override suspend fun approveEntry(
@@ -327,7 +565,7 @@ class MemberEntryRepositoryImpl @Inject constructor(
 
     // ── Iglesia ──────────────────────────────────────────────────────────────
 
-    override suspend fun getPendingBoardEntries(iglesiaId: String): Result<List<MemberPendingEntry>> = runCatching {
+    override suspend fun getPendingBoardEntries(iglesiaId: String): Result<List<MemberPendingEntry>> = offlineSafe(emptyList()) {
         val data = supabase.from("member_entry").select(
             Columns.raw("id, member_id, activity_type_id, value, entered_at, member!inner(first_name, last_name, small_group!inner(name, church_id)), activity_type!inner(name, marker_type, unit_label)")
         ) {
@@ -341,7 +579,7 @@ class MemberEntryRepositoryImpl @Inject constructor(
             .sortedByDescending { it.enteredAt ?: Instant.EPOCH }
     }
 
-    override suspend fun getPendingBoardCount(iglesiaId: String): Result<Int> = runCatching {
+    override suspend fun getPendingBoardCount(iglesiaId: String): Result<Int> = offlineSafe(0) {
         getPendingBoardEntries(iglesiaId).getOrDefault(emptyList()).size
     }
 
@@ -370,9 +608,9 @@ class MemberEntryRepositoryImpl @Inject constructor(
         scopeLevel: String,
         scopeId: String,
         filtro: HistFiltroTrimestre,
-    ): Result<List<HistActividad>> = runCatching {
+    ): Result<List<HistActividad>> = offlineSafe(emptyList()) {
         val gpIds = scopeGpIds(scopeLevel, scopeId)
-        if (gpIds.isEmpty()) return@runCatching emptyList()
+        if (gpIds.isEmpty()) return@offlineSafe emptyList()
         val bounds = if (filtro == HistFiltroTrimestre.TODOS) null else currentQuarterRange()
 
         val data = supabase.from("member_entry").select(
@@ -414,9 +652,9 @@ class MemberEntryRepositoryImpl @Inject constructor(
         scopeId: String,
         activityId: String,
         filtro: HistFiltroTrimestre,
-    ): Result<List<HistMiembro>> = runCatching {
+    ): Result<List<HistMiembro>> = offlineSafe(emptyList()) {
         val gpIds = scopeGpIds(scopeLevel, scopeId)
-        if (gpIds.isEmpty()) return@runCatching emptyList()
+        if (gpIds.isEmpty()) return@offlineSafe emptyList()
         val bounds = if (filtro == HistFiltroTrimestre.TODOS) null else currentQuarterRange()
 
         val data = supabase.from("member_entry").select(
@@ -454,7 +692,7 @@ class MemberEntryRepositoryImpl @Inject constructor(
         miembroId: String,
         activityId: String,
         filtro: HistFiltroTrimestre,
-    ): Result<List<HistAprobacion>> = runCatching {
+    ): Result<List<HistAprobacion>> = offlineSafe(emptyList()) {
         val bounds = if (filtro == HistFiltroTrimestre.TODOS) null else currentQuarterRange()
         val data = supabase.from("member_entry").select(
             Columns.raw("id, value, entered_at, status, approved_at")
@@ -550,11 +788,12 @@ class MemberEntryRepositoryImpl @Inject constructor(
     private fun kotlinx.serialization.json.JsonObject.toMemberEntry(): MemberEntry? {
         val id = this["id"]?.jsonPrimitive?.contentOrNull ?: return null
         return MemberEntry(
-            id         = id,
-            value      = this["value"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
-            enteredAt  = this["entered_at"]?.jsonPrimitive?.contentOrNull?.let(::parseInstant),
-            status     = this["status"]?.jsonPrimitive?.contentOrNull ?: "draft",
-            approvedAt = this["approved_at"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull?.let(::parseInstant),
+            id           = id,
+            value        = this["value"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
+            enteredAt    = this["entered_at"]?.jsonPrimitive?.contentOrNull?.let(::parseInstant),
+            status       = this["status"]?.jsonPrimitive?.contentOrNull ?: "draft",
+            approvedAt   = this["approved_at"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull?.let(::parseInstant),
+            isAdjustment = this["is_adjustment"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.booleanOrNull ?: false,
         )
     }
 
@@ -577,6 +816,7 @@ class MemberEntryRepositoryImpl @Inject constructor(
             value           = this["value"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
             enteredAt       = this["entered_at"]?.jsonPrimitive?.contentOrNull?.let(::parseInstant),
             grupoNombre     = grupo,
+            isAdjustment    = this["is_adjustment"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.booleanOrNull ?: false,
         )
     }
 

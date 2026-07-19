@@ -71,6 +71,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gpleader.app.R
 import com.gpleader.app.core.ui.components.NeuCard
+import com.gpleader.app.core.ui.components.OfflineBanner
 import com.gpleader.app.core.ui.components.OnResumeEffect
 import com.gpleader.app.core.ui.components.SkeletonBox
 import com.gpleader.app.core.ui.components.SkeletonText
@@ -187,6 +188,10 @@ private fun HistorialContent(
                     modifier = Modifier
                         .padding(horizontal = 20.dp, vertical = 16.dp),
                 )
+            }
+
+            item {
+                OfflineBanner(modifier = Modifier.padding(start = 20.dp, end = 20.dp))
             }
 
             // ── Toggle GP / Sábado ────────────────────────────────────────────

@@ -66,6 +66,8 @@ import com.gpleader.app.feature.miembro.EstudioDetalleScreen
 import com.gpleader.app.feature.iglesia.IglesiaHomeScreen
 import com.gpleader.app.feature.iglesia.IglesiaGruposScreen
 import com.gpleader.app.feature.actividades.LiderAprobacionesScreen
+import com.gpleader.app.feature.actividades.LiderAporteDetalleScreen
+import com.gpleader.app.feature.actividades.MovimientosAprobacionScreen
 import com.gpleader.app.feature.iglesia.AprobacionNivelScreen
 import com.gpleader.app.feature.iglesia.MovimientosHistorialScreen
 import com.gpleader.app.feature.actividades.HistorialAportesActividadesScreen
@@ -147,6 +149,8 @@ object NavRoutes {
     fun actividadHistorial(actividadTipoId: String) = "actividad_historial/$actividadTipoId"
     fun agregarAporte(actividadTipoId: String)      = "agregar_aporte/$actividadTipoId"
     fun aprobacionesLiderActividad(actividadTipoId: String) = "aprobaciones_lider_actividad/$actividadTipoId"
+    fun aprobacionesLiderDetalle(miembroId: String, actividadTipoId: String) =
+        "aprobaciones_lider_detalle/$miembroId/$actividadTipoId"
     fun aprobacionNivel(nivel: String) = "aprobacion_nivel/$nivel"
     fun nivelHome(nivel: String) = "nivel_home/$nivel"
     fun movimientosHistorial(sourceLevel: String, sourceId: String, activityId: String, marker: String, titulo: String) =
@@ -180,6 +184,8 @@ object NavRoutes {
     const val HISTORIAL_APORTES_MIEMBRO = "historial_aportes_miembro/{activityId}/{miembroId}/{filtro}/{marker}?nombre={nombre}"
     const val APROBACIONES_LIDER = "aprobaciones_lider"
     const val APROBACIONES_LIDER_ACTIVIDAD = "aprobaciones_lider_actividad/{actividadTipoId}"
+    const val APROBACIONES_LIDER_DETALLE = "aprobaciones_lider_detalle/{miembroId}/{actividadTipoId}"
+    const val MOVIMIENTOS_APROBACION = "movimientos_aprobacion"
     const val MIEMBRO_APORTE_HISTORIAL = "miembro_aporte_historial/{miembroId}/{actividadTipoId}/{nombre}"
 
     // ── Registro nested graph ─────────────────────────────────────────────────
@@ -501,10 +507,25 @@ fun AppNavGraph(
         composable(NavRoutes.APROBACIONES_LIDER) {
             LiderAprobacionesScreen(
                 onNavigateBack = { navController.popBackStack() },
-                onVerHistorial = { scope, scopeId ->
-                    navController.navigate(NavRoutes.historialAportesActividades(scope, scopeId))
+                onVerHistorial = { _, _ -> navController.navigate(NavRoutes.MOVIMIENTOS_APROBACION) },
+                onVerDetalle   = { miembroId, actividadTipoId ->
+                    navController.navigate(NavRoutes.aprobacionesLiderDetalle(miembroId, actividadTipoId))
                 },
             )
+        }
+
+        composable(
+            route     = NavRoutes.APROBACIONES_LIDER_DETALLE,
+            arguments = listOf(
+                navArgument("miembroId")       { type = NavType.StringType },
+                navArgument("actividadTipoId") { type = NavType.StringType },
+            ),
+        ) {
+            LiderAporteDetalleScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(NavRoutes.MOVIMIENTOS_APROBACION) {
+            MovimientosAprobacionScreen(onNavigateBack = { navController.popBackStack() })
         }
 
         composable(NavRoutes.SABADO_CULTO) {
@@ -725,8 +746,9 @@ fun AppNavGraph(
         ) {
             LiderAprobacionesScreen(
                 onNavigateBack = { navController.popBackStack() },
-                onVerHistorial = { scope, scopeId ->
-                    navController.navigate(NavRoutes.historialAportesActividades(scope, scopeId))
+                onVerHistorial = { _, _ -> navController.navigate(NavRoutes.MOVIMIENTOS_APROBACION) },
+                onVerDetalle   = { miembroId, actividadTipoId ->
+                    navController.navigate(NavRoutes.aprobacionesLiderDetalle(miembroId, actividadTipoId))
                 },
             )
         }

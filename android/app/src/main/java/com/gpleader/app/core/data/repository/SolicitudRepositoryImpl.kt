@@ -1,5 +1,6 @@
 package com.gpleader.app.core.data.repository
 
+import com.gpleader.app.core.data.network.NetworkMonitor
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
@@ -17,9 +18,18 @@ import javax.inject.Inject
 
 class SolicitudRepositoryImpl @Inject constructor(
     private val supabase: SupabaseClient,
+    private val network:  NetworkMonitor,
 ) : SolicitudRepository {
 
-    override suspend fun getSolicitudesCreadas(grupoId: String): List<Solicitud> {
+    // Sin caché offline: degrada a vacío sin error cuando no hay red.
+    private suspend fun <T> offlineSafe(fallback: T, block: suspend () -> T): T {
+        if (!network.isOnline()) return fallback
+        return try { block() }
+        catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (e: Exception) { fallback }
+    }
+
+    override suspend fun getSolicitudesCreadas(grupoId: String): List<Solicitud> = offlineSafe(emptyList()) {
         val data = supabase.from("solicitude").select(
             columns = Columns.raw("*, member!solicitude_assigned_to_fkey(first_name, last_name)")
         ) {
@@ -28,10 +38,10 @@ class SolicitudRepositoryImpl @Inject constructor(
                 isIn("status", listOf("pending", "active"))
             }
         }.data
-        return parseSolicitudes(data)
+        parseSolicitudes(data)
     }
 
-    override suspend fun getSolicitudesAsignadas(miembroId: String): List<Solicitud> {
+    override suspend fun getSolicitudesAsignadas(miembroId: String): List<Solicitud> = offlineSafe(emptyList()) {
         val data = supabase.from("solicitude").select(
             columns = Columns.raw("*")
         ) {
@@ -40,7 +50,7 @@ class SolicitudRepositoryImpl @Inject constructor(
                 eq("status", "pending")
             }
         }.data
-        return parseSolicitudes(data)
+        parseSolicitudes(data)
     }
 
     override suspend fun createSolicitud(
@@ -122,7 +132,7 @@ class SolicitudRepositoryImpl @Inject constructor(
         return DeputyCodeResult(codeId = codeId, code = code)
     }
 
-    override suspend fun getAsignadosPotenciales(grupoId: String): List<AsignadoPotencial> {
+    override suspend fun getAsignadosPotenciales(grupoId: String): List<AsignadoPotencial> = offlineSafe(emptyList()) {
         val data = supabase.from("member").select {
             filter {
                 eq("small_group_id", grupoId)
@@ -130,7 +140,7 @@ class SolicitudRepositoryImpl @Inject constructor(
                 eq("is_active", true)
             }
         }.data
-        return parseAsignados(data)
+        parseAsignados(data)
     }
 
     // ── Parsers ───────────────────────────────────────────────────────────────

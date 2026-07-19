@@ -1,5 +1,6 @@
 package com.gpleader.app.core.data.repository
 
+import com.gpleader.app.core.data.network.NetworkMonitor
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
@@ -18,9 +19,14 @@ import javax.inject.Inject
 
 class GroupLogRepositoryImpl @Inject constructor(
     private val supabase: SupabaseClient,
+    private val network:  NetworkMonitor,
 ) : GroupLogRepository {
 
-    override suspend fun getEntradas(grupoId: String, limit: Int): Result<List<GroupLogEntry>> = runCatching {
+    // Sin caché offline: degrada a vacío sin error cuando no hay red.
+    private suspend fun <T> offlineSafe(fallback: T, block: suspend () -> T): Result<T> =
+        runCatching { block() }.recoverCatching { if (!network.isOnline()) fallback else throw it }
+
+    override suspend fun getEntradas(grupoId: String, limit: Int): Result<List<GroupLogEntry>> = offlineSafe(emptyList()) {
         val data = supabase.from("group_log").select(
             Columns.raw("id, action_type, description, created_at")
         ) {

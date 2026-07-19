@@ -4,11 +4,12 @@ import java.time.Instant
 
 /** Un aporte individual de un miembro (monetario o contador). */
 data class MemberEntry(
-    val id:         String,
-    val value:      Double,
-    val enteredAt:  Instant?,
-    val status:     String,   // draft | approved | pending_board | rejected
-    val approvedAt: Instant? = null,
+    val id:           String,
+    val value:        Double,
+    val enteredAt:    Instant?,
+    val status:       String,   // draft | approved | pending_board | rejected
+    val approvedAt:   Instant? = null,
+    val isAdjustment: Boolean = false,   // true = línea "Ajuste del líder"
 )
 
 /** Filtro de trimestre para el historial de aportes aprobados. */
@@ -68,6 +69,22 @@ data class ActivityEntrySummary(
     val perMember:     List<MemberEntryAggregate>,
 )
 
+/** Un movimiento de la bitácora de aprobaciones del grupo (evento sobre un aporte). */
+data class MovimientoAprobacion(
+    val id:              String,
+    val action:          String,   // created | edited | deleted | approved | rejected | board_approved
+    val actorRole:       String,   // member | leader | church
+    val actorName:       String?,
+    val oldValue:        Double?,
+    val newValue:        Double?,
+    val note:            String?,
+    val createdAt:       Instant?,
+    val miembroNombre:   String,
+    val actividadNombre: String,
+    val markerType:      String,
+    val unitLabel:       String,
+)
+
 /** Aporte pendiente, enriquecido para las pantallas de aprobación. */
 data class MemberPendingEntry(
     val entryId:         String,
@@ -80,6 +97,7 @@ data class MemberPendingEntry(
     val value:           Double,
     val enteredAt:       Instant?,
     val grupoNombre:     String = "",
+    val isAdjustment:    Boolean = false,
 )
 
 interface MemberEntryRepository {
@@ -101,11 +119,21 @@ interface MemberEntryRepository {
     suspend fun deleteEntry(entryId: String, actorRole: String, actorId: String?): Result<Unit>
     /** Aprueba de una sola vez la suma de los aportes `draft` de un miembro en una actividad. */
     suspend fun approveMemberSum(miembroId: String, actividadTipoId: String, actorId: String?): Result<Unit>
+    /**
+     * Fija el total `draft` del miembro en una actividad ajustando una línea "Ajuste del líder"
+     * (is_adjustment=true). Puede quedar mayor o menor que la suma de los aportes del miembro.
+     */
+    suspend fun setMemberDraftTotal(
+        miembroId: String, actividadTipoId: String, grupoId: String,
+        newTotal: Double, actorId: String?,
+    ): Result<Unit>
 
     // ── Historial (líder scope="gp" grupoId · iglesia scope="church" iglesiaId) ──
     suspend fun getHistorialActividades(scopeLevel: String, scopeId: String, filtro: HistFiltroTrimestre): Result<List<HistActividad>>
     suspend fun getHistorialMiembros(scopeLevel: String, scopeId: String, activityId: String, filtro: HistFiltroTrimestre): Result<List<HistMiembro>>
     suspend fun getHistorialMiembroAprobaciones(miembroId: String, activityId: String, filtro: HistFiltroTrimestre): Result<List<HistAprobacion>>
+    /** Bitácora de todos los movimientos (eventos) de aprobación del grupo, más reciente primero. */
+    suspend fun getMovimientosGrupo(grupoId: String): Result<List<MovimientoAprobacion>>
 
     // ── Líder ─────────────────────────────────────────────────────────────────
     suspend fun getActivityMemberSummary(grupoId: String, actividadTipoId: String): Result<ActivityEntrySummary>

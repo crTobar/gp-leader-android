@@ -1,5 +1,6 @@
 package com.gpleader.app.core.data.repository
 
+import com.gpleader.app.core.data.network.NetworkMonitor
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Columns
@@ -16,9 +17,14 @@ import javax.inject.Inject
 
 class BibleStudyRepositoryImpl @Inject constructor(
     private val supabase: SupabaseClient,
+    private val network:  NetworkMonitor,
 ) : BibleStudyRepository {
 
-    override suspend fun getEstudios(miembroId: String): Result<List<EstudioBiblico>> = runCatching {
+    // Sin caché offline: degrada a vacío/null sin error cuando no hay red.
+    private suspend fun <T> offlineSafe(fallback: T, block: suspend () -> T): Result<T> =
+        runCatching { block() }.recoverCatching { if (!network.isOnline()) fallback else throw it }
+
+    override suspend fun getEstudios(miembroId: String): Result<List<EstudioBiblico>> = offlineSafe(emptyList()) {
         val data = supabase.from("bible_study").select(
             Columns.raw("id, member_id, student_name, completed_lessons")
         ) {
@@ -30,7 +36,7 @@ class BibleStudyRepositoryImpl @Inject constructor(
         }.sortedBy { it.studentName }
     }
 
-    override suspend fun getEstudioById(estudioId: String): Result<EstudioBiblico?> = runCatching {
+    override suspend fun getEstudioById(estudioId: String): Result<EstudioBiblico?> = offlineSafe(null) {
         val data = supabase.from("bible_study").select(
             Columns.raw("id, member_id, student_name, completed_lessons")
         ) {

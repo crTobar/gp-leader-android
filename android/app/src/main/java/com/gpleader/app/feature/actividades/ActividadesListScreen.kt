@@ -58,6 +58,8 @@ import com.gpleader.app.core.data.repository.nombreCompleto
 import com.gpleader.app.core.ui.components.AppBottomNavBar
 import com.gpleader.app.core.ui.components.NAV_TAB_ACTIVIDADES
 import com.gpleader.app.core.ui.components.NeuAvatar
+import com.gpleader.app.core.ui.components.OfflineBanner
+import com.gpleader.app.core.ui.components.rememberIsOnline
 import com.gpleader.app.core.ui.components.NeuCard
 import com.gpleader.app.core.ui.components.OnResumeEffect
 import com.gpleader.app.core.ui.theme.Accent
@@ -132,6 +134,7 @@ private fun ActividadesListContent(
     onModoChange:                  (Boolean) -> Unit = {},
 ) {
     var collapsedNiveles by remember { mutableStateOf(setOf<String>()) }
+    val isOnline = rememberIsOnline()
 
     Scaffold(
         containerColor = Background,
@@ -178,6 +181,14 @@ private fun ActividadesListContent(
                 )
                 Box(modifier = Modifier.size(40.dp))
             }
+
+            OfflineBanner(
+                // Los dúos no tienen caché en Room: offline no hay datos guardados que mostrar.
+                mensaje           = if (modoGP) "Sin conexión · mostrando datos guardados"
+                                    else        "Sin conexión · los dúos no están disponibles",
+                mostrarUltimaSync = modoGP,
+                modifier          = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
+            )
 
             // ── Segmented control GP / Duos ───────────────────────────────────
             ModoSegmentedControl(
@@ -349,7 +360,8 @@ private fun ActividadesListContent(
 
         // ── Overlay inferior: FAB (solo GP) + menú flotante sobre el contenido ─
         Column(modifier = Modifier.align(Alignment.BottomCenter)) {
-            if (modoGP) {
+            // Crear actividad escribe en Supabase → no disponible sin conexión (modo solo lectura).
+            if (modoGP && isOnline) {
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
@@ -394,8 +406,10 @@ private fun DuoActividadesContent(
     modifier:                  Modifier = Modifier,
 ) {
     var showDuoPicker by remember { mutableStateOf(false) }
+    val isOnline = rememberIsOnline()
 
-    val fabEnabled  = !isLoading && duosActivos.isNotEmpty()
+    // Sin conexión los dúos no se cachean: no hay nada que mostrar ni se puede crear.
+    val fabEnabled  = isOnline && !isLoading && duosActivos.isNotEmpty()
     val fabAlpha    = if (fabEnabled) 1f else 0.5f
 
     val handleFabClick: () -> Unit = {
@@ -414,7 +428,15 @@ private fun DuoActividadesContent(
             }
         } else if (actividades.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Sin actividades de dúos.\nToca + para crear una.", style = MaterialTheme.typography.bodyMedium, color = Muted, textAlign = TextAlign.Center)
+                // Offline la lista siempre viene vacía (sin caché), así que no se puede afirmar
+                // que no haya dúos ni invitar a crear uno.
+                Text(
+                    text      = if (isOnline) "Sin actividades de dúos.\nToca + para crear una."
+                                else          "Los dúos no están disponibles sin conexión.",
+                    style     = MaterialTheme.typography.bodyMedium,
+                    color     = Muted,
+                    textAlign = TextAlign.Center,
+                )
             }
         } else {
             LazyColumn(

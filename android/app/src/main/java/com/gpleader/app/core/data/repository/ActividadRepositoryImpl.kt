@@ -1,10 +1,21 @@
 package com.gpleader.app.core.data.repository
 
+import com.gpleader.app.core.data.local.room.dao.ActivityRecordDao
+import com.gpleader.app.core.data.local.room.dao.ActivityTypeDao
+import com.gpleader.app.core.data.local.room.dao.MemberActivityRecordDao
+import com.gpleader.app.core.data.local.room.dao.MemberDao
+import com.gpleader.app.core.data.local.room.dao.MemberEntryDao
+import com.gpleader.app.core.data.local.room.entity.ActivityRecordEntity
+import com.gpleader.app.core.data.local.room.entity.ActivityTypeEntity
+import com.gpleader.app.core.data.local.room.entity.MemberActivityRecordEntity
+import com.gpleader.app.core.data.local.room.entity.MemberEntryEntity
+import com.gpleader.app.core.data.network.NetworkMonitor
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -21,8 +32,18 @@ import java.time.LocalDate
 import javax.inject.Inject
 
 class ActividadRepositoryImpl @Inject constructor(
-    private val supabase: SupabaseClient,
+    private val supabase:        SupabaseClient,
+    private val network:         NetworkMonitor,
+    private val activityTypeDao: ActivityTypeDao,
+    private val activityRecordDao: ActivityRecordDao,
+    private val memberActivityRecordDao: MemberActivityRecordDao,
+    private val memberEntryDao:  MemberEntryDao,
+    private val memberDao:       MemberDao,
 ) : ActividadRepository {
+
+    /** Degradación sin error: offline (o fallo de red) devuelve `fallback` en Result en vez de romper. */
+    private suspend fun <T> offlineSafe(fallback: T, block: suspend () -> T): Result<T> =
+        runCatching { block() }.recoverCatching { if (!network.isOnline()) fallback else throw it }
 
     private fun parseActividadTipo(obj: kotlinx.serialization.json.JsonObject): ActividadTipoData =
         ActividadTipoData(
@@ -64,7 +85,7 @@ class ActividadRepositoryImpl @Inject constructor(
         else       -> false
     }
 
-    override suspend fun getActividadesTipo(iglesiaId: String, districtId: String, campoId: String, grupoId: String): Result<List<ActividadTipoData>> = runCatching {
+    override suspend fun getActividadesTipo(iglesiaId: String, districtId: String, campoId: String, grupoId: String): Result<List<ActividadTipoData>> = offlineSafe(emptyList()) {
         val data = supabase.from("activity_type").select(
             columns = Columns.raw(ACTIVIDAD_COLUMNS)
         ) {
@@ -83,17 +104,81 @@ class ActividadRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getTodasActividadesTipo(iglesiaId: String, districtId: String, campoId: String, grupoId: String): Result<List<ActividadTipoData>> = runCatching {
-        val data = supabase.from("activity_type").select(
-            columns = Columns.raw(ACTIVIDAD_COLUMNS)
-        ) {
-            filter { eq("is_active", true) }
-        }.data
-
-        Json.parseToJsonElement(data).jsonArray
-            .map { parseActividadTipo(it.jsonObject) }
-            .filter { tipo -> scopeOk(tipo, iglesiaId, districtId, campoId, grupoId) }
-            .sortedBy { it.sortOrder }
+        cachedRead(
+            offline = {
+                activityTypeDao.getAll()
+                    .map { it.toActividadTipoData() }
+                    .filter { tipo -> scopeOk(tipo, iglesiaId, districtId, campoId, grupoId) }
+                    .sortedBy { it.sortOrder }
+            },
+            online = {
+                val data = supabase.from("activity_type").select(columns = Columns.raw(ACTIVIDAD_COLUMNS)) {
+                    filter { eq("is_active", true) }
+                }.data
+                cacheActivityTypes(data)
+                Json.parseToJsonElement(data).jsonArray
+                    .map { parseActividadTipo(it.jsonObject) }
+                    .filter { tipo -> scopeOk(tipo, iglesiaId, districtId, campoId, grupoId) }
+                    .sortedBy { it.sortOrder }
+            },
+        )
     }
+
+    /** Lee online (y cachea); si no hay red o la llamada falla, cae al caché de Room. */
+    private suspend fun <T> cachedRead(offline: suspend () -> T, online: suspend () -> T): T {
+        if (!network.isOnline()) return offline()
+        return try { online() }
+        catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (e: Exception) { offline() }
+    }
+
+    // ── Caché offline (Room): activity_type ──────────────────────────────────────
+
+    private suspend fun cacheActivityTypes(data: String) {
+        val rows = Json.parseToJsonElement(data).jsonArray.mapNotNull { it.jsonObject.toActivityTypeEntity() }
+        if (rows.isNotEmpty()) activityTypeDao.upsert(rows)
+    }
+
+    private fun JsonObject.toActivityTypeEntity(): ActivityTypeEntity? {
+        val id = this["id"]?.jsonPrimitive?.contentOrNull ?: return null
+        return ActivityTypeEntity(
+            id                 = id,
+            name               = this["name"]?.jsonPrimitive?.contentOrNull ?: "",
+            level              = this["level"]?.jsonPrimitive?.contentOrNull ?: "my_group",
+            markerType         = this["marker_type"]?.jsonPrimitive?.contentOrNull ?: "counter",
+            unitLabel          = this["unit_label"]?.jsonPrimitive?.contentOrNull ?: "",
+            scope              = this["scope"]?.jsonPrimitive?.contentOrNull ?: "global",
+            churchId           = this["church_id"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
+            districtId         = this["district_id"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
+            campoId            = this["campo_id"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
+            unionId            = this["union_id"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
+            smallGroupId       = this["small_group_id"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
+            startDate          = this["start_date"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
+            endDate            = this["end_date"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
+            isActive           = this["is_active"]?.jsonPrimitive?.booleanOrNull ?: true,
+            isMemberAccessible = this["is_member_accessible"]?.jsonPrimitive?.booleanOrNull ?: false,
+            frecuencia         = this["frecuencia"]?.jsonPrimitive?.contentOrNull ?: "semanal",
+            sortOrder          = this["sort_order"]?.jsonPrimitive?.intOrNull ?: 0,
+        )
+    }
+
+    private fun ActivityTypeEntity.toActividadTipoData(): ActividadTipoData = ActividadTipoData(
+        id                 = id,
+        nombre             = name,
+        level              = level,
+        markerType         = markerType,
+        unitLabel          = unitLabel,
+        sortOrder          = sortOrder,
+        scope              = scope,
+        churchId           = churchId,
+        startDate          = startDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
+        endDate            = endDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
+        frecuencia         = frecuencia,
+        isMemberAccessible = isMemberAccessible,
+        districtId         = districtId,
+        campoId            = campoId,
+        grupoId            = smallGroupId,
+    )
 
     override suspend fun saveRegistros(meetingId: String, registros: List<RegistroActividadData>): Result<Unit> = runCatching {
         if (registros.isEmpty()) return@runCatching
@@ -112,15 +197,20 @@ class ActividadRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getActividadesConTotales(grupoId: String): Result<Map<String, ActividadTotalData>> = runCatching {
+        cachedRead(offline = { totalesDesdeRoom(grupoId) }, online = { totalesOnline(grupoId) })
+    }
+
+    private suspend fun totalesOnline(grupoId: String): Map<String, ActividadTotalData> {
         val totals = mutableMapOf<String, Pair<Int, Double>>()
 
-        // Registros del líder por reunión
+        // Registros del líder por reunión (+ cache activity_record)
         val gpData = supabase.from("activity_record").select(
-            Columns.raw("activity_type_id, count, monto, meeting!inner(small_group_id)")
+            Columns.raw("id, meeting_id, activity_type_id, count, monto, notes, submission_status, meeting!inner(small_group_id)")
         ) {
             filter { eq("meeting.small_group_id", grupoId) }
         }.data
-        Json.parseToJsonElement(gpData).jsonArray.forEach { elem ->
+        val gpArr = Json.parseToJsonElement(gpData).jsonArray
+        gpArr.forEach { elem ->
             val obj    = elem.jsonObject
             val tipoId = obj["activity_type_id"]?.jsonPrimitive?.contentOrNull ?: return@forEach
             val count  = obj["count"]?.jsonPrimitive?.intOrNull ?: 0
@@ -128,30 +218,25 @@ class ActividadRepositoryImpl @Inject constructor(
             val prev   = totals[tipoId] ?: (0 to 0.0)
             totals[tipoId] = (prev.first + count) to (prev.second + monto)
         }
+        gpArr.mapNotNull { it.jsonObject.toActivityRecordEntity() }
+            .takeIf { it.isNotEmpty() }?.let { activityRecordDao.upsert(it) }
 
-        // Registros individuales de miembros — two-step to avoid fragile embedded join filter
+        // Registros individuales de miembros (+ cache member_activity_record)
         val memberIds = runCatching {
             val mData = supabase.from("member").select(Columns.raw("id")) {
-                filter {
-                    eq("small_group_id", grupoId)
-                    eq("is_visitor", false)
-                }
+                filter { eq("small_group_id", grupoId); eq("is_visitor", false) }
             }.data
-            Json.parseToJsonElement(mData).jsonArray.mapNotNull {
-                it.jsonObject["id"]?.jsonPrimitive?.contentOrNull
-            }
+            Json.parseToJsonElement(mData).jsonArray.mapNotNull { it.jsonObject["id"]?.jsonPrimitive?.contentOrNull }
         }.getOrElse { emptyList() }
 
         if (memberIds.isNotEmpty()) {
             val memberData = supabase.from("member_activity_record").select(
-                Columns.raw("activity_type_id, count, is_done, status")
+                Columns.raw("id, member_id, activity_type_id, small_group_id, record_date, week_start, is_done, count, monto, marked_at, status, submission_status")
             ) {
-                filter {
-                    isIn("member_id", memberIds)
-                    neq("status", "rejected")
-                }
+                filter { isIn("member_id", memberIds); neq("status", "rejected") }
             }.data
-            Json.parseToJsonElement(memberData).jsonArray.forEach { elem ->
+            val marArr = Json.parseToJsonElement(memberData).jsonArray
+            marArr.forEach { elem ->
                 val obj    = elem.jsonObject
                 val tipoId = obj["activity_type_id"]?.jsonPrimitive?.contentOrNull ?: return@forEach
                 val count  = obj["count"]?.jsonPrimitive?.intOrNull
@@ -160,36 +245,107 @@ class ActividadRepositoryImpl @Inject constructor(
                 val prev   = totals[tipoId] ?: (0 to 0.0)
                 totals[tipoId] = (prev.first + aporte) to prev.second
             }
+            marArr.mapNotNull { it.jsonObject.toMemberActivityRecordEntity(grupoId) }
+                .takeIf { it.isNotEmpty() }?.let { memberActivityRecordDao.upsert(it) }
         }
 
-        // Aportes individuales de miembros (member_entry) — enrutados por marker_type
+        // Aportes individuales (member_entry) — enrutados por marker_type (+ cache member_entry)
         val entryData = supabase.from("member_entry").select(
-            Columns.raw("activity_type_id, value, status, activity_type!inner(marker_type)")
+            Columns.raw("id, member_id, activity_type_id, value, status, entered_at, updated_at, approved_by, approved_at, is_deleted, is_adjustment, activity_type!inner(marker_type)")
         ) {
-            filter {
-                eq("small_group_id", grupoId)
-                eq("is_deleted", false)
-                neq("status", "rejected")
-            }
+            filter { eq("small_group_id", grupoId); eq("is_deleted", false); neq("status", "rejected") }
         }.data
-        Json.parseToJsonElement(entryData).jsonArray.forEach { elem ->
+        val entryArr = Json.parseToJsonElement(entryData).jsonArray
+        entryArr.forEach { elem ->
             val obj    = elem.jsonObject
             val tipoId = obj["activity_type_id"]?.jsonPrimitive?.contentOrNull ?: return@forEach
             val value  = obj["value"]?.jsonPrimitive?.doubleOrNull ?: 0.0
             val marker = obj["activity_type"]?.takeIf { it !is JsonNull }?.jsonObject
                 ?.get("marker_type")?.jsonPrimitive?.contentOrNull ?: "counter"
             val prev   = totals[tipoId] ?: (0 to 0.0)
-            totals[tipoId] = if (marker == "monetary") {
-                prev.first to (prev.second + value)
-            } else {
-                (prev.first + value.toInt()) to prev.second
-            }
+            totals[tipoId] = if (marker == "monetary") prev.first to (prev.second + value)
+                             else (prev.first + value.toInt()) to prev.second
         }
+        entryArr.mapNotNull { it.jsonObject.toMemberEntryEntity(grupoId) }
+            .takeIf { it.isNotEmpty() }?.let { memberEntryDao.upsert(it) }
 
-        totals.mapValues { (_, v) -> ActividadTotalData(v.first, v.second) }
+        return totals.mapValues { (_, v) -> ActividadTotalData(v.first, v.second) }
     }
 
-    override suspend fun getRegistrosSemanal(grupoId: String, actividadTipoId: String): Result<List<RegistroSemanalData>> = runCatching {
+    private suspend fun totalesDesdeRoom(grupoId: String): Map<String, ActividadTotalData> {
+        val totals = mutableMapOf<String, Pair<Int, Double>>()
+        // activity_record del grupo
+        activityRecordDao.getByGroup(grupoId).forEach { r ->
+            val prev = totals[r.activityTypeId] ?: (0 to 0.0)
+            totals[r.activityTypeId] = (prev.first + (r.count ?: 0)) to (prev.second + (r.monto ?: 0.0))
+        }
+        // member_activity_record (no rechazados)
+        memberActivityRecordDao.getByGroup(grupoId).filter { it.status != "rejected" }.forEach { r ->
+            val aporte = r.count ?: if (r.isDone) 1 else 0
+            val prev   = totals[r.activityTypeId] ?: (0 to 0.0)
+            totals[r.activityTypeId] = (prev.first + aporte) to prev.second
+        }
+        // member_entry (no rechazados) enrutado por marker_type del activity_type cacheado
+        memberEntryDao.getByGroup(grupoId).filter { it.status != "rejected" }.forEach { e ->
+            val marker = activityTypeDao.getById(e.activityTypeId)?.markerType ?: "counter"
+            val prev   = totals[e.activityTypeId] ?: (0 to 0.0)
+            totals[e.activityTypeId] = if (marker == "monetary") prev.first to (prev.second + e.value)
+                                       else (prev.first + e.value.toInt()) to prev.second
+        }
+        return totals.mapValues { (_, v) -> ActividadTotalData(v.first, v.second) }
+    }
+
+    private fun JsonObject.toActivityRecordEntity(): ActivityRecordEntity? {
+        val id = this["id"]?.jsonPrimitive?.contentOrNull ?: return null
+        return ActivityRecordEntity(
+            id               = id,
+            meetingId        = this["meeting_id"]?.jsonPrimitive?.contentOrNull ?: "",
+            activityTypeId   = this["activity_type_id"]?.jsonPrimitive?.contentOrNull ?: "",
+            count            = this["count"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.intOrNull,
+            monto            = this["monto"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.doubleOrNull,
+            notes            = this["notes"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
+            submissionStatus = this["submission_status"]?.jsonPrimitive?.contentOrNull ?: "approved",
+        )
+    }
+
+    private fun JsonObject.toMemberActivityRecordEntity(grupoId: String): MemberActivityRecordEntity? {
+        val id = this["id"]?.jsonPrimitive?.contentOrNull ?: return null
+        return MemberActivityRecordEntity(
+            id               = id,
+            memberId         = this["member_id"]?.jsonPrimitive?.contentOrNull ?: "",
+            activityTypeId   = this["activity_type_id"]?.jsonPrimitive?.contentOrNull ?: "",
+            smallGroupId     = this["small_group_id"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull ?: grupoId,
+            recordDate       = this["record_date"]?.jsonPrimitive?.contentOrNull ?: "",
+            weekStart        = this["week_start"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
+            isDone           = this["is_done"]?.jsonPrimitive?.booleanOrNull ?: false,
+            count            = this["count"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.intOrNull,
+            monto            = this["monto"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.doubleOrNull,
+            markedAt         = this["marked_at"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
+            status           = this["status"]?.jsonPrimitive?.contentOrNull ?: "draft",
+            submissionStatus = this["submission_status"]?.jsonPrimitive?.contentOrNull ?: "approved",
+        )
+    }
+
+    private fun JsonObject.toMemberEntryEntity(grupoId: String): MemberEntryEntity? {
+        val id = this["id"]?.jsonPrimitive?.contentOrNull ?: return null
+        val enteredAt = this["entered_at"]?.jsonPrimitive?.contentOrNull ?: ""
+        return MemberEntryEntity(
+            id             = id,
+            memberId       = this["member_id"]?.jsonPrimitive?.contentOrNull ?: "",
+            activityTypeId = this["activity_type_id"]?.jsonPrimitive?.contentOrNull ?: "",
+            smallGroupId   = grupoId,
+            value          = this["value"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
+            enteredAt      = enteredAt,
+            status         = this["status"]?.jsonPrimitive?.contentOrNull ?: "draft",
+            approvedBy     = this["approved_by"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
+            approvedAt     = this["approved_at"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
+            updatedAt      = this["updated_at"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull ?: enteredAt,
+            isDeleted      = this["is_deleted"]?.jsonPrimitive?.booleanOrNull ?: false,
+            isAdjustment   = this["is_adjustment"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.booleanOrNull ?: false,
+        )
+    }
+
+    override suspend fun getRegistrosSemanal(grupoId: String, actividadTipoId: String): Result<List<RegistroSemanalData>> = offlineSafe(emptyList()) {
         // Registros del líder por reunión
         val gpData = supabase.from("activity_record").select(
             Columns.raw("id, count, monto, notes, meeting_id, meeting!inner(meeting_date, small_group_id)")
@@ -478,7 +634,7 @@ class ActividadRepositoryImpl @Inject constructor(
         }.sortedByDescending { it.recordDate }
     }
 
-    override suspend fun getPendingCountPerTipo(grupoId: String): Result<Map<String, Int>> = runCatching {
+    override suspend fun getPendingCountPerTipo(grupoId: String): Result<Map<String, Int>> = offlineSafe(emptyMap()) {
         val memberIds = runCatching {
             val mData = supabase.from("member").select(Columns.raw("id")) {
                 filter {
@@ -490,7 +646,7 @@ class ActividadRepositoryImpl @Inject constructor(
                 it.jsonObject["id"]?.jsonPrimitive?.contentOrNull
             }
         }.getOrElse { emptyList() }
-        if (memberIds.isEmpty()) return@runCatching emptyMap()
+        if (memberIds.isEmpty()) return@offlineSafe emptyMap()
 
         val data = supabase.from("member_activity_record").select(
             Columns.raw("activity_type_id")
@@ -570,7 +726,7 @@ class ActividadRepositoryImpl @Inject constructor(
         actividadTipoId: String,
         desde: LocalDate,
         hasta: LocalDate,
-    ): Result<List<RegistroDiario>> = runCatching {
+    ): Result<List<RegistroDiario>> = offlineSafe(emptyList()) {
         val data = supabase.from("member_activity_record").select(
             Columns.raw("record_date, is_done, marked_at")
         ) {
@@ -605,7 +761,7 @@ class ActividadRepositoryImpl @Inject constructor(
         actividadTipoId: String,
         desde: LocalDate,
         hasta: LocalDate,
-    ): Result<List<DiaStat>> = runCatching {
+    ): Result<List<DiaStat>> = offlineSafe(emptyList()) {
         // Query 1: miembros activos del grupo
         val miembrosData = supabase.from("member").select(
             Columns.raw("id, first_name, middle_name, last_name, second_last_name")
@@ -628,7 +784,7 @@ class ActividadRepositoryImpl @Inject constructor(
         }.filter { it.id.isNotEmpty() }
 
         val miembroIds = todosLosMiembros.map { it.id }.toSet()
-        if (miembroIds.isEmpty()) return@runCatching emptyList()
+        if (miembroIds.isEmpty()) return@offlineSafe emptyList()
 
         // Query 2: registros del rango (solo miembros del grupo) + marked_at
         val registrosData = supabase.from("member_activity_record").select(

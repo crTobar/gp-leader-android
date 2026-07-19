@@ -1,8 +1,12 @@
 package com.gpleader.app.core.data.repository
 
+import com.gpleader.app.core.data.local.room.dao.SmallGroupDao
+import com.gpleader.app.core.data.local.room.entity.SmallGroupEntity
+import com.gpleader.app.core.data.network.NetworkMonitor
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
@@ -12,7 +16,9 @@ import javax.inject.Inject
 
 // Jerarquía real en Supabase: campo → district → church → small_group
 class GrupoRepositoryImpl @Inject constructor(
-    private val supabase: SupabaseClient,
+    private val supabase:      SupabaseClient,
+    private val network:       NetworkMonitor,
+    private val smallGroupDao: SmallGroupDao,
 ) : GrupoRepository {
 
     override suspend fun getCampos(): List<CampoItem> {
@@ -59,18 +65,45 @@ class GrupoRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getGrupoDetalle(grupoId: String): GrupoDetalle? {
-        val data = supabase.from("small_group").select {
-            filter { eq("id", grupoId) }
-            limit(1)
-        }.data
-        val arr = Json.parseToJsonElement(data).jsonArray
-        if (arr.isEmpty()) return null
-        val obj = arr[0].jsonObject
-        val day      = obj["meeting_day"]?.jsonPrimitive?.contentOrNull ?: ""
-        val timeStr  = obj["meeting_time"]?.jsonPrimitive?.contentOrNull ?: ""
-        return GrupoDetalle(
-            meetingDay  = day,
-            meetingTime = formatMeetingTime(timeStr),
+        val offline: suspend () -> GrupoDetalle? = {
+            smallGroupDao.getById(grupoId)?.let { g ->
+                GrupoDetalle(meetingDay = g.meetingDay ?: "", meetingTime = formatMeetingTime(g.meetingTime ?: ""))
+            }
+        }
+        if (!network.isOnline()) return offline()
+        return try {
+            val data = supabase.from("small_group").select {
+                filter { eq("id", grupoId) }
+                limit(1)
+            }.data
+            val arr = Json.parseToJsonElement(data).jsonArray
+            if (arr.isEmpty()) return null
+            val obj = arr[0].jsonObject
+            obj.toSmallGroupEntity()?.let { smallGroupDao.upsert(listOf(it)) }
+            GrupoDetalle(
+                meetingDay  = obj["meeting_day"]?.jsonPrimitive?.contentOrNull ?: "",
+                meetingTime = formatMeetingTime(obj["meeting_time"]?.jsonPrimitive?.contentOrNull ?: ""),
+            )
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            offline()
+        }
+    }
+
+    private fun kotlinx.serialization.json.JsonObject.toSmallGroupEntity(): SmallGroupEntity? {
+        val id = this["id"]?.jsonPrimitive?.contentOrNull ?: return null
+        return SmallGroupEntity(
+            id             = id,
+            churchId       = this["church_id"]?.jsonPrimitive?.contentOrNull ?: "",
+            name           = this["name"]?.jsonPrimitive?.contentOrNull ?: "",
+            meetingDay     = this["meeting_day"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
+            meetingTime    = this["meeting_time"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
+            hymn           = this["hymn"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
+            favoriteVerse  = this["favorite_verse"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
+            bibleChapter   = this["bible_chapter"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
+            meetingPlace   = this["meeting_place"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
+            isGeneralGroup = this["is_general_group"]?.jsonPrimitive?.booleanOrNull ?: false,
         )
     }
 
