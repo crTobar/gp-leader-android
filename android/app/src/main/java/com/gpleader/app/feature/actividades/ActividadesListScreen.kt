@@ -52,6 +52,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gpleader.app.core.data.repository.DuoActividadConTotal
@@ -531,9 +532,18 @@ private fun DuoActividadCard(
         Column(modifier = Modifier.weight(1f)) {
             Text(item.tipo.nombre, style = MaterialTheme.typography.bodyLarge, color = Ink, fontWeight = FontWeight.SemiBold, maxLines = 1)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("${item.duo.member1.primerNombre} & ${item.duo.member2.primerNombre}", style = MaterialTheme.typography.labelSmall, color = Muted)
+                // weight + maxLines: el nombre toma el espacio sobrante y se trunca; así el chip de
+                // tipo conserva su ancho natural en vez de comprimirse y hacer wrap vertical.
+                Text(
+                    text     = "${item.duo.member1.primerNombre} & ${item.duo.member2.primerNombre}",
+                    style    = MaterialTheme.typography.labelSmall,
+                    color    = Muted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
                 Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Accent.copy(alpha = 0.12f)).padding(horizontal = 6.dp, vertical = 2.dp)) {
-                    Text(tipoLabel, style = MaterialTheme.typography.labelSmall, color = Accent, fontWeight = FontWeight.Bold)
+                    Text(tipoLabel, style = MaterialTheme.typography.labelSmall, color = Accent, fontWeight = FontWeight.Bold, maxLines = 1)
                 }
             }
         }
