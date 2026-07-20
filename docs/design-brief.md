@@ -145,6 +145,8 @@ franja de color a la izquierda + badge de conteo · **eyebrow** DM Mono sobre el
 - Filtros nivel/estado en **dos botones desplegables** neumórficos lado a lado (botón elevado
   `neuElevatedSm` 44dp con punto de color + chevron; menú en Popup con opción hundida + check Accent)
   + switch **GP / Dúo misionero** arriba.
+  - Punto del botón **Nivel**: gris por defecto · color del nivel (Gold/Ink/Accent) si hay filtro.
+  - Punto del botón **Estado**: gris por defecto · Sage=Activas · **Blush (rojo/alerta)=Inactivas**.
 - Card por actividad: ícono de tipo (hundido) + nombre + **NivelBadge** + valor formateado
   (`₡` monto · "X días/semanas" checkbox · "N unidad" contador). El color del valor = color del nivel.
 
