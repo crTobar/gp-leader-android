@@ -40,7 +40,7 @@ PERFIL
 └── PerfilDatosGrupoScreen         → identificación + ubicación eclesiástica + horario
 
 ACTIVIDADES
-├── ActividadesListScreen          → lista de actividades con filtros nivel/estado + tarjetas NeuCard
+├── ActividadesListScreen          → lista de actividades con filtros nivel/estado (dos desplegables) + tarjetas NeuCard
 │                                     switch "Grupo pequeño" / "Dúo misionero" en la parte superior
 └── ActividadHistorialScreen       → resumen acumulado + historial semanal editable
 
@@ -140,7 +140,10 @@ feature/registro/
                                   onSiguienteClick solo bloquea actividades esObligatoria=true
 
 feature/actividades/
-  ActividadesListScreen.kt    ✅ filtros FiltroNivel + FiltroEstado en horizontalScroll
+  ActividadesListScreen.kt    ✅ filtros FiltroNivel + FiltroEstado en dos desplegables neumórficos
+                                  (FiltrosDropdownRow): botón neuElevatedSm 44dp con punto de color +
+                                  chevron animado; menú en Popup (neuElevated 18dp) con opción hundida
+                                  (neuInset) + check Accent. Reemplazó las dos filas de chips.
                                   NivelBadge (Gold=Unión, Ink=Pastor, Accent=Mi GP)
                                   EstadoBadge (Sage=Activa, Blush=Vencida)
                                   diaria activities → siempre navegan a CAMPANA_DETALLE

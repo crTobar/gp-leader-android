@@ -549,10 +549,14 @@ Bottom sheet accesible desde el botón "Suplente" en Home.
 
 ### ACTIVIDADES — LISTA
 
-**Filtros en NeuCard:**
-- Row 1 — Nivel (horizontalScroll): Todo · Unión · Pastor · Mi GP
-- Divider
-- Row 2 — Estado: Todas · Activas · Inactivas
+**Filtros (dos desplegables neumórficos lado a lado, `Arrangement.spacedBy(12.dp)`):**
+- Botón **Nivel** — punto de color (gris #C2C8D4 por defecto; color del nivel si hay filtro) +
+  label + chevron que rota 180° al abrir. Menú: Todo · Unión · Pastor · Mi GP (cada fila con su punto).
+- Botón **Estado** — punto Sage cuando hay filtro. Menú: Todas · Activas · Inactivas (sin puntos).
+- Botón `neuElevatedSm` 44dp radio 14; menú en `Popup` anclado 8dp debajo, ancho 196dp,
+  `neuElevated` radio 18, opción seleccionada hundida (`neuInset`) + check Accent.
+- Abrir uno cierra el otro; se cierran al seleccionar o al tocar fuera.
+- Debajo, contador "N actividades · N con registros" (verde vivo #2EA86A en "con registros").
 
 **Cada actividad** (NeuCard):
 - Nombre (titleLarge)

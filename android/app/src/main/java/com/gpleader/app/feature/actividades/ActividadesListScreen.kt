@@ -7,6 +7,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -74,9 +76,17 @@ import com.gpleader.app.core.ui.theme.Sage
 import com.gpleader.app.core.ui.theme.neuElevated
 import com.gpleader.app.core.ui.theme.neuElevatedSm
 import com.gpleader.app.core.ui.theme.neuGlow
+import com.gpleader.app.core.ui.theme.neuInset
 import com.gpleader.app.core.ui.theme.neuInsetInner
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.unit.sp
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
+import com.gpleader.app.core.ui.theme.Shadow
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
@@ -226,68 +236,29 @@ private fun ActividadesListContent(
                 return@Column
             }
 
-            // ── Filtros (chips planos) ────────────────────────────────────────
-            Row(
-                modifier              = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                FiltroNivel.entries.forEach { filtro ->
-                    FiltroChip(
-                        label    = filtro.label,
-                        selected = uiState.filtroNivel == filtro,
-                        onClick  = { onFiltroNivel(filtro) },
-                    )
-                }
-            }
-            Spacer(Modifier.height(4.dp))
-            Row(
-                modifier              = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                FiltroEstado.entries.forEach { filtro ->
-                    FiltroChip(
-                        label         = filtro.label,
-                        selected      = uiState.filtroEstado == filtro,
-                        onClick       = { onFiltroEstado(filtro) },
-                        selectedColor = when (filtro) {
-                            FiltroEstado.ACTIVAS   -> Sage
-                            FiltroEstado.INACTIVAS -> Muted
-                            else                   -> Accent
-                        },
-                    )
-                }
-            }
+            // ── Filtros (desplegables Nivel / Estado) ─────────────────────────
+            FiltrosDropdownRow(
+                filtroNivel    = uiState.filtroNivel,
+                filtroEstado   = uiState.filtroEstado,
+                onFiltroNivel  = onFiltroNivel,
+                onFiltroEstado = onFiltroEstado,
+                modifier       = Modifier.padding(top = 16.dp),
+            )
 
             // ── Resumen de conteo ─────────────────────────────────────────────
             val totalVisibles = uiState.visibles.size
             val conRegistros  = uiState.visibles.count { it.totalCantidad > 0 || it.montoTotal > 0 }
+            val contadorStyle = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp, letterSpacing = 1.sp)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .padding(top = 12.dp, bottom = 8.dp),
+                    .padding(start = 24.dp, end = 24.dp)
+                    .padding(top = 16.dp, bottom = 6.dp),
             ) {
-                Text(
-                    text  = "$totalVisibles actividades",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Muted,
-                )
-                Text(
-                    text  = "  ·  ",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Muted,
-                )
-                Text(
-                    text  = "$conRegistros con registros",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Sage,
-                )
+                Text(text = "$totalVisibles actividades", style = contadorStyle, color = Muted)
+                Text(text = "  ·  ", style = contadorStyle, color = Muted)
+                // Verde vivo #2EA86A (mismo del check "ya registraste"), ≠ Sage.
+                Text(text = "$conRegistros con registros", style = contadorStyle, color = Color(0xFF2EA86A))
             }
 
             // ── Lista ─────────────────────────────────────────────────────────
@@ -584,34 +555,173 @@ private fun inicialesActividadesListDuo(nombre: String): String {
 
 // ── Chip de filtro ────────────────────────────────────────────────────────────
 
+// ── Filtros desplegables (Nivel / Estado) ─────────────────────────────────────
+
+private enum class MenuFiltro { NIVEL, ESTADO }
+
+/** Color del punto de un nivel; gris (Shadow) para "Todo". Reusa levelColor(). */
+private fun nivelDotColor(filtro: FiltroNivel): Color =
+    if (filtro == FiltroNivel.TODOS) Shadow else levelColor(filtro.valor ?: "")
+
+/**
+ * Reemplaza las dos filas de chips por dos botones desplegables lado a lado (Nivel · Estado).
+ * Abrir uno cierra el otro; cada menú se cierra al seleccionar o al tocar fuera.
+ */
 @Composable
-private fun FiltroChip(
-    label:         String,
-    selected:      Boolean,
-    onClick:       () -> Unit,
-    selectedColor: Color = Accent,
+private fun FiltrosDropdownRow(
+    filtroNivel:    FiltroNivel,
+    filtroEstado:   FiltroEstado,
+    onFiltroNivel:  (FiltroNivel) -> Unit,
+    onFiltroEstado: (FiltroEstado) -> Unit,
+    modifier:       Modifier = Modifier,
 ) {
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .padding(vertical = 4.dp)
-            .then(
-                if (selected)
-                    Modifier.neuGlow(cornerRadius = 20.dp)
-                else
-                    Modifier.neuElevatedSm(cornerRadius = 20.dp)
-            )
-            .clip(RoundedCornerShape(20.dp))
-            .background(if (selected) selectedColor else Background)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+    var abierto by remember { mutableStateOf<MenuFiltro?>(null) }
+
+    Row(
+        modifier              = modifier.fillMaxWidth().padding(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        // NIVEL
+        FiltroDropdown(
+            label     = filtroNivel.label,
+            dotColor  = nivelDotColor(filtroNivel),
+            activo    = filtroNivel != FiltroNivel.TODOS,
+            abierto   = abierto == MenuFiltro.NIVEL,
+            onToggle  = { abierto = if (abierto == MenuFiltro.NIVEL) null else MenuFiltro.NIVEL },
+            onDismiss = { abierto = null },
+            eyebrow   = "NIVEL DE ACTIVIDAD",
+        ) {
+            FiltroNivel.entries.forEach { opt ->
+                FiltroMenuItem(
+                    label        = opt.label,
+                    dotColor     = nivelDotColor(opt),
+                    seleccionado = opt == filtroNivel,
+                    onClick      = { onFiltroNivel(opt); abierto = null },
+                )
+            }
+        }
+        // ESTADO
+        FiltroDropdown(
+            label     = filtroEstado.label,
+            dotColor  = if (filtroEstado == FiltroEstado.TODAS) Shadow else Sage,
+            activo    = filtroEstado != FiltroEstado.TODAS,
+            abierto   = abierto == MenuFiltro.ESTADO,
+            onToggle  = { abierto = if (abierto == MenuFiltro.ESTADO) null else MenuFiltro.ESTADO },
+            onDismiss = { abierto = null },
+            eyebrow   = "ESTADO",
+        ) {
+            FiltroEstado.entries.forEach { opt ->
+                FiltroMenuItem(
+                    label        = opt.label,
+                    dotColor     = null,   // el menú de Estado no lleva punto en las filas
+                    seleccionado = opt == filtroEstado,
+                    onClick      = { onFiltroEstado(opt); abierto = null },
+                )
+            }
+        }
+    }
+}
+
+/** Botón desplegable neumórfico (44dp, elevado) + su menú anclado debajo. */
+@Composable
+private fun FiltroDropdown(
+    label:     String,
+    dotColor:  Color,
+    activo:    Boolean,
+    abierto:   Boolean,
+    onToggle:  () -> Unit,
+    onDismiss: () -> Unit,
+    eyebrow:   String,
+    opciones:  @Composable ColumnScope.() -> Unit,
+) {
+    val rotacion by animateFloatAsState(if (abierto) 180f else 0f, label = "chevron")
+    val density = LocalDensity.current
+
+    Box {
+        Row(
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            modifier = Modifier
+                .height(44.dp)
+                .neuElevatedSm(cornerRadius = 14.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Background)
+                .clickable(onClick = onToggle)
+                .padding(horizontal = 15.dp),
+        ) {
+            Box(Modifier.size(7.dp).clip(RoundedCornerShape(2.dp)).background(dotColor))
+            Text(
+                text  = label,
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold),
+                color = if (activo) Ink else Mid,
+            )
+            Icon(
+                imageVector        = Icons.Default.KeyboardArrowDown,
+                contentDescription = null,
+                tint               = if (activo) Ink else Mid,
+                modifier           = Modifier.size(18.dp).rotate(rotacion),
+            )
+        }
+
+        if (abierto) {
+            Popup(
+                alignment        = Alignment.TopStart,
+                offset           = with(density) { IntOffset(0, 52.dp.roundToPx()) },
+                onDismissRequest = onDismiss,
+                properties       = PopupProperties(focusable = true),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .width(196.dp)
+                        .neuElevated(cornerRadius = 18.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(Background)
+                        .padding(8.dp),
+                ) {
+                    Text(
+                        text     = eyebrow,
+                        style    = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 2.sp),
+                        color    = Muted,
+                        modifier = Modifier.padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 6.dp),
+                    )
+                    opciones()
+                }
+            }
+        }
+    }
+}
+
+/** Fila de opción del menú. Seleccionada = hundida (neuInset) + texto Ink SemiBold + check Accent. */
+@Composable
+private fun FiltroMenuItem(
+    label:        String,
+    dotColor:     Color?,
+    seleccionado: Boolean,
+    onClick:      () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (seleccionado) Modifier.neuInset(cornerRadius = 12.dp) else Modifier)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 11.dp),
+    ) {
+        if (dotColor != null) {
+            Box(Modifier.size(7.dp).clip(RoundedCornerShape(2.dp)).background(dotColor))
+            Spacer(Modifier.width(9.dp))
+        }
         Text(
             text       = label,
-            style      = MaterialTheme.typography.labelSmall,
-            color      = if (selected) Color.White else Mid,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            style      = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+            fontWeight = if (seleccionado) FontWeight.SemiBold else FontWeight.Normal,
+            color      = if (seleccionado) Ink else Mid,
+            modifier   = Modifier.weight(1f),
         )
+        if (seleccionado) {
+            Icon(Icons.Default.Check, contentDescription = null, tint = Accent, modifier = Modifier.size(18.dp))
+        }
     }
 }
 
