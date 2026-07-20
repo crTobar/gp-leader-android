@@ -12,6 +12,7 @@ import com.gpleader.app.core.data.local.room.dao.MemberActivityRecordDao
 import com.gpleader.app.core.data.local.room.dao.MemberDao
 import com.gpleader.app.core.data.local.room.dao.MemberEntryDao
 import com.gpleader.app.core.data.local.room.dao.MemberEntryEventDao
+import com.gpleader.app.core.data.local.room.dao.QuarterDao
 import com.gpleader.app.core.data.local.room.dao.SmallGroupDao
 import dagger.Module
 import dagger.Provides
@@ -48,4 +49,5 @@ object DatabaseModule {
     @Provides fun provideMemberActivityRecordDao(db: AppDatabase): MemberActivityRecordDao = db.memberActivityRecordDao()
     @Provides fun provideMemberEntryDao(db: AppDatabase): MemberEntryDao = db.memberEntryDao()
     @Provides fun provideMemberEntryEventDao(db: AppDatabase): MemberEntryEventDao = db.memberEntryEventDao()
+    @Provides fun provideQuarterDao(db: AppDatabase): QuarterDao = db.quarterDao()
 }

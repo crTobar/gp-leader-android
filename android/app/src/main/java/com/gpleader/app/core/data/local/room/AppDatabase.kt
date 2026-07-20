@@ -11,6 +11,7 @@ import com.gpleader.app.core.data.local.room.dao.MemberActivityRecordDao
 import com.gpleader.app.core.data.local.room.dao.MemberDao
 import com.gpleader.app.core.data.local.room.dao.MemberEntryDao
 import com.gpleader.app.core.data.local.room.dao.MemberEntryEventDao
+import com.gpleader.app.core.data.local.room.dao.QuarterDao
 import com.gpleader.app.core.data.local.room.dao.SmallGroupDao
 import com.gpleader.app.core.data.local.room.entity.ActivityRecordEntity
 import com.gpleader.app.core.data.local.room.entity.ActivityTypeEntity
@@ -21,6 +22,7 @@ import com.gpleader.app.core.data.local.room.entity.MemberActivityRecordEntity
 import com.gpleader.app.core.data.local.room.entity.MemberEntity
 import com.gpleader.app.core.data.local.room.entity.MemberEntryEntity
 import com.gpleader.app.core.data.local.room.entity.MemberEntryEventEntity
+import com.gpleader.app.core.data.local.room.entity.QuarterEntity
 import com.gpleader.app.core.data.local.room.entity.SmallGroupEntity
 
 /**
@@ -39,8 +41,9 @@ import com.gpleader.app.core.data.local.room.entity.SmallGroupEntity
         MemberActivityRecordEntity::class,
         MemberEntryEntity::class,
         MemberEntryEventEntity::class,
+        QuarterEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -54,4 +57,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun memberActivityRecordDao(): MemberActivityRecordDao
     abstract fun memberEntryDao(): MemberEntryDao
     abstract fun memberEntryEventDao(): MemberEntryEventDao
+    abstract fun quarterDao(): QuarterDao
 }

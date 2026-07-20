@@ -145,3 +145,11 @@ data class MemberEntryEventEntity(
     val markerType: String,
     val unitLabel: String,
 )
+
+/** Trimestre eclesiástico. Necesario offline para el filtro del historial de aportes. */
+@Entity(tableName = "quarter")
+data class QuarterEntity(
+    @PrimaryKey val id: String,
+    val startDate: String,            // date ISO (yyyy-MM-dd)
+    val endDate: String,              // date ISO (yyyy-MM-dd)
+)

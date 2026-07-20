@@ -21,6 +21,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Leaderboard
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -62,8 +63,9 @@ import com.gpleader.app.core.ui.theme.neuInsetSm
 
 @Composable
 fun LiderAprobacionesScreen(
-    onNavigateBack:  () -> Unit,
-    onVerHistorial:  (scope: String, scopeId: String) -> Unit = { _, _ -> },
+    onNavigateBack:    () -> Unit,
+    onVerHistorial:    (scope: String, scopeId: String) -> Unit = { _, _ -> },
+    onVerMovimientos:  () -> Unit = {},
     onVerDetalle:    (miembroId: String, actividadTipoId: String) -> Unit = { _, _ -> },
     viewModel: LiderAprobacionesViewModel = hiltViewModel(),
 ) {
@@ -87,7 +89,8 @@ fun LiderAprobacionesScreen(
             uiState        = uiState,
             innerPadding   = innerPadding,
             onNavigateBack = onNavigateBack,
-            onVerHistorial = { onVerHistorial("gp", uiState.grupoId) },
+            onVerHistorial   = { onVerHistorial("gp", uiState.grupoId) },
+            onVerMovimientos = onVerMovimientos,
             onAprobar      = viewModel::onAprobar,
             onRechazar     = viewModel::onShowReject,
             onVerDetalle   = { item -> onVerDetalle(item.miembroId, item.activityTypeId) },
@@ -111,7 +114,8 @@ private fun LiderAprobacionesContent(
     uiState:        LiderAprobacionesUiState,
     innerPadding:   PaddingValues,
     onNavigateBack: () -> Unit,
-    onVerHistorial: () -> Unit,
+    onVerHistorial:   () -> Unit,
+    onVerMovimientos: () -> Unit,
     onAprobar:      (AporteMiembro) -> Unit,
     onRechazar:     (AporteMiembro) -> Unit,
     onVerDetalle:   (AporteMiembro) -> Unit,
@@ -141,6 +145,10 @@ private fun LiderAprobacionesContent(
         Spacer(Modifier.height(12.dp))
 
         HistorialCard(onClick = onVerHistorial, modifier = Modifier.padding(horizontal = 20.dp))
+
+        Spacer(Modifier.height(10.dp))
+
+        MovimientosCard(onClick = onVerMovimientos, modifier = Modifier.padding(horizontal = 20.dp))
 
         Spacer(Modifier.height(16.dp))
 
@@ -275,7 +283,36 @@ private fun AprobacionMiembroItem(
 }
 
 @Composable
-internal fun HistorialCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun HistorialCard(onClick: () -> Unit, modifier: Modifier = Modifier) =
+    AtajoCard(
+        titulo    = "Historial",
+        subtitulo = "Aportes aprobados por actividad y miembro",
+        icono     = Icons.Default.Leaderboard,
+        tint      = Gold,
+        onClick   = onClick,
+        modifier  = modifier,
+    )
+
+@Composable
+internal fun MovimientosCard(onClick: () -> Unit, modifier: Modifier = Modifier) =
+    AtajoCard(
+        titulo    = "Movimientos",
+        subtitulo = "Aprobaciones, rechazos y ediciones",
+        icono     = Icons.Default.History,
+        tint      = Accent,
+        onClick   = onClick,
+        modifier  = modifier,
+    )
+
+@Composable
+private fun AtajoCard(
+    titulo:    String,
+    subtitulo: String,
+    icono:     androidx.compose.ui.graphics.vector.ImageVector,
+    tint:      Color,
+    onClick:   () -> Unit,
+    modifier:  Modifier = Modifier,
+) {
     NeuCard(modifier = modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(
             modifier          = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
@@ -286,12 +323,12 @@ internal fun HistorialCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
                 modifier = Modifier.size(44.dp).clip(RoundedCornerShape(12.dp))
                     .background(Background).neuInsetInner(shadowSize = 10.dp),
             ) {
-                Icon(Icons.Default.Leaderboard, contentDescription = null, tint = Gold, modifier = Modifier.size(22.dp))
+                Icon(icono, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
             }
             Spacer(Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text("Historial", style = MaterialTheme.typography.bodyLarge, color = Ink, fontWeight = FontWeight.SemiBold)
-                Text("Aportes aprobados por actividad y miembro", style = MaterialTheme.typography.bodyMedium, color = Mid)
+                Text(titulo, style = MaterialTheme.typography.bodyLarge, color = Ink, fontWeight = FontWeight.SemiBold)
+                Text(subtitulo, style = MaterialTheme.typography.bodyMedium, color = Mid)
             }
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Muted, modifier = Modifier.size(20.dp))
         }

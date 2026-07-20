@@ -3,6 +3,7 @@ package com.gpleader.app.core.data.sync
 import com.gpleader.app.core.data.local.room.dao.CacheMetaDao
 import com.gpleader.app.core.data.local.room.entity.CacheMetaEntity
 import com.gpleader.app.core.data.network.NetworkMonitor
+import com.gpleader.app.core.data.repository.HistFiltroTrimestre
 import com.gpleader.app.core.data.repository.ActividadRepository
 import com.gpleader.app.core.data.repository.GrupoRepository
 import com.gpleader.app.core.data.repository.MemberEntryRepository
@@ -60,6 +61,17 @@ class OfflinePreloader @Inject constructor(
         // 3) Aportes: pendientes + bitácora de movimientos.
         step { memberEntryRepo.getPendingEntriesForGroup(grupoId) }
         step { memberEntryRepo.getMovimientosGrupo(grupoId) }
+
+        // 4) Historial de aportes. ACTUAL y ANTERIORES cubren juntos todo lo aprobado y de paso
+        //    cachean el trimestre vigente, del que depende el filtro offline.
+        HistFiltroTrimestre.entries.forEach { filtro ->
+            val actividades = runCatching {
+                memberEntryRepo.getHistorialActividades("gp", grupoId, filtro).getOrThrow()
+            }.getOrDefault(emptyList())
+            actividades.forEach { act ->
+                step { memberEntryRepo.getHistorialMiembros("gp", grupoId, act.activityId, filtro) }
+            }
+        }
 
         // Marca de última sincronización (para el indicador de la UI).
         step { cacheMetaDao.upsert(CacheMetaEntity(LAST_SYNC_KEY, System.currentTimeMillis())) }

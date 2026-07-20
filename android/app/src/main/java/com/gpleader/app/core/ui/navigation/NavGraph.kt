@@ -507,7 +507,10 @@ fun AppNavGraph(
         composable(NavRoutes.APROBACIONES_LIDER) {
             LiderAprobacionesScreen(
                 onNavigateBack = { navController.popBackStack() },
-                onVerHistorial = { _, _ -> navController.navigate(NavRoutes.MOVIMIENTOS_APROBACION) },
+                onVerHistorial   = { scope, scopeId ->
+                    navController.navigate(NavRoutes.historialAportesActividades(scope, scopeId))
+                },
+                onVerMovimientos = { navController.navigate(NavRoutes.MOVIMIENTOS_APROBACION) },
                 onVerDetalle   = { miembroId, actividadTipoId ->
                     navController.navigate(NavRoutes.aprobacionesLiderDetalle(miembroId, actividadTipoId))
                 },
@@ -746,7 +749,10 @@ fun AppNavGraph(
         ) {
             LiderAprobacionesScreen(
                 onNavigateBack = { navController.popBackStack() },
-                onVerHistorial = { _, _ -> navController.navigate(NavRoutes.MOVIMIENTOS_APROBACION) },
+                onVerHistorial   = { scope, scopeId ->
+                    navController.navigate(NavRoutes.historialAportesActividades(scope, scopeId))
+                },
+                onVerMovimientos = { navController.navigate(NavRoutes.MOVIMIENTOS_APROBACION) },
                 onVerDetalle   = { miembroId, actividadTipoId ->
                     navController.navigate(NavRoutes.aprobacionesLiderDetalle(miembroId, actividadTipoId))
                 },

@@ -4,8 +4,11 @@ import com.gpleader.app.core.data.local.room.dao.ActivityTypeDao
 import com.gpleader.app.core.data.local.room.dao.MemberDao
 import com.gpleader.app.core.data.local.room.dao.MemberEntryDao
 import com.gpleader.app.core.data.local.room.dao.MemberEntryEventDao
+import com.gpleader.app.core.data.local.room.dao.QuarterDao
+import com.gpleader.app.core.data.local.room.dao.SmallGroupDao
 import com.gpleader.app.core.data.local.room.entity.MemberEntryEntity
 import com.gpleader.app.core.data.local.room.entity.MemberEntryEventEntity
+import com.gpleader.app.core.data.local.room.entity.QuarterEntity
 import com.gpleader.app.core.data.network.NetworkMonitor
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
@@ -32,6 +35,8 @@ class MemberEntryRepositoryImpl @Inject constructor(
     private val memberEntryEventDao: MemberEntryEventDao,
     private val memberDao:           MemberDao,
     private val activityTypeDao:     ActivityTypeDao,
+    private val smallGroupDao:       SmallGroupDao,
+    private val quarterDao:          QuarterDao,
 ) : MemberEntryRepository {
 
     // ── Miembro ────────────────────────────────────────────────────────────────
@@ -608,13 +613,24 @@ class MemberEntryRepositoryImpl @Inject constructor(
         scopeLevel: String,
         scopeId: String,
         filtro: HistFiltroTrimestre,
-    ): Result<List<HistActividad>> = offlineSafe(emptyList()) {
+    ): Result<List<HistActividad>> = runCatching {
+        cachedRead(
+            offline = { histActividadesDesdeRoom(scopeLevel, scopeId, filtro) },
+            online  = { histActividadesOnline(scopeLevel, scopeId, filtro) },
+        )
+    }
+
+    private suspend fun histActividadesOnline(
+        scopeLevel: String,
+        scopeId: String,
+        filtro: HistFiltroTrimestre,
+    ): List<HistActividad> {
         val gpIds = scopeGpIds(scopeLevel, scopeId)
-        if (gpIds.isEmpty()) return@offlineSafe emptyList()
+        if (gpIds.isEmpty()) return emptyList()
         val bounds = if (filtro == HistFiltroTrimestre.TODOS) null else currentQuarterRange()
 
         val data = supabase.from("member_entry").select(
-            Columns.raw("activity_type_id, value, activity_type!inner(name, marker_type, unit_label)")
+            Columns.raw("*, activity_type!inner(name, marker_type, unit_label)")
         ) {
             filter {
                 isIn("small_group_id", gpIds)
@@ -627,6 +643,8 @@ class MemberEntryRepositoryImpl @Inject constructor(
                 }
             }
         }.data
+
+        cacheHistorialEntries(data)
 
         data class Agg(var total: Double, val nombre: String, val marker: String, val unit: String)
         val agg = LinkedHashMap<String, Agg>()
@@ -643,7 +661,7 @@ class MemberEntryRepositoryImpl @Inject constructor(
             }
             cur.total += v
         }
-        agg.map { (aid, a) -> HistActividad(aid, a.nombre, a.marker, a.unit, a.total) }
+        return agg.map { (aid, a) -> HistActividad(aid, a.nombre, a.marker, a.unit, a.total) }
             .sortedByDescending { it.totalAprobado }
     }
 
@@ -652,13 +670,25 @@ class MemberEntryRepositoryImpl @Inject constructor(
         scopeId: String,
         activityId: String,
         filtro: HistFiltroTrimestre,
-    ): Result<List<HistMiembro>> = offlineSafe(emptyList()) {
+    ): Result<List<HistMiembro>> = runCatching {
+        cachedRead(
+            offline = { histMiembrosDesdeRoom(scopeLevel, scopeId, activityId, filtro) },
+            online  = { histMiembrosOnline(scopeLevel, scopeId, activityId, filtro) },
+        )
+    }
+
+    private suspend fun histMiembrosOnline(
+        scopeLevel: String,
+        scopeId: String,
+        activityId: String,
+        filtro: HistFiltroTrimestre,
+    ): List<HistMiembro> {
         val gpIds = scopeGpIds(scopeLevel, scopeId)
-        if (gpIds.isEmpty()) return@offlineSafe emptyList()
+        if (gpIds.isEmpty()) return emptyList()
         val bounds = if (filtro == HistFiltroTrimestre.TODOS) null else currentQuarterRange()
 
         val data = supabase.from("member_entry").select(
-            Columns.raw("member_id, value, member!inner(first_name, last_name)")
+            Columns.raw("*, member!inner(first_name, last_name)")
         ) {
             filter {
                 isIn("small_group_id", gpIds)
@@ -673,6 +703,8 @@ class MemberEntryRepositoryImpl @Inject constructor(
             }
         }.data
 
+        cacheHistorialEntries(data)
+
         data class Agg(var total: Double, var count: Int, val nombre: String)
         val agg = LinkedHashMap<String, Agg>()
         Json.parseToJsonElement(data).jsonArray.forEach { elem ->
@@ -684,7 +716,7 @@ class MemberEntryRepositoryImpl @Inject constructor(
             val cur = agg.getOrPut(mid) { Agg(0.0, 0, nombre) }
             cur.total += v; cur.count++
         }
-        agg.map { (mid, a) -> HistMiembro(mid, a.nombre, a.total, a.count) }
+        return agg.map { (mid, a) -> HistMiembro(mid, a.nombre, a.total, a.count) }
             .sortedByDescending { it.totalAprobado }
     }
 
@@ -692,11 +724,20 @@ class MemberEntryRepositoryImpl @Inject constructor(
         miembroId: String,
         activityId: String,
         filtro: HistFiltroTrimestre,
-    ): Result<List<HistAprobacion>> = offlineSafe(emptyList()) {
+    ): Result<List<HistAprobacion>> = runCatching {
+        cachedRead(
+            offline = { histAprobacionesDesdeRoom(miembroId, activityId, filtro) },
+            online  = { histAprobacionesOnline(miembroId, activityId, filtro) },
+        )
+    }
+
+    private suspend fun histAprobacionesOnline(
+        miembroId: String,
+        activityId: String,
+        filtro: HistFiltroTrimestre,
+    ): List<HistAprobacion> {
         val bounds = if (filtro == HistFiltroTrimestre.TODOS) null else currentQuarterRange()
-        val data = supabase.from("member_entry").select(
-            Columns.raw("id, value, entered_at, status, approved_at")
-        ) {
+        val data = supabase.from("member_entry").select(Columns.raw("*")) {
             filter {
                 eq("member_id", miembroId)
                 eq("activity_type_id", activityId)
@@ -710,7 +751,14 @@ class MemberEntryRepositoryImpl @Inject constructor(
             }
         }.data
 
+        cacheHistorialEntries(data)
+
         val entries = Json.parseToJsonElement(data).jsonArray.mapNotNull { it.jsonObject.toMemberEntry() }
+        return agruparAprobaciones(entries)
+    }
+
+    /** Agrupa aportes en lotes por fecha de aprobación. Compartido por la ruta online y la de Room. */
+    private fun agruparAprobaciones(entries: List<MemberEntry>): List<HistAprobacion> =
         entries.groupBy { it.approvedAt?.toString() ?: it.enteredAt?.toString() ?: "sin_fecha" }
             .map { (key, list) ->
                 HistAprobacion(
@@ -722,6 +770,141 @@ class MemberEntryRepositoryImpl @Inject constructor(
                 )
             }
             .sortedByDescending { it.fecha ?: Instant.EPOCH }
+
+    // ── Historial: caché y reconstrucción desde Room ───────────────────────────
+
+    /**
+     * Cachea filas completas de `member_entry`. Las tres consultas de historial piden `*`
+     * justamente para poder guardar la fila entera (los nombres de miembro/actividad se
+     * resuelven offline desde member/activity_type, ya cacheadas por el preloader).
+     */
+    private suspend fun cacheHistorialEntries(data: String) {
+        val rows = Json.parseToJsonElement(data).jsonArray.mapNotNull { elem ->
+            val obj = elem.jsonObject
+            val id  = obj["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            val enteredAt = obj["entered_at"]?.jsonPrimitive?.contentOrNull ?: ""
+            MemberEntryEntity(
+                id             = id,
+                memberId       = obj["member_id"]?.jsonPrimitive?.contentOrNull ?: "",
+                activityTypeId = obj["activity_type_id"]?.jsonPrimitive?.contentOrNull ?: "",
+                smallGroupId   = obj["small_group_id"]?.jsonPrimitive?.contentOrNull ?: "",
+                value          = obj["value"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
+                enteredAt      = enteredAt,
+                status         = obj["status"]?.jsonPrimitive?.contentOrNull ?: "approved",
+                approvedBy     = obj["approved_by"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
+                approvedAt     = obj["approved_at"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
+                updatedAt      = obj["updated_at"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull ?: enteredAt,
+                isDeleted      = obj["is_deleted"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.booleanOrNull ?: false,
+                isAdjustment   = obj["is_adjustment"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.booleanOrNull ?: false,
+            )
+        }
+        if (rows.isNotEmpty()) memberEntryDao.upsert(rows)
+    }
+
+    /** Espejo offline de currentQuarterRange(), leyendo el trimestre cacheado en Room. */
+    private suspend fun quarterRangeDesdeRoom(): Pair<String, String>? {
+        val q = quarterDao.getCubriendo(java.time.LocalDate.now().toString()) ?: return null
+        return "${q.startDate}T00:00:00Z" to "${q.endDate}T23:59:59Z"
+    }
+
+    /**
+     * Aportes aprobados del scope, con el mismo filtro de trimestre que aplica PostgREST.
+     * Las marcas ISO-8601 UTC se comparan como texto: mismo formato ⇒ el orden lexicográfico
+     * coincide con el cronológico.
+     */
+    private suspend fun entriesHistorialDesdeRoom(
+        scopeLevel: String,
+        scopeId: String,
+        filtro: HistFiltroTrimestre,
+    ): List<MemberEntryEntity> {
+        val gpIds = scopeGpIdsDesdeRoom(scopeLevel, scopeId)
+        if (gpIds.isEmpty()) return emptyList()
+        val bounds = if (filtro == HistFiltroTrimestre.TODOS) null else quarterRangeDesdeRoom()
+        return memberEntryDao.getByGroups(gpIds)
+            .filter { it.status == "approved" }
+            .filter { e -> dentroDelFiltro(e.approvedAt, filtro, bounds) }
+    }
+
+    private fun dentroDelFiltro(
+        approvedAt: String?,
+        filtro: HistFiltroTrimestre,
+        bounds: Pair<String, String>?,
+    ): Boolean {
+        if (bounds == null || filtro == HistFiltroTrimestre.TODOS) return true
+        // Sin approved_at no se puede ubicar en un trimestre; PostgREST también lo excluiría.
+        val at = approvedAt ?: return false
+        return when (filtro) {
+            HistFiltroTrimestre.ACTUAL     -> at >= bounds.first && at <= bounds.second
+            HistFiltroTrimestre.ANTERIORES -> at < bounds.first
+            HistFiltroTrimestre.TODOS      -> true
+        }
+    }
+
+    private suspend fun histActividadesDesdeRoom(
+        scopeLevel: String,
+        scopeId: String,
+        filtro: HistFiltroTrimestre,
+    ): List<HistActividad> =
+        entriesHistorialDesdeRoom(scopeLevel, scopeId, filtro)
+            .groupBy { it.activityTypeId }
+            .map { (aid, list) ->
+                val at = activityTypeDao.getById(aid)
+                HistActividad(
+                    activityId    = aid,
+                    nombre        = at?.name ?: "",
+                    markerType    = at?.markerType ?: "monetary",
+                    unitLabel     = at?.unitLabel ?: "",
+                    totalAprobado = list.sumOf { it.value },
+                )
+            }
+            .sortedByDescending { it.totalAprobado }
+
+    private suspend fun histMiembrosDesdeRoom(
+        scopeLevel: String,
+        scopeId: String,
+        activityId: String,
+        filtro: HistFiltroTrimestre,
+    ): List<HistMiembro> =
+        entriesHistorialDesdeRoom(scopeLevel, scopeId, filtro)
+            .filter { it.activityTypeId == activityId }
+            .groupBy { it.memberId }
+            .map { (mid, list) ->
+                val m = memberDao.getById(mid)
+                HistMiembro(
+                    miembroId     = mid,
+                    nombre        = m?.let { "${it.firstName} ${it.lastName}".trim() } ?: "",
+                    totalAprobado = list.sumOf { it.value },
+                    count         = list.size,
+                )
+            }
+            .sortedByDescending { it.totalAprobado }
+
+    private suspend fun histAprobacionesDesdeRoom(
+        miembroId: String,
+        activityId: String,
+        filtro: HistFiltroTrimestre,
+    ): List<HistAprobacion> {
+        val bounds = if (filtro == HistFiltroTrimestre.TODOS) null else quarterRangeDesdeRoom()
+        val entries = memberEntryDao.getByMemberActivity(miembroId, activityId)
+            .filter { it.status == "approved" }
+            .filter { e -> dentroDelFiltro(e.approvedAt, filtro, bounds) }
+            .map { e ->
+                MemberEntry(
+                    id           = e.id,
+                    value        = e.value,
+                    enteredAt    = e.enteredAt.takeIf { it.isNotBlank() }?.let(::parseInstant),
+                    status       = e.status,
+                    approvedAt   = e.approvedAt?.let(::parseInstant),
+                    isAdjustment = e.isAdjustment,
+                )
+            }
+        return agruparAprobaciones(entries)
+    }
+
+    /** Espejo offline de scopeGpIds(): los GPs salen de small_group cacheada. */
+    private suspend fun scopeGpIdsDesdeRoom(scopeLevel: String, scopeId: String): List<String> {
+        if (scopeLevel != "church") return listOf(scopeId)
+        return smallGroupDao.getByChurch(scopeId).map { it.id }
     }
 
     /** GPs del scope: "gp" → [scopeId]; "church" → GPs de la iglesia (sin grupo general). */
@@ -740,13 +923,16 @@ class MemberEntryRepositoryImpl @Inject constructor(
     /** Rango del trimestre actual (el que contiene hoy) como instantes ISO. */
     private suspend fun currentQuarterRange(): Pair<String, String>? {
         val today = java.time.LocalDate.now().toString()
-        val data = supabase.from("quarter").select(Columns.raw("start_date, end_date")) {
+        val data = supabase.from("quarter").select(Columns.raw("id, start_date, end_date")) {
             filter { lte("start_date", today); gte("end_date", today) }
             limit(1)
         }.data
         val obj = Json.parseToJsonElement(data).jsonArray.firstOrNull()?.jsonObject ?: return null
         val start = obj["start_date"]?.jsonPrimitive?.contentOrNull ?: return null
         val end   = obj["end_date"]?.jsonPrimitive?.contentOrNull ?: return null
+        // Se cachea para que el filtro por trimestre siga funcionando sin conexión.
+        val id = obj["id"]?.jsonPrimitive?.contentOrNull ?: "$start/$end"
+        runCatching { quarterDao.upsert(listOf(QuarterEntity(id, start, end))) }
         return "${start}T00:00:00Z" to "${end}T23:59:59Z"
     }
 

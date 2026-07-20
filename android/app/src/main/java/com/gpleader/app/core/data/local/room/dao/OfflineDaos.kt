@@ -11,6 +11,7 @@ import com.gpleader.app.core.data.local.room.entity.MemberActivityRecordEntity
 import com.gpleader.app.core.data.local.room.entity.MemberEntity
 import com.gpleader.app.core.data.local.room.entity.MemberEntryEntity
 import com.gpleader.app.core.data.local.room.entity.MemberEntryEventEntity
+import com.gpleader.app.core.data.local.room.entity.QuarterEntity
 import com.gpleader.app.core.data.local.room.entity.SmallGroupEntity
 
 @Dao
@@ -18,6 +19,10 @@ interface SmallGroupDao {
     @Upsert suspend fun upsert(rows: List<SmallGroupEntity>)
     @Query("SELECT * FROM small_group WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): SmallGroupEntity?
+
+    /** GPs de una iglesia, sin el grupo general — espejo de scopeGpIds(scopeLevel = "church"). */
+    @Query("SELECT * FROM small_group WHERE churchId = :churchId AND isGeneralGroup = 0")
+    suspend fun getByChurch(churchId: String): List<SmallGroupEntity>
 }
 
 @Dao
@@ -91,6 +96,10 @@ interface MemberEntryDao {
     suspend fun getByMemberActivity(miembroId: String, actividadTipoId: String): List<MemberEntryEntity>
     @Query("SELECT * FROM member_entry WHERE smallGroupId = :grupoId AND activityTypeId = :actividadTipoId AND isDeleted = 0")
     suspend fun getByGroupActivity(grupoId: String, actividadTipoId: String): List<MemberEntryEntity>
+
+    /** Varios grupos a la vez: el historial con scope "church" agrega todos los GPs de la iglesia. */
+    @Query("SELECT * FROM member_entry WHERE smallGroupId IN (:grupoIds) AND isDeleted = 0")
+    suspend fun getByGroups(grupoIds: List<String>): List<MemberEntryEntity>
 }
 
 @Dao
@@ -98,4 +107,13 @@ interface MemberEntryEventDao {
     @Upsert suspend fun upsert(rows: List<MemberEntryEventEntity>)
     @Query("SELECT * FROM member_entry_event WHERE smallGroupId = :grupoId ORDER BY createdAt DESC")
     suspend fun getByGroup(grupoId: String): List<MemberEntryEventEntity>
+}
+
+@Dao
+interface QuarterDao {
+    @Upsert suspend fun upsert(rows: List<QuarterEntity>)
+
+    /** Trimestre que cubre :hoy (yyyy-MM-dd). Espejo del filtro online sobre la tabla quarter. */
+    @Query("SELECT * FROM quarter WHERE startDate <= :hoy AND endDate >= :hoy LIMIT 1")
+    suspend fun getCubriendo(hoy: String): QuarterEntity?
 }
