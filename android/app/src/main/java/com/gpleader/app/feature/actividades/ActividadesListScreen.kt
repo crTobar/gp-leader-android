@@ -563,6 +563,13 @@ private enum class MenuFiltro { NIVEL, ESTADO }
 private fun nivelDotColor(filtro: FiltroNivel): Color =
     if (filtro == FiltroNivel.TODOS) Shadow else levelColor(filtro.valor ?: "")
 
+/** Color del punto de estado: gris por defecto · Sage=Activas · Blush (rojo/alerta)=Inactivas. */
+private fun estadoDotColor(filtro: FiltroEstado): Color = when (filtro) {
+    FiltroEstado.TODAS     -> Shadow
+    FiltroEstado.ACTIVAS   -> Sage
+    FiltroEstado.INACTIVAS -> Blush
+}
+
 /**
  * Reemplaza las dos filas de chips por dos botones desplegables lado a lado (Nivel · Estado).
  * Abrir uno cierra el otro; cada menú se cierra al seleccionar o al tocar fuera.
@@ -603,7 +610,7 @@ private fun FiltrosDropdownRow(
         // ESTADO
         FiltroDropdown(
             label     = filtroEstado.label,
-            dotColor  = if (filtroEstado == FiltroEstado.TODAS) Shadow else Sage,
+            dotColor  = estadoDotColor(filtroEstado),
             activo    = filtroEstado != FiltroEstado.TODAS,
             abierto   = abierto == MenuFiltro.ESTADO,
             onToggle  = { abierto = if (abierto == MenuFiltro.ESTADO) null else MenuFiltro.ESTADO },
