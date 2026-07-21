@@ -150,6 +150,17 @@ franja de color a la izquierda + badge de conteo · **eyebrow** DM Mono sobre el
 - Card por actividad: ícono de tipo (hundido) + nombre + **NivelBadge** + valor formateado
   (`₡` monto · "X días/semanas" checkbox · "N unidad" contador). El color del valor = color del nivel.
 
+### Dúo misionero (pestaña + detalle)
+- **Lista**: una tarjeta por **actividad** (agrupada por nombre, NO una por dúo×actividad).
+  Indicador genérico de dos círculos hundidos + nombre + chip de tipo + "N dúos" + total agregado
+  (Cormorant Accent, o "—" Muted si es 0) + chevron. Contador "N actividades de dúos" arriba.
+- **Detalle** (`DuoReporteActividadScreen`): tarjeta resumen "TOTAL ACUMULADO" + chip + total grande
+  (Cormorant 44sp) · sección "REPORTE POR DÚOS" (pill Accent) con una fila por dúo (avatares con
+  iniciales + nombre + valor Accent, o "—" Muted si 0).
+- **Tres estados**: cargando ("CARGANDO ACTIVIDADES…") · vacío (placeholder hundido + guía, FAB
+  activo) · offline (CloudOff Blush + "Dúos no disponibles", **FAB deshabilitado** — no hay caché
+  de dúos). Distinguir siempre "sin datos" de "sin conexión".
+
 ### Aprobaciones (líder)
 - Cards de acceso Historial + Movimientos (comparten un AtajoCard) · lista "MONTOS POR APROBAR"
   agrupada por actividad, cada fila con botones **✗ Rechazar** (Blush) / **✓ Aprobar suma** (Sage).

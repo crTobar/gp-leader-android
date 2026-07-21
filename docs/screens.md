@@ -42,6 +42,7 @@ PERFIL
 ACTIVIDADES
 ├── ActividadesListScreen          → lista de actividades con filtros nivel/estado (dos desplegables) + tarjetas NeuCard
 │                                     switch "Grupo pequeño" / "Dúo misionero" en la parte superior
+│                                     pestaña Dúo: 1 tarjeta por actividad agregada (no por dúo×actividad)
 └── ActividadHistorialScreen       → resumen acumulado + historial semanal editable
 
 DÚOS MISIONEROS (líder)
@@ -50,7 +51,10 @@ DÚOS MISIONEROS (líder)
 ├── CrearDuoScreen                 → seleccionar 2 miembros (excluye ya emparejados)
 ├── DuoDetalleScreen               → pareja + switch Actividades / Estudios Bíblicos del dúo
 ├── CrearActividadDuoScreen        → nombre + tipo (counter/checkbox) + unidad
-└── EstudiosBiblicosMiembrosScreen → todos los miembros + badge total estudios
+├── EstudiosBiblicosMiembrosScreen → todos los miembros + badge total estudios
+└── DuoReporteActividadScreen      → detalle de una actividad de dúos (desde la pestaña Dúo):
+                                      resumen "TOTAL ACUMULADO" + "REPORTE POR DÚOS" con el
+                                      desglose por dúo (valor Accent o "—" si es 0)
 
 DÚOS MISIONEROS (miembro)
 └── DuoMisioneroScreen             → pareja + switch Actividades / Estudios Bíblicos
@@ -147,9 +151,15 @@ feature/actividades/
                                   NivelBadge (Gold=Unión, Ink=Pastor, Accent=Mi GP)
                                   EstadoBadge (Sage=Activa, Blush=Vencida)
                                   diaria activities → siempre navegan a CAMPANA_DETALLE
+                                  pestaña Dúo: DuoActividadCard AGREGADA (1 por actividad, no por
+                                  dúo×actividad) con total + "N dúos"; 3 estados (cargando/vacío/
+                                  offline) propios; tap → DuoReporteActividadScreen
                                   ⚠️ badge de pendientes (drafts) pendiente de implementar
   ActividadesListViewModel.kt ✅ FiltroNivel + FiltroEstado + ActividadConResumen
+                                  DuoActividadAgregada + agregarDuoActividades() (agrupa por nombre)
                                   ⚠️ getPendingCountPerTipo pendiente de conectar a la UI
+  DuoReporteActividadScreen.kt ✅ detalle agregado: resumen TOTAL ACUMULADO + REPORTE POR DÚOS
+  DuoReporteActividadViewModel.kt ✅ recarga por nombre de actividad y arma el agregado
   ActividadHistorialScreen.kt ✅ ResumenCard serif + RegistroRow con bloque fecha
                                   edición inline: BasicTextField + cancelar/guardar
                                   ⚠️ sección "Enviados por miembros" pendiente de implementar
