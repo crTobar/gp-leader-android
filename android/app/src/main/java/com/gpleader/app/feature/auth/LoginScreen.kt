@@ -237,26 +237,26 @@ private fun LoginScreenContent(
     val filteredGrupos = remember(grupoQuery, uiState.filteredGrupos) {
         if (grupoQuery.isBlank()) uiState.filteredGrupos
         else uiState.filteredGrupos.filter {
-            it.nombre.contains(grupoQuery, ignoreCase = true) ||
-            it.iglesiaNombre.contains(grupoQuery, ignoreCase = true) ||
-            it.districtNombre.contains(grupoQuery, ignoreCase = true) ||
-            it.campoNombre.contains(grupoQuery, ignoreCase = true)
+            it.nombre.contieneBusqueda(grupoQuery) ||
+            it.iglesiaNombre.contieneBusqueda(grupoQuery) ||
+            it.districtNombre.contieneBusqueda(grupoQuery) ||
+            it.campoNombre.contieneBusqueda(grupoQuery)
         }
     }
     val filteredCampos = remember(campoQuery, uiState.allCampos) {
         if (campoQuery.isBlank()) uiState.allCampos
-        else uiState.allCampos.filter { it.nombre.contains(campoQuery, ignoreCase = true) }
+        else uiState.allCampos.filter { it.nombre.contieneBusqueda(campoQuery) }
     }
     val filteredDistritos = remember(distritoQuery, uiState.filteredDistritos) {
         if (distritoQuery.isBlank()) uiState.filteredDistritos
-        else uiState.filteredDistritos.filter { it.nombre.contains(distritoQuery, ignoreCase = true) }
+        else uiState.filteredDistritos.filter { it.nombre.contieneBusqueda(distritoQuery) }
     }
     val filteredIglesias = remember(iglesiaQuery, uiState.filteredIglesias) {
         if (iglesiaQuery.isBlank()) uiState.filteredIglesias
         else uiState.filteredIglesias.filter {
-            it.nombre.contains(iglesiaQuery, ignoreCase = true) ||
-            it.districtNombre.contains(iglesiaQuery, ignoreCase = true) ||
-            it.campoNombre.contains(iglesiaQuery, ignoreCase = true)
+            it.nombre.contieneBusqueda(iglesiaQuery) ||
+            it.districtNombre.contieneBusqueda(iglesiaQuery) ||
+            it.campoNombre.contieneBusqueda(iglesiaQuery)
         }
     }
 
@@ -1567,3 +1567,15 @@ private fun LoginPreviewData() {
         )
     }
 }
+
+// ── Búsqueda sin acentos ──────────────────────────────────────────────────────
+
+/** Minúsculas + sin tildes/diacríticos, para buscar "Restauracion" y matchear "Restauración". */
+private fun String.sinAcentos(): String =
+    java.text.Normalizer.normalize(this, java.text.Normalizer.Form.NFD)
+        .replace("\\p{Mn}+".toRegex(), "")
+        .lowercase()
+
+/** contains() insensible a mayúsculas Y a acentos. */
+private fun String.contieneBusqueda(query: String): Boolean =
+    this.sinAcentos().contains(query.sinAcentos())
