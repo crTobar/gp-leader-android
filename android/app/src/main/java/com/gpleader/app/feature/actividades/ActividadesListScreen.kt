@@ -25,7 +25,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Group
@@ -53,6 +56,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gpleader.app.core.data.repository.DuoActividadConTotal
@@ -100,7 +104,7 @@ fun ActividadesListScreen(
     onNavigateToPerfil:           () -> Unit = {},
     onNavigateToCampana:          (tipoId: String, nombre: String, desde: String, hasta: String) -> Unit = { _, _, _, _ -> },
     onNavigateToCrearActividadDuo: (duoId: String) -> Unit = {},
-    onNavigateToDuoActividad:     (actividadTipoId: String, nombre: String, duoId: String) -> Unit = { _, _, _ -> },
+    onNavigateToDuoReporte:       (nombreActividad: String) -> Unit = {},
     viewModel: ActividadesListViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -117,7 +121,7 @@ fun ActividadesListScreen(
         onNavigateToPerfil         = onNavigateToPerfil,
         onNavigateToCampana        = onNavigateToCampana,
         onNavigateToCrearActividadDuo = onNavigateToCrearActividadDuo,
-        onNavigateToDuoActividad   = onNavigateToDuoActividad,
+        onNavigateToDuoReporte     = onNavigateToDuoReporte,
         onFiltroNivel              = viewModel::onFiltroNivel,
         onFiltroEstado             = viewModel::onFiltroEstado,
         onRefresh                  = viewModel::onRefresh,
@@ -138,7 +142,7 @@ private fun ActividadesListContent(
     onNavigateToPerfil:            () -> Unit = {},
     onNavigateToCampana:           (tipoId: String, nombre: String, desde: String, hasta: String) -> Unit = { _, _, _, _ -> },
     onNavigateToCrearActividadDuo: (duoId: String) -> Unit = {},
-    onNavigateToDuoActividad:      (actividadTipoId: String, nombre: String, duoId: String) -> Unit = { _, _, _ -> },
+    onNavigateToDuoReporte:        (nombreActividad: String) -> Unit = {},
     onFiltroNivel:                 (FiltroNivel) -> Unit,
     onFiltroEstado:                (FiltroEstado) -> Unit,
     onRefresh:                     () -> Unit = {},
@@ -226,11 +230,10 @@ private fun ActividadesListContent(
 
             if (!modoGP) {
                 DuoActividadesContent(
-                    actividades                = uiState.duoActividades,
+                    actividades                = uiState.duoAgregadas,
                     duosActivos               = uiState.duosActivos,
                     isLoading                 = uiState.isDuoLoading,
-                    onCardClick               = { item -> onNavigateToDuoActividad(item.tipo.id, item.tipo.nombre, item.duo.id) },
-                    onFabClick                = {},
+                    onCardClick               = { item -> onNavigateToDuoReporte(item.nombre) },
                     onNavigateToCrearActividad = { onNavigateToCrearActividadDuo("todos") },
                     modifier                  = Modifier.weight(1f),
                 )
@@ -364,16 +367,15 @@ private fun ActividadesListContent(
     }   // Scaffold
 }
 
-// ── Dúo: lista de actividades ─────────────────────────────────────────────────
+// ── Dúo: lista de actividades (agregada por actividad) ────────────────────────
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun DuoActividadesContent(
-    actividades:               List<DuoActividadConTotal>,
+    actividades:               List<DuoActividadAgregada>,
     duosActivos:               List<DuoMisioneroData>,
     isLoading:                 Boolean,
-    onCardClick:               (DuoActividadConTotal) -> Unit,
-    onFabClick:                () -> Unit,
+    onCardClick:               (DuoActividadAgregada) -> Unit,
     onNavigateToCrearActividad: (duoId: String) -> Unit = {},
     modifier:                  Modifier = Modifier,
 ) {
@@ -394,29 +396,25 @@ private fun DuoActividadesContent(
     }
 
     Box(modifier = modifier.fillMaxWidth()) {
-        if (isLoading) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                androidx.compose.material3.CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
-            }
-        } else if (actividades.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                // Offline la lista siempre viene vacía (sin caché), así que no se puede afirmar
-                // que no haya dúos ni invitar a crear uno.
-                Text(
-                    text      = if (isOnline) "Sin actividades de dúos.\nToca + para crear una."
-                                else          "Los dúos no están disponibles sin conexión.",
-                    style     = MaterialTheme.typography.bodyMedium,
-                    color     = Muted,
-                    textAlign = TextAlign.Center,
-                )
-            }
-        } else {
-            LazyColumn(
+        when {
+            isLoading  -> DuoEstadoCargando()
+            // Los dúos no tienen caché offline: distinguir "sin conexión" de "sin datos".
+            !isOnline  -> DuoEstadoOffline()
+            actividades.isEmpty() -> DuoEstadoVacio()
+            else -> LazyColumn(
                 modifier            = Modifier.fillMaxSize(),
                 contentPadding      = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 110.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                items(actividades, key = { it.tipo.id }) { item ->
+                item(key = "contador") {
+                    Text(
+                        text     = "${actividades.size} ${if (actividades.size == 1) "actividad de dúos" else "actividades de dúos"}",
+                        style    = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp, letterSpacing = 1.sp),
+                        color    = Muted,
+                        modifier = Modifier.padding(start = 4.dp, bottom = 2.dp),
+                    )
+                }
+                items(actividades, key = { it.nombre }) { item ->
                     DuoActividadCard(item = item, onClick = { onCardClick(item) })
                 }
             }
@@ -430,7 +428,7 @@ private fun DuoActividadesContent(
                 .navigationBarsPadding()
                 .padding(end = 20.dp, bottom = 110.dp)
                 .alpha(fabAlpha)
-                .neuGlow(cornerRadius = 20.dp)
+                .then(if (fabEnabled) Modifier.neuGlow(cornerRadius = 20.dp) else Modifier)
                 .clip(RoundedCornerShape(20.dp))
                 .background(Accent)
                 .clickable(enabled = fabEnabled, onClick = handleFabClick)
@@ -495,62 +493,147 @@ private fun DuoActividadesContent(
 
 @Composable
 private fun DuoActividadCard(
-    item:    DuoActividadConTotal,
+    item:    DuoActividadAgregada,
     onClick: () -> Unit,
 ) {
-    val inic1 = inicialesActividadesListDuo(item.duo.member1.nombreCompleto)
-    val inic2 = inicialesActividadesListDuo(item.duo.member2.nombreCompleto)
-    val valorStr = when (item.tipo.markerType) {
-        "monetary"      -> "₡${item.montoTotal.toLong()}"
-        "daily_checker" -> "${item.diasMarcados} días"
-        "checkbox"      -> if (item.diasMarcados > 0) "✓" else "—"
-        else            -> "${item.totalCantidad} ${item.tipo.unitLabel}"
-    }
-    val tipoLabel = when (item.tipo.markerType) {
-        "monetary"      -> "Monetario"
-        "daily_checker" -> "Diario"
-        "checkbox"      -> "Verificación"
-        else            -> "Contador"
-    }
+    val fmt = duoValorFmt(item.markerType, item.totalCantidad, item.montoTotal, item.diasMarcados, item.unitLabel)
+    val duosLabel = "${item.cantidadDuos} ${if (item.cantidadDuos == 1) "dúo" else "dúos"}"
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .neuElevated(cornerRadius = 20.dp)
-            .clip(RoundedCornerShape(20.dp))
+            .neuElevated(cornerRadius = 24.dp)
+            .clip(RoundedCornerShape(24.dp))
             .background(Background)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 18.dp, vertical = 17.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Avatares dúo
-        Box(modifier = Modifier.size(44.dp)) {
-            NeuAvatar(iniciales = inic2, size = 32.dp, modifier = Modifier.align(Alignment.BottomEnd))
-            NeuAvatar(iniciales = inic1, size = 32.dp, modifier = Modifier.align(Alignment.TopStart))
-        }
-        Spacer(Modifier.width(12.dp))
+        // Indicador genérico de dúos (la actividad agrupa varios dúos)
+        DuoIndicadorGenerico()
+        Spacer(Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(item.tipo.nombre, style = MaterialTheme.typography.bodyLarge, color = Ink, fontWeight = FontWeight.SemiBold, maxLines = 1)
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                // weight + maxLines: el nombre toma el espacio sobrante y se trunca; así el chip de
-                // tipo conserva su ancho natural en vez de comprimirse y hacer wrap vertical.
-                Text(
-                    text     = "${item.duo.member1.primerNombre} & ${item.duo.member2.primerNombre}",
-                    style    = MaterialTheme.typography.labelSmall,
-                    color    = Muted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Accent.copy(alpha = 0.12f)).padding(horizontal = 6.dp, vertical = 2.dp)) {
-                    Text(tipoLabel, style = MaterialTheme.typography.labelSmall, color = Accent, fontWeight = FontWeight.Bold, maxLines = 1)
-                }
+            Text(
+                item.nombre,
+                style = MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp),
+                color = Ink, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                DuoTipoChip(item.markerType)
+                Text(duosLabel, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 1.sp), color = Muted)
             }
         }
-        Spacer(Modifier.width(8.dp))
-        Text(valorStr, style = MaterialTheme.typography.bodyLarge, color = Accent, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(10.dp))
+        // Total agregado
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                fmt.numero,
+                style = MaterialTheme.typography.headlineSmall.copy(fontSize = 25.sp),
+                color = if (fmt.esCero) Muted else Accent,
+            )
+            if (fmt.unidad.isNotBlank()) {
+                Text(fmt.unidad, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 1.sp), color = Muted)
+            }
+        }
+        Spacer(Modifier.width(6.dp))
         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Muted, modifier = Modifier.size(18.dp))
+    }
+}
+
+// ── Helpers compartidos con el detalle de reporte por dúos ────────────────────
+
+internal data class DuoValorFmt(val numero: String, val unidad: String, val esCero: Boolean)
+
+/** Formatea el valor de una actividad de dúo según su tipo de marcador. Cero → "—" (convención). */
+internal fun duoValorFmt(
+    markerType: String, totalCantidad: Int, montoTotal: Double, diasMarcados: Int, unitLabel: String,
+): DuoValorFmt = when (markerType) {
+    "monetary"      -> DuoValorFmt(if (montoTotal <= 0.0) "—" else "₡${montoTotal.toLong()}", "", montoTotal <= 0.0)
+    "daily_checker" -> DuoValorFmt(if (diasMarcados == 0) "—" else "$diasMarcados", "días", diasMarcados == 0)
+    "checkbox"      -> DuoValorFmt(if (diasMarcados == 0) "—" else "$diasMarcados", "✓", diasMarcados == 0)
+    else            -> DuoValorFmt(if (totalCantidad == 0) "—" else "$totalCantidad", unitLabel, totalCantidad == 0)
+}
+
+internal fun duoTipoLabel(markerType: String): String = when (markerType) {
+    "monetary"      -> "Monetario"
+    "daily_checker" -> "Diario"
+    "checkbox"      -> "Verificación"
+    else            -> "Contador"
+}
+
+/** Chip de tipo de actividad (Accent 13%). Compartido lista/detalle. */
+@Composable
+internal fun DuoTipoChip(markerType: String) {
+    Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Accent.copy(alpha = 0.13f)).padding(horizontal = 8.dp, vertical = 2.dp)) {
+        Text(duoTipoLabel(markerType), style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, letterSpacing = 0.5.sp), color = Accent, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** Dos círculos hundidos superpuestos (sin iniciales) que señalan que la actividad agrupa dúos. */
+@Composable
+private fun DuoIndicadorGenerico() {
+    Box(modifier = Modifier.size(width = 54.dp, height = 48.dp)) {
+        CirculoDuoVacio(32.dp, Modifier.align(Alignment.BottomEnd))
+        Box(
+            modifier = Modifier.align(Alignment.TopStart).clip(CircleShape).background(Background).padding(2.dp),
+        ) { CirculoDuoVacio(32.dp) }
+    }
+}
+
+@Composable
+private fun CirculoDuoVacio(size: Dp, modifier: Modifier = Modifier) {
+    Box(modifier = modifier.size(size).clip(CircleShape).background(Background).neuInsetInner(shadowSize = size * 0.28f))
+}
+
+// ── Estados de la pestaña Dúo ─────────────────────────────────────────────────
+
+@Composable
+private fun DuoEstadoCargando() {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            androidx.compose.material3.CircularProgressIndicator(
+                color = Accent, strokeWidth = 4.dp, trackColor = Color(0xFFD4D8E1), modifier = Modifier.size(48.dp),
+            )
+            Spacer(Modifier.height(16.dp))
+            Text("CARGANDO ACTIVIDADES…", style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp), color = Muted)
+        }
+    }
+}
+
+@Composable
+private fun DuoEstadoVacio() {
+    Box(Modifier.fillMaxSize().padding(horizontal = 40.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(modifier = Modifier.size(88.dp).clip(CircleShape).background(Background).neuInsetInner(shadowSize = 13.dp), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.Inbox, null, tint = Muted, modifier = Modifier.size(34.dp))
+            }
+            Spacer(Modifier.height(20.dp))
+            Text("Sin actividades de dúos", style = MaterialTheme.typography.headlineSmall.copy(fontSize = 23.sp), color = Ink)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Toca + para crear la primera actividad de un dúo misionero.",
+                style = MaterialTheme.typography.bodyMedium, color = Muted, textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DuoEstadoOffline() {
+    Box(Modifier.fillMaxSize().padding(horizontal = 40.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(modifier = Modifier.size(88.dp).clip(CircleShape).background(Background).neuElevated(cornerRadius = 44.dp), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.CloudOff, null, tint = Blush, modifier = Modifier.size(34.dp))
+            }
+            Spacer(Modifier.height(20.dp))
+            Text("Dúos no disponibles", style = MaterialTheme.typography.headlineSmall.copy(fontSize = 23.sp), color = Ink)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Los dúos no están disponibles sin conexión. Reconéctate para ver sus actividades.",
+                style = MaterialTheme.typography.bodyMedium, color = Muted, textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 

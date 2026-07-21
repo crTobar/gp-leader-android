@@ -50,6 +50,7 @@ import com.gpleader.app.feature.actividades.MiembroAporteHistorialScreen
 import com.gpleader.app.feature.actividades.AgregarAporteScreen
 import com.gpleader.app.feature.actividades.CrearActividadDuoScreen
 import com.gpleader.app.feature.actividades.DuoActividadDetalleScreen
+import com.gpleader.app.feature.actividades.DuoReporteActividadScreen
 import com.gpleader.app.feature.actividades.DuoActividadRegistroScreen
 import com.gpleader.app.feature.actividades.CrearDuoScreen
 import com.gpleader.app.feature.actividades.DuoDetalleScreen
@@ -144,6 +145,7 @@ object NavRoutes {
     const val ESTUDIOS_BIBLICOS_MIEMBROS  = "estudios_biblicos_miembros"
     const val DUO_ACTIVIDAD_REGISTRO      = "duo_actividad_registro/{actividadTipoId}/{duoId}/{nombreActividad}"
     const val DUO_ACTIVIDAD_DETALLE       = "duo_actividad_detalle/{duoId}/{actividadTipoId}"
+    const val DUO_REPORTE_ACTIVIDAD       = "duo_reporte_actividad/{nombreActividad}"
     const val DUO_ESTUDIO_DETALLE         = "duo_estudio_detalle/{estudioId}"
 
     fun actividadHistorial(actividadTipoId: String) = "actividad_historial/$actividadTipoId"
@@ -170,6 +172,7 @@ object NavRoutes {
     fun duoActividadRegistro(tipoId: String, duoId: String, nombre: String) =
         "duo_actividad_registro/$tipoId/$duoId/${android.net.Uri.encode(nombre)}"
     fun duoActividadDetalle(duoId: String, tipoId: String) = "duo_actividad_detalle/$duoId/$tipoId"
+    fun duoReporteActividad(nombre: String) = "duo_reporte_actividad/${android.net.Uri.encode(nombre)}"
     fun duoEstudioDetalle(estudioId: String) = "duo_estudio_detalle/$estudioId"
 
     // ── Iglesia (church-level) ────────────────────────────────────────────────
@@ -716,8 +719,8 @@ fun AppNavGraph(
                 onNavigateToCrearActividadDuo = { duoId ->
                     navController.navigate(NavRoutes.crearActividadDuo(duoId))
                 },
-                onNavigateToDuoActividad = { tipoId, nombre, duoId ->
-                    navController.navigate(NavRoutes.duoActividadRegistro(tipoId, duoId, nombre))
+                onNavigateToDuoReporte = { nombre ->
+                    navController.navigate(NavRoutes.duoReporteActividad(nombre))
                 },
             )
         }
@@ -854,6 +857,13 @@ fun AppNavGraph(
             ),
         ) {
             DuoActividadDetalleScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(
+            route     = NavRoutes.DUO_REPORTE_ACTIVIDAD,
+            arguments = listOf(navArgument("nombreActividad") { type = NavType.StringType }),
+        ) {
+            DuoReporteActividadScreen(onNavigateBack = { navController.popBackStack() })
         }
 
         composable(

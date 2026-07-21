@@ -38,6 +38,47 @@ data class ActividadConResumen(
     val esProxima:     Boolean,
 )
 
+/** Valor de un dúo dentro de una actividad agregada. */
+data class DuoValor(
+    val duo:           DuoMisioneroData,
+    val totalCantidad: Int,
+    val montoTotal:    Double,
+    val diasMarcados:  Int,
+)
+
+/** Una actividad de dúos agrupada por nombre, con su total y el desglose por dúo. */
+data class DuoActividadAgregada(
+    val nombre:        String,
+    val markerType:    String,
+    val unitLabel:     String,
+    val totalCantidad: Int,
+    val montoTotal:    Double,
+    val diasMarcados:  Int,
+    val cantidadDuos:  Int,
+    val duos:          List<DuoValor>,
+)
+
+/**
+ * Agrupa los registros (dúo × actividad) por nombre de actividad. Cada dúo tiene su propia
+ * fila `duo_activity_type` con el mismo nombre; aquí se suman los totales y se arma el desglose.
+ */
+fun agregarDuoActividades(items: List<DuoActividadConTotal>): List<DuoActividadAgregada> =
+    items.groupBy { it.tipo.nombre }
+        .map { (nombre, list) ->
+            val ref = list.first().tipo
+            DuoActividadAgregada(
+                nombre        = nombre,
+                markerType    = ref.markerType,
+                unitLabel     = ref.unitLabel,
+                totalCantidad = list.sumOf { it.totalCantidad },
+                montoTotal    = list.sumOf { it.montoTotal },
+                diasMarcados  = list.sumOf { it.diasMarcados },
+                cantidadDuos  = list.size,
+                duos          = list.map { DuoValor(it.duo, it.totalCantidad, it.montoTotal, it.diasMarcados) },
+            )
+        }
+        .sortedBy { it.nombre }
+
 data class ActividadesListUiState(
     val actividades:    List<ActividadConResumen>  = emptyList(),
     val visibles:       List<ActividadConResumen>  = emptyList(),
@@ -48,6 +89,7 @@ data class ActividadesListUiState(
     val error:          String?                    = null,
     val modoGP:         Boolean                    = true,
     val duoActividades: List<DuoActividadConTotal> = emptyList(),
+    val duoAgregadas:   List<DuoActividadAgregada> = emptyList(),
     val duosActivos:    List<DuoMisioneroData>     = emptyList(),
     val isDuoLoading:   Boolean                    = false,
 )
@@ -125,11 +167,13 @@ class ActividadesListViewModel @Inject constructor(
             val duosResult = duoRepo.getDuosByGrupo(session.grupoId)
             val duos = duosResult.getOrElse { emptyList() }.filter { it.isActive }
             val actResult = duoRepo.getActividadesConTotalesPorGrupo(session.grupoId)
+            val lista = actResult.getOrElse { emptyList() }
             _uiState.update {
                 it.copy(
                     isDuoLoading   = false,
                     duosActivos    = duos,
-                    duoActividades = actResult.getOrElse { emptyList() },
+                    duoActividades = lista,
+                    duoAgregadas   = agregarDuoActividades(lista),
                 )
             }
         }
