@@ -13,13 +13,16 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** Filtro por tipo de acción de la bitácora de movimientos. */
+/**
+ * Filtro por tipo de acción de la bitácora de movimientos.
+ * Los eventos "created" (aporte creado) no se muestran en Movimientos — solo aprobaciones,
+ * rechazos y ediciones. Se excluyen al cargar, así que no hay filtro "Creados".
+ */
 enum class MovFiltro(val label: String, val actions: Set<String>) {
     TODO("Todo", emptySet()),
     APROBADOS("Aprobados", setOf("approved", "board_approved")),
     RECHAZADOS("Rechazados", setOf("rejected")),
     EDITADOS("Editados", setOf("edited")),
-    CREADOS("Creados", setOf("created")),
 }
 
 data class MovimientosUiState(
@@ -49,7 +52,11 @@ class MovimientosAprobacionViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             memberEntryRepo.getMovimientosGrupo(session.grupoId)
-                .onSuccess { movs -> _uiState.update { it.copy(isLoading = false, movimientos = movs) } }
+                .onSuccess { movs ->
+                    // Ocultar los "aporte creado": Movimientos solo muestra aprobaciones/rechazos/ediciones.
+                    val visibles = movs.filter { it.action != "created" }
+                    _uiState.update { it.copy(isLoading = false, movimientos = visibles) }
+                }
                 .onFailure { e -> _uiState.update { it.copy(isLoading = false, error = e.message) } }
         }
     }
