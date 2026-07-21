@@ -77,6 +77,7 @@ data class MovimientoAprobacion(
     val actorName:       String?,
     val oldValue:        Double?,
     val newValue:        Double?,
+    val entryValue:      Double?,   // valor del aporte (para mostrar el monto aprobado/rechazado)
     val note:            String?,
     val createdAt:       Instant?,
     val miembroNombre:   String,

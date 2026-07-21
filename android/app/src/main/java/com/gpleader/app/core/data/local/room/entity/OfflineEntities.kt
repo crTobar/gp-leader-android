@@ -134,6 +134,7 @@ data class MemberEntryEventEntity(
     val action: String,               // created | edited | approved | rejected | board_approved | deleted
     val oldValue: Double?,
     val newValue: Double?,
+    val entryValue: Double?,          // valor del aporte (monto aprobado/rechazado)
     val actorRole: String,            // member | leader | church
     val actorId: String?,
     val actorName: String?,           // desnormalizado (resuelto online) para mostrar offline

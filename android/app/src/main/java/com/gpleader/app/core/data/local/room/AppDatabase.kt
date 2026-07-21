@@ -43,7 +43,7 @@ import com.gpleader.app.core.data.local.room.entity.SmallGroupEntity
         MemberEntryEventEntity::class,
         QuarterEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {

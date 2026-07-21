@@ -155,7 +155,7 @@ class MemberEntryRepositoryImpl @Inject constructor(
         val data = supabase.from("member_entry_event").select(
             Columns.raw(
                 "id, action, old_value, new_value, actor_role, actor_id, note, created_at, " +
-                    "member_entry!inner(small_group_id, member!inner(first_name, last_name), " +
+                    "member_entry!inner(small_group_id, value, member!inner(first_name, last_name), " +
                     "activity_type!inner(name, marker_type, unit_label))"
             )
         ) {
@@ -163,7 +163,7 @@ class MemberEntryRepositoryImpl @Inject constructor(
         }.data
 
         data class RawMov(
-            val id: String, val action: String, val old: Double?, val new: Double?,
+            val id: String, val action: String, val old: Double?, val new: Double?, val entry: Double?,
             val role: String, val actorId: String?, val note: String?, val createdAt: Instant?,
             val miembro: String, val actividad: String, val marker: String, val unit: String,
         )
@@ -178,6 +178,7 @@ class MemberEntryRepositoryImpl @Inject constructor(
                 action    = obj["action"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
                 old       = obj["old_value"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.doubleOrNull,
                 new       = obj["new_value"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.doubleOrNull,
+                entry     = entry["value"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.doubleOrNull,
                 role      = obj["actor_role"]?.jsonPrimitive?.contentOrNull ?: "member",
                 actorId   = obj["actor_id"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
                 note      = obj["note"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull,
@@ -193,7 +194,7 @@ class MemberEntryRepositoryImpl @Inject constructor(
             MovimientoAprobacion(
                 id = r.id, action = r.action, actorRole = r.role,
                 actorName = r.actorId?.let { nombres[it] },
-                oldValue = r.old, newValue = r.new, note = r.note, createdAt = r.createdAt,
+                oldValue = r.old, newValue = r.new, entryValue = r.entry, note = r.note, createdAt = r.createdAt,
                 miembroNombre = r.miembro, actividadNombre = r.actividad,
                 markerType = r.marker, unitLabel = r.unit,
             )
@@ -208,7 +209,7 @@ class MemberEntryRepositoryImpl @Inject constructor(
         val rows = movs.map { m ->
             MemberEntryEventEntity(
                 id = m.id, entryId = "", smallGroupId = grupoId,
-                action = m.action, oldValue = m.oldValue, newValue = m.newValue,
+                action = m.action, oldValue = m.oldValue, newValue = m.newValue, entryValue = m.entryValue,
                 actorRole = m.actorRole, actorId = null, actorName = m.actorName,
                 note = m.note, createdAt = m.createdAt?.toString() ?: "",
                 miembroNombre = m.miembroNombre, actividadNombre = m.actividadNombre,
@@ -222,7 +223,7 @@ class MemberEntryRepositoryImpl @Inject constructor(
         memberEntryEventDao.getByGroup(grupoId).map { e ->
             MovimientoAprobacion(
                 id = e.id, action = e.action, actorRole = e.actorRole, actorName = e.actorName,
-                oldValue = e.oldValue, newValue = e.newValue, note = e.note,
+                oldValue = e.oldValue, newValue = e.newValue, entryValue = e.entryValue, note = e.note,
                 createdAt = e.createdAt.takeIf { it.isNotBlank() }?.let(::parseInstant),
                 miembroNombre = e.miembroNombre, actividadNombre = e.actividadNombre,
                 markerType = e.markerType, unitLabel = e.unitLabel,

@@ -232,6 +232,17 @@ private fun MovimientoRow(mov: MovimientoAprobacion) {
                         color      = Accent,
                         fontWeight = FontWeight.SemiBold,
                     )
+                } else if (mov.action in setOf("approved", "board_approved", "rejected")) {
+                    // Monto aprobado/rechazado, en el color de la acción (Sage/Blush).
+                    mov.entryValue?.let { valor ->
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text       = formatValor(mov, valor),
+                            style      = MaterialTheme.typography.bodyMedium,
+                            color      = estilo.color,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
                 }
                 Spacer(Modifier.height(2.dp))
                 Text("por $actor", style = MaterialTheme.typography.bodyMedium, color = Mid)
