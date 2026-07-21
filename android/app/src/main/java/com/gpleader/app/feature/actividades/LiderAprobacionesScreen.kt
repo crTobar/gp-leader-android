@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -59,7 +58,6 @@ import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.Gold
 import com.gpleader.app.core.ui.theme.Sage
 import com.gpleader.app.core.ui.theme.neuInsetInner
-import com.gpleader.app.core.ui.theme.neuInsetSm
 
 @Composable
 fun LiderAprobacionesScreen(
@@ -99,10 +97,8 @@ fun LiderAprobacionesScreen(
 
     val rechazando = uiState.rechazando
     if (rechazando != null) {
-        RechazarMotivoDialog(
+        RechazarConfirmDialog(
             miembro   = rechazando.miembroNombre,
-            reason    = uiState.rejectReason,
-            onChange  = viewModel::onRejectReasonChange,
             onConfirm = viewModel::onConfirmarRechazo,
             onDismiss = viewModel::onDismissReject,
         )
@@ -350,10 +346,8 @@ private fun AccionBtn(text: String, color: Color, modifier: Modifier, onClick: (
 }
 
 @Composable
-private fun RechazarMotivoDialog(
+private fun RechazarConfirmDialog(
     miembro:   String,
-    reason:    String,
-    onChange:  (String) -> Unit,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -362,31 +356,10 @@ private fun RechazarMotivoDialog(
         containerColor   = Background,
         title = { Text("Rechazar aporte", style = MaterialTheme.typography.titleLarge, color = Ink) },
         text = {
-            Column {
-                Text(
-                    "Aporte de $miembro. Puedes indicar un motivo (opcional); quedará en el historial.",
-                    style = MaterialTheme.typography.bodyMedium, color = Mid,
-                )
-                Spacer(Modifier.height(12.dp))
-                Box(
-                    modifier = Modifier.fillMaxWidth()
-                        .neuInsetSm(cornerRadius = 12.dp).clip(RoundedCornerShape(12.dp))
-                        .background(Background).padding(horizontal = 14.dp, vertical = 12.dp),
-                ) {
-                    BasicTextField(
-                        value         = reason,
-                        onValueChange = onChange,
-                        textStyle     = MaterialTheme.typography.bodyMedium.copy(color = Ink),
-                        modifier      = Modifier.fillMaxWidth(),
-                        decorationBox = { inner ->
-                            if (reason.isEmpty()) {
-                                Text("Motivo del rechazo…", style = MaterialTheme.typography.bodyMedium, color = Muted)
-                            }
-                            inner()
-                        },
-                    )
-                }
-            }
+            Text(
+                "¿Seguro que quieres rechazar el aporte de $miembro? Quedará registrado en el historial.",
+                style = MaterialTheme.typography.bodyMedium, color = Mid,
+            )
         },
         confirmButton = { TextButton(onClick = onConfirm) { Text("Rechazar", color = Blush, fontWeight = FontWeight.SemiBold) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = Mid) } },

@@ -36,7 +36,6 @@ data class LiderAprobacionesUiState(
     val toastMsg:     String?             = null,
     val procesando:   Set<String>         = emptySet(),   // por key
     val rechazando:   AporteMiembro?      = null,
-    val rejectReason: String              = "",
 )
 
 @HiltViewModel
@@ -101,21 +100,18 @@ class LiderAprobacionesViewModel @Inject constructor(
         }
     }
 
-    // ── Rechazo con motivo opcional ────────────────────────────────────────────
-    fun onShowReject(item: AporteMiembro) =
-        _uiState.update { it.copy(rechazando = item, rejectReason = "") }
-    fun onRejectReasonChange(v: String) = _uiState.update { it.copy(rejectReason = v) }
-    fun onDismissReject() = _uiState.update { it.copy(rechazando = null, rejectReason = "") }
+    // ── Rechazo (solo confirmación, sin motivo) ────────────────────────────────
+    fun onShowReject(item: AporteMiembro) = _uiState.update { it.copy(rechazando = item) }
+    fun onDismissReject() = _uiState.update { it.copy(rechazando = null) }
 
     fun onConfirmarRechazo() {
         val item = _uiState.value.rechazando ?: return
-        val note = _uiState.value.rejectReason.trim().takeIf { it.isNotBlank() }
-        _uiState.update { it.copy(rechazando = null, rejectReason = "") }
+        _uiState.update { it.copy(rechazando = null) }
         viewModelScope.launch {
             _uiState.update { it.copy(procesando = it.procesando + item.key) }
             val actorId = session.miembroId.takeIf { it.isNotBlank() }
             val result = item.entryIds.fold(Result.success(Unit) as Result<Unit>) { acc, id ->
-                if (acc.isFailure) acc else memberEntryRepo.rejectEntry(id, actorId = actorId, note = note)
+                if (acc.isFailure) acc else memberEntryRepo.rejectEntry(id, actorId = actorId, note = null)
             }
             result
                 .onSuccess { quitar(item.key, "Rechazado") }
