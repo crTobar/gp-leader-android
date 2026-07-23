@@ -32,6 +32,7 @@ class OfflinePreloader @Inject constructor(
     private val actividadRepo:   ActividadRepository,
     private val reunionRepo:     ReunionRepository,
     private val memberEntryRepo: MemberEntryRepository,
+    private val reconciler:      OfflineReconciler,
     private val cacheMetaDao:    CacheMetaDao,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -75,6 +76,14 @@ class OfflinePreloader @Inject constructor(
 
         // Marca de última sincronización (para el indicador de la UI).
         step { cacheMetaDao.upsert(CacheMetaEntity(LAST_SYNC_KEY, System.currentTimeMillis())) }
+
+        // Reconciliación de borrados: DESPUÉS de precargar (datos frescos primero), con throttle.
+        // Elimina de Room lo que ya no existe en el servidor. Fail-safe: no borra si un fetch falla.
+        val ultima = runCatching { cacheMetaDao.getUpdatedAt(LAST_RECONCILE_KEY) }.getOrNull() ?: 0L
+        if (System.currentTimeMillis() - ultima > RECONCILE_INTERVAL_MS) {
+            step { reconciler.reconcile(grupoId) }
+            step { cacheMetaDao.upsert(CacheMetaEntity(LAST_RECONCILE_KEY, System.currentTimeMillis())) }
+        }
     }
 
     private suspend fun step(block: suspend () -> Unit) { runCatching { block() } }
@@ -82,5 +91,7 @@ class OfflinePreloader @Inject constructor(
     companion object {
         private const val DETALLE_PRELOAD = 10   // nº de reuniones recientes cuyo detalle se cachea
         const val LAST_SYNC_KEY = "last_sync"
+        const val LAST_RECONCILE_KEY = "last_reconcile"
+        private const val RECONCILE_INTERVAL_MS = 6 * 60 * 60 * 1000L   // 6 h
     }
 }

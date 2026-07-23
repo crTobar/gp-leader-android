@@ -461,12 +461,14 @@ class ReunionRepositoryImpl @Inject constructor(
         }.data
         val obj = Json.parseToJsonElement(raw).jsonArray.firstOrNull()?.jsonObject ?: return
         obj.toMeetingEntity()?.let { meetingDao.upsert(listOf(it)) }
-        obj["attendance"]?.takeIf { it !is JsonNull }?.jsonArray
-            ?.mapNotNull { it.jsonObject.toAttendanceEntity() }
-            ?.takeIf { it.isNotEmpty() }?.let { attendanceDao.upsert(it) }
-        obj["activity_record"]?.takeIf { it !is JsonNull }?.jsonArray
-            ?.mapNotNull { it.jsonObject.toActivityRecordEntity() }
-            ?.takeIf { it.isNotEmpty() }?.let { activityRecordDao.upsert(it) }
+        // Reemplaza (borra + inserta) las hijas: si una asistencia/registro se quitó en el
+        // servidor, el upsert-solo la dejaría obsoleta. replaceForMeeting la elimina.
+        val attendance = obj["attendance"]?.takeIf { it !is JsonNull }?.jsonArray
+            ?.mapNotNull { it.jsonObject.toAttendanceEntity() } ?: emptyList()
+        attendanceDao.replaceForMeeting(meetingId, attendance)
+        val records = obj["activity_record"]?.takeIf { it !is JsonNull }?.jsonArray
+            ?.mapNotNull { it.jsonObject.toActivityRecordEntity() } ?: emptyList()
+        activityRecordDao.replaceForMeeting(meetingId, records)
     }
 
     private suspend fun reunionesDesdeRoom(grupoId: String, kind: String): List<ReunionConStats> {

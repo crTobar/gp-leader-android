@@ -2,6 +2,7 @@ package com.gpleader.app.core.data.local.room.dao
 
 import androidx.room.Dao
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Upsert
 import com.gpleader.app.core.data.local.room.entity.ActivityRecordEntity
 import com.gpleader.app.core.data.local.room.entity.ActivityTypeEntity
@@ -32,6 +33,10 @@ interface MemberDao {
     suspend fun getByGroup(grupoId: String): List<MemberEntity>
     @Query("SELECT * FROM member WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): MemberEntity?
+
+    /** Reconciliación: borra miembros locales del grupo que ya no existen en el servidor. */
+    @Query("DELETE FROM member WHERE smallGroupId = :gid AND id NOT IN (:validIds)")
+    suspend fun deleteMissing(gid: String, validIds: List<String>)
 }
 
 @Dao
@@ -43,6 +48,10 @@ interface MeetingDao {
     suspend fun getByGroupKindDate(grupoId: String, kind: String, fecha: String): MeetingEntity?
     @Query("SELECT * FROM meeting WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): MeetingEntity?
+
+    /** Reconciliación: borra reuniones locales (en la ventana) que ya no existen en el servidor. */
+    @Query("DELETE FROM meeting WHERE smallGroupId = :gid AND meetingDate >= :cutoff AND id NOT IN (:validIds)")
+    suspend fun deleteMissing(gid: String, cutoff: String, validIds: List<String>)
 }
 
 @Dao
@@ -52,6 +61,20 @@ interface AttendanceDao {
     suspend fun getByMeeting(meetingId: String): List<AttendanceEntity>
     @Query("SELECT * FROM attendance WHERE meetingId IN (:meetingIds)")
     suspend fun getByMeetings(meetingIds: List<String>): List<AttendanceEntity>
+
+    @Query("DELETE FROM attendance WHERE meetingId = :meetingId")
+    suspend fun deleteByMeeting(meetingId: String)
+
+    /** Cascada: borra asistencia huérfana (de reuniones que ya no existen en el servidor). */
+    @Query("DELETE FROM attendance WHERE meetingId NOT IN (:validMeetingIds)")
+    suspend fun deleteOrphans(validMeetingIds: List<String>)
+
+    /** Reemplaza la asistencia de una reunión (borra + inserta) para no dejar filas obsoletas. */
+    @Transaction
+    suspend fun replaceForMeeting(meetingId: String, rows: List<AttendanceEntity>) {
+        deleteByMeeting(meetingId)
+        upsert(rows)
+    }
 }
 
 @Dao
@@ -74,6 +97,19 @@ interface ActivityRecordDao {
             "WHERE m.smallGroupId = :grupoId",
     )
     suspend fun getByGroup(grupoId: String): List<ActivityRecordEntity>
+
+    @Query("DELETE FROM activity_record WHERE meetingId = :meetingId")
+    suspend fun deleteByMeeting(meetingId: String)
+
+    /** Cascada: borra registros de actividad huérfanos (de reuniones que ya no existen). */
+    @Query("DELETE FROM activity_record WHERE meetingId NOT IN (:validMeetingIds)")
+    suspend fun deleteOrphans(validMeetingIds: List<String>)
+
+    @Transaction
+    suspend fun replaceForMeeting(meetingId: String, rows: List<ActivityRecordEntity>) {
+        deleteByMeeting(meetingId)
+        upsert(rows)
+    }
 }
 
 @Dao
