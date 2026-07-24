@@ -151,11 +151,11 @@ fun Modifier.neuInsetInner(
 /**
  * Botón principal activo (neu-up + halo azul rgba(74,127,212,0.25)).
  */
-fun Modifier.neuGlow(cornerRadius: Dp = 14.dp): Modifier =
+fun Modifier.neuGlow(cornerRadius: Dp = 14.dp, glowColor: Color = NeuAccentGlow): Modifier =
     drawNeuShadows(
         cornerRadius  = cornerRadius,
         blurRadius    = 20f,
         darkOffsetX   =  8f, darkOffsetY  =  8f,
         lightOffsetX  = -8f, lightOffsetY = -8f,
-        glowColor     = NeuAccentGlow,
+        glowColor     = glowColor,
     )

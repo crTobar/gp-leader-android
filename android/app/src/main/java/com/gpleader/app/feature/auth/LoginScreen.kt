@@ -10,6 +10,10 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import kotlinx.coroutines.delay
@@ -42,6 +46,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
@@ -87,6 +92,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gpleader.app.R
 import com.gpleader.app.core.data.repository.CampoItem
@@ -94,16 +100,19 @@ import com.gpleader.app.core.data.repository.DistritoItem
 import com.gpleader.app.core.data.repository.GrupoItem
 import com.gpleader.app.core.data.repository.IglesiaItem
 import com.gpleader.app.core.ui.components.AppLogo
+import com.gpleader.app.core.ui.components.NeuTextField
 import com.gpleader.app.core.ui.theme.Accent
 import com.gpleader.app.core.ui.theme.Background
 import com.gpleader.app.core.ui.theme.BackgroundDeep
 import com.gpleader.app.core.ui.theme.Blush
+import com.gpleader.app.core.ui.theme.Gold
 import com.gpleader.app.core.ui.theme.GpLeaderTheme
 import com.gpleader.app.core.ui.theme.Ink
 import com.gpleader.app.core.ui.theme.Mid
 import com.gpleader.app.core.ui.theme.Muted
 import com.gpleader.app.core.ui.theme.Sage
 import com.gpleader.app.core.ui.theme.neuElevated
+import com.gpleader.app.core.ui.theme.neuGlow
 import com.gpleader.app.core.ui.theme.neuInset
 import com.gpleader.app.core.ui.theme.neuInsetInner
 
@@ -151,6 +160,7 @@ fun LoginScreen(
         onIglesiaParaLoginSelected     = viewModel::onIglesiaParaLoginSelected,
         onDismissIglesiaPasswordDialog = viewModel::onDismissIglesiaPasswordDialog,
         onConfirmarAccesoIglesia       = viewModel::onConfirmarAccesoIglesia,
+        onLoginIglesia                 = viewModel::loginIglesiaDirecto,
     )
 
     if (uiState.showNivelChooser) {
@@ -206,6 +216,7 @@ private fun LoginScreenContent(
     onIglesiaParaLoginSelected:      (IglesiaItem) -> Unit = {},
     onDismissIglesiaPasswordDialog:  () -> Unit = {},
     onConfirmarAccesoIglesia:        () -> Unit = {},
+    onLoginIglesia:                  (IglesiaItem, String) -> Unit = { _, _ -> },
 ) {
     var active by remember { mutableStateOf(ActiveDropdown.NONE) }
     var mostrarFiltros by remember { mutableStateOf(false) }
@@ -215,6 +226,11 @@ private fun LoginScreenContent(
     var campoQuery    by remember { mutableStateOf("") }
     var distritoQuery by remember { mutableStateOf("") }
     var iglesiaQuery  by remember { mutableStateOf("") }
+    // Rediseño: selector de perfil + estado de la pestaña Iglesia (login inline).
+    var perfilTab           by remember { mutableStateOf(PerfilTab.GP) }
+    var iglesiaTabOpen      by remember { mutableStateOf(false) }
+    var selectedIglesiaLogin by remember { mutableStateOf<IglesiaItem?>(null) }
+    var iglesiaPass         by remember { mutableStateOf("") }
 
     // La tarjeta se expande automáticamente al interactuar con cualquier campo o en modo iglesia
     LaunchedEffect(active, mostrarFiltros) {
@@ -291,43 +307,30 @@ private fun LoginScreenContent(
             .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        AnimatedVisibility(
-            visible = !cardExpandido,
-            enter   = fadeIn(tween(200)) + expandVertically(tween(300)),
-            exit    = fadeOut(tween(150)) + shrinkVertically(tween(300)),
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Spacer(Modifier.height(36.dp))
-                AppLogo(
-                    modifier = Modifier
-                        .sharedElement(
-                            state                  = rememberSharedContentState("app-logo"),
-                            animatedVisibilityScope = this@AnimatedVisibility,
-                        )
-                        .onGloballyPositioned { coords ->
-                            headerLogoCenterY = coords.positionInRoot().y + coords.size.height / 2f
-                        }
-                )
-                Spacer(Modifier.height(20.dp))
-                Text(
-                    text      = stringResource(R.string.login_app_titulo),
-                    style     = MaterialTheme.typography.displayLarge,
-                    color     = Ink,
-                    textAlign = TextAlign.Center,
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text      = stringResource(R.string.login_header_subtitle),
-                    style     = MaterialTheme.typography.bodyMedium,
-                    color     = Mid,
-                    textAlign = TextAlign.Center,
-                )
-                Spacer(Modifier.height(36.dp))
-            }
-}
+        // ── Brand (siempre visible). El logo y su animación de intro NO se tocan. ──
+        Spacer(Modifier.height(22.dp))
+        AppLogo(
+            modifier = Modifier.onGloballyPositioned { coords ->
+                headerLogoCenterY = coords.positionInRoot().y + coords.size.height / 2f
+            },
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text      = stringResource(R.string.login_app_titulo),
+            style     = MaterialTheme.typography.displayLarge.copy(fontSize = 34.sp),
+            color     = Ink,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text      = stringResource(R.string.login_header_subtitle),
+            style     = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+            color     = Muted,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(18.dp))
 
-        // ── Tarjeta de inicio de sesión ───────────────────────────────────────
-        var dragAcum by remember { mutableStateOf(0f) }
+        // ── Tarjeta principal ──────────────────────────────────────────────────
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -335,405 +338,157 @@ private fun LoginScreenContent(
                 .neuElevated(cornerRadius = 28.dp)
                 .clip(RoundedCornerShape(28.dp))
                 .background(Background)
-                .pointerInput(cardExpandido) {
-                    detectVerticalDragGestures(
-                        onDragStart = { dragAcum = 0f },
-                        onVerticalDrag = { change, delta ->
-                            change.consume()
-                            if (cardExpandido && delta > 0f) {
-                                dragAcum += delta
-                                if (dragAcum > 80f) {
-                                    cardExpandido = false
-                                    dragAcum = 0f
-                                }
-                            }
-                        },
-                    )
-                }
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication        = null,
-                    onClick           = { cardExpandido = true },
-                ),
+                .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 22.dp),
         ) {
-            // ── Cabecera — modo normal ─────────────────────────────────────────
-            AnimatedVisibility(
-                visible = !cardExpandido,
-                exit    = fadeOut(tween(150)) + shrinkVertically(tween(200)),
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Background)
-                        .padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 20.dp),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(32.dp)
-                            .height(3.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(Accent),
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        text  = stringResource(R.string.login_section_label),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Accent,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text       = stringResource(R.string.login_title),
-                        style      = MaterialTheme.typography.headlineMedium,
-                        color      = Ink,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text  = stringResource(R.string.login_subtitle),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Mid,
-                    )
-                }
-            }
-
-            // ── Cabecera — modo expandido (logo a la derecha) ─────────────────
-            AnimatedVisibility(
-                visible = cardExpandido,
-                enter   = fadeIn(tween(250)),
-            ) {
-                Row(
-                    modifier          = Modifier
-                        .fillMaxWidth()
-                        .background(Background)
-                        .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text  = stringResource(R.string.login_section_label),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Accent,
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            text       = stringResource(R.string.login_title),
-                            style      = MaterialTheme.typography.headlineMedium,
-                            color      = Ink,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
-                    AppLogo(
-                        size         = 44.dp,
-                        cornerRadius = 14.dp,
-                        iconSize     = 22.dp,
-                        modifier     = Modifier
-                            .sharedElement(
-                                state                   = rememberSharedContentState("app-logo"),
-                                animatedVisibilityScope = this@AnimatedVisibility,
-                            )
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication        = null,
-                                onClick           = { cardExpandido = false },
-                            ),
-                    )
-                }
-            }
-
-            HorizontalDivider(
-                color     = Muted.copy(alpha = 0.2f),
-                thickness = 1.dp,
+            Text(
+                text  = "INICIAR SESIÓN",
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 3.sp),
+                color = Accent,
             )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text       = "¿Cómo entrás?",
+                style      = MaterialTheme.typography.headlineMedium.copy(fontSize = 30.sp),
+                color      = Ink,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(16.dp))
 
-            // ── Formulario: peso 1f, padding propio ───────────────────────────
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(horizontal = 20.dp, vertical = 20.dp),
-            ) {
+            PerfilSegmento(
+                seleccion   = perfilTab,
+                onSeleccion = { perfilTab = it; collapse(); iglesiaTabOpen = false },
+            )
+            Spacer(Modifier.height(18.dp))
 
-            if (uiState.iglesiaMode) {
-                IglesiaLoginSection(
-                    query         = uiState.iglesiaSearchQuery,
-                    allIglesias   = uiState.allIglesias,
-                    onQueryChange = onIglesiaSearchQueryChange,
-                    onIglesiaSelected = onIglesiaParaLoginSelected,
-                    onVolver      = onVolverDesdeModoIglesia,
-                )
-            } else {
-
-            val grupoExpandido = active == ActiveDropdown.GRUPO && !mostrarFiltros
-
-            if (!mostrarFiltros) {
-                // ── Modo normal: GP fijo arriba + lista de grupos debajo ──────
-                Text(
-                    text     = stringResource(R.string.login_label_tu_gp),
-                    style    = MaterialTheme.typography.labelSmall,
-                    color    = if (grupoExpandido) Accent else Muted,
-                    modifier = Modifier.padding(bottom = 4.dp),
-                )
-                DropdownSearchBox(
-                    query         = grupoQuery,
-                    selectedName  = "",
-                    placeholder   = stringResource(R.string.login_buscar_gp_hint),
-                    expanded      = grupoExpandido,
-                    isActive      = grupoExpandido,
-                    leadingIcon   = {
-                        Icon(
-                            imageVector        = Icons.Default.Search,
-                            contentDescription = null,
-                            tint               = if (grupoExpandido) Accent else Muted,
-                            modifier           = Modifier.size(18.dp),
+            AnimatedContent(
+                targetState    = perfilTab,
+                modifier       = Modifier.weight(1f).fillMaxWidth(),
+                transitionSpec = {
+                    (fadeIn(tween(200)) + slideInHorizontally { it / 12 }) togetherWith
+                        (fadeOut(tween(120)) + slideOutHorizontally { -it / 12 })
+                },
+                label = "perfil-tab",
+            ) { tab ->
+                if (tab == PerfilTab.GP) {
+                    // ── Pestaña Grupo pequeño (Accent) ──────────────────────────
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        val grupoExpandido = active == ActiveDropdown.GRUPO
+                        SeccionEyebrow(color = Accent, texto = "TU GRUPO PEQUEÑO")
+                        DropdownSearchBox(
+                            query        = grupoQuery,
+                            selectedName = "",
+                            placeholder  = stringResource(R.string.login_buscar_gp_hint),
+                            expanded     = grupoExpandido,
+                            isActive     = grupoExpandido,
+                            leadingIcon  = {
+                                Icon(Icons.Default.Search, null, tint = if (grupoExpandido) Accent else Muted, modifier = Modifier.size(18.dp))
+                            },
+                            onQueryChange = { q -> grupoQuery = q; if (active != ActiveDropdown.GRUPO) expand(ActiveDropdown.GRUPO) },
+                            onFocused = { expand(ActiveDropdown.GRUPO) },
+                            onToggle  = { if (grupoExpandido) collapse() else expand(ActiveDropdown.GRUPO) },
                         )
-                    },
-                    onQueryChange = { q ->
-                        grupoQuery = q
-                        if (active != ActiveDropdown.GRUPO) expand(ActiveDropdown.GRUPO)
-                    },
-                    onFocused = { expand(ActiveDropdown.GRUPO) },
-                    onToggle  = { if (grupoExpandido) collapse() else expand(ActiveDropdown.GRUPO) },
-                )
 
-                Spacer(Modifier.height(12.dp))
-
-                if (!grupoExpandido) {
-                    MasOpcionesButton(
-                        mostrarFiltros = false,
-                        onClick        = { mostrarFiltros = true; collapse() },
-                    )
-                    Spacer(Modifier.weight(1f))
-                } else {
-                    Box(modifier = Modifier.weight(1f)) {
-                        if (filteredGrupos.isEmpty()) {
-                            Text(
-                                text      = stringResource(R.string.login_sin_resultados),
-                                style     = MaterialTheme.typography.bodyMedium,
-                                color     = Muted,
-                                textAlign = TextAlign.Center,
-                                modifier  = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 6.dp, bottom = 12.dp),
-                            )
-                        } else {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .verticalScroll(rememberScrollState()),
-                            ) {
-                                Spacer(Modifier.height(4.dp))
-                                filteredGrupos.forEachIndexed { idx, grupo ->
-                                    val subtitulo = listOf(
-                                        grupo.iglesiaNombre,
-                                        grupo.districtNombre,
-                                        grupo.campoNombre,
-                                    ).filter { it.isNotBlank() }.joinToString(" · ")
-                                    Row(
-                                        modifier          = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { onGrupoTap(grupo); collapse() }
-                                            .padding(horizontal = 4.dp, vertical = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
+                        if (grupoExpandido) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                GrupoResultList(filteredGrupos) { onGrupoTap(it); collapse() }
+                            }
+                        } else if (mostrarFiltros) {
+                            Spacer(Modifier.height(12.dp))
+                            Box(modifier = Modifier.weight(1f)) {
+                                Column(
+                                    modifier            = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                                ) {
+                                    FilterBlock(
+                                        label = stringResource(R.string.login_label_campo), placeholder = stringResource(R.string.login_placeholder_campo),
+                                        query = campoQuery, selectedName = uiState.selectedCampo?.nombre ?: "", isExpanded = active == ActiveDropdown.CAMPO,
+                                        onQueryChange = { q -> campoQuery = q; if (active != ActiveDropdown.CAMPO) expand(ActiveDropdown.CAMPO) },
+                                        onToggle = { if (active == ActiveDropdown.CAMPO) collapse() else expand(ActiveDropdown.CAMPO) },
                                     ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text       = grupo.nombre,
-                                                style      = MaterialTheme.typography.bodyLarge,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color      = Ink,
-                                            )
-                                            if (subtitulo.isNotBlank()) {
-                                                Spacer(Modifier.height(2.dp))
-                                                Text(
-                                                    text  = subtitulo,
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    color = Muted,
-                                                )
-                                            }
-                                        }
+                                        FilterItemList(items = filteredCampos, itemLabel = { it.nombre }, isSelected = { it.nombre == (uiState.selectedCampo?.nombre ?: "") }, onSelected = { onCampoSelected(it); collapse() })
                                     }
-                                    if (idx < filteredGrupos.lastIndex) {
-                                        HorizontalDivider(color = Muted.copy(alpha = 0.15f))
+                                    FilterBlock(
+                                        label = stringResource(R.string.login_label_distrito), placeholder = stringResource(R.string.login_placeholder_distrito),
+                                        query = distritoQuery, selectedName = uiState.selectedDistrito?.nombre ?: "", isExpanded = active == ActiveDropdown.DISTRITO,
+                                        onQueryChange = { q -> distritoQuery = q; if (active != ActiveDropdown.DISTRITO) expand(ActiveDropdown.DISTRITO) },
+                                        onToggle = { if (active == ActiveDropdown.DISTRITO) collapse() else expand(ActiveDropdown.DISTRITO) },
+                                    ) {
+                                        FilterItemList(items = filteredDistritos, itemLabel = { it.nombre }, isSelected = { it.nombre == (uiState.selectedDistrito?.nombre ?: "") }, onSelected = { onDistritoSelected(it); collapse() })
+                                    }
+                                    FilterBlock(
+                                        label = stringResource(R.string.login_label_iglesia), placeholder = stringResource(R.string.login_placeholder_iglesia),
+                                        query = iglesiaQuery, selectedName = uiState.selectedIglesia?.nombre ?: "", isExpanded = active == ActiveDropdown.IGLESIA,
+                                        onQueryChange = { q -> iglesiaQuery = q; if (active != ActiveDropdown.IGLESIA) expand(ActiveDropdown.IGLESIA) },
+                                        onToggle = { if (active == ActiveDropdown.IGLESIA) collapse() else expand(ActiveDropdown.IGLESIA) },
+                                    ) {
+                                        IglesiaItemList(items = filteredIglesias, selected = uiState.selectedIglesia, onSelected = { onIglesiaSelected(it); collapse() })
                                     }
                                 }
-                                Spacer(Modifier.height(4.dp))
                             }
+                            MasOpcionesButton(mostrarFiltros = true, onClick = { mostrarFiltros = false; collapse() })
+                        } else {
+                            Spacer(Modifier.height(12.dp))
+                            MasOpcionesButton(mostrarFiltros = false, onClick = { mostrarFiltros = true })
+                            Spacer(Modifier.height(14.dp))
+                            InfoNota(fondo = Accent.copy(alpha = 0.09f), texto = "Elegí tu GP y tocá tu nombre para entrar como líder o miembro. Después pedimos tu contraseña.")
+                            Spacer(Modifier.weight(1f))
+                            if (uiState.error != null) {
+                                Text(uiState.error, style = MaterialTheme.typography.bodyMedium, color = Blush, modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp))
+                            }
+                            CtaPrimario(color = Accent, texto = "Buscar mi grupo", onClick = { expand(ActiveDropdown.GRUPO) })
                         }
                     }
-                    MasOpcionesButton(
-                        mostrarFiltros = false,
-                        onClick        = { mostrarFiltros = true; collapse() },
-                    )
-                }
-
-            } else {
-                // ── Modo filtros: todos los buscadores en columna scrollable ──
-                Box(modifier = Modifier.weight(1f)) {
-                    Column(
-                        modifier            = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Spacer(Modifier.height(4.dp))
-
-                        // TU GP (dentro del scroll)
-                        FilterBlock(
-                            label         = stringResource(R.string.login_label_tu_gp),
-                            placeholder   = stringResource(R.string.login_buscar_gp_hint),
-                            query         = grupoQuery,
-                            selectedName  = "",
-                            isExpanded    = active == ActiveDropdown.GRUPO,
-                            onQueryChange = { q ->
-                                grupoQuery = q
-                                if (active != ActiveDropdown.GRUPO) expand(ActiveDropdown.GRUPO)
-                            },
-                            onToggle      = { if (active == ActiveDropdown.GRUPO) collapse() else expand(ActiveDropdown.GRUPO) },
-                            resultsContent = {
-                                if (filteredGrupos.isEmpty()) {
-                                    Text(
-                                        text      = stringResource(R.string.login_sin_resultados),
-                                        style     = MaterialTheme.typography.bodyMedium,
-                                        color     = Muted,
-                                        modifier  = Modifier.padding(vertical = 8.dp),
-                                    )
-                                } else {
-                                    Column {
-                                        filteredGrupos.forEachIndexed { idx, grupo ->
-                                            val subtitulo = listOf(
-                                                grupo.iglesiaNombre,
-                                                grupo.districtNombre,
-                                                grupo.campoNombre,
-                                            ).filter { it.isNotBlank() }.joinToString(" · ")
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .clickable { onGrupoTap(grupo); collapse() }
-                                                    .padding(horizontal = 4.dp, vertical = 12.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                            ) {
-                                                Column(modifier = Modifier.weight(1f)) {
-                                                    Text(
-                                                        text       = grupo.nombre,
-                                                        style      = MaterialTheme.typography.bodyLarge,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        color      = Ink,
-                                                    )
-                                                    if (subtitulo.isNotBlank()) {
-                                                        Spacer(Modifier.height(2.dp))
-                                                        Text(
-                                                            text  = subtitulo,
-                                                            style = MaterialTheme.typography.bodyMedium,
-                                                            color = Muted,
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                            if (idx < filteredGrupos.lastIndex) {
-                                                HorizontalDivider(color = Muted.copy(alpha = 0.15f))
-                                            }
-                                        }
-                                    }
-                                }
-                            },
+                } else {
+                    // ── Pestaña Iglesia (Gold) ──────────────────────────────────
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        SeccionEyebrow(color = Gold, texto = "TU IGLESIA")
+                        DropdownSearchBox(
+                            query        = iglesiaQuery,
+                            selectedName = selectedIglesiaLogin?.nombre ?: "",
+                            placeholder  = "Buscar tu iglesia…",
+                            expanded     = iglesiaTabOpen,
+                            isActive     = iglesiaTabOpen,
+                            leadingIcon  = { Icon(Icons.Default.Search, null, tint = if (iglesiaTabOpen) GoldDark else Muted, modifier = Modifier.size(18.dp)) },
+                            onQueryChange = { q -> iglesiaQuery = q; iglesiaTabOpen = true },
+                            onFocused = { iglesiaTabOpen = true },
+                            onToggle  = { iglesiaTabOpen = !iglesiaTabOpen },
                         )
-
-                        // CAMPO
-                        FilterBlock(
-                            label         = stringResource(R.string.login_label_campo),
-                            placeholder   = stringResource(R.string.login_placeholder_campo),
-                            query         = campoQuery,
-                            selectedName  = uiState.selectedCampo?.nombre ?: "",
-                            isExpanded    = active == ActiveDropdown.CAMPO,
-                            onQueryChange = { q -> campoQuery = q; if (active != ActiveDropdown.CAMPO) expand(ActiveDropdown.CAMPO) },
-                            onToggle      = { if (active == ActiveDropdown.CAMPO) collapse() else expand(ActiveDropdown.CAMPO) },
-                            resultsContent = {
-                                FilterItemList(
-                                    items      = filteredCampos,
-                                    itemLabel  = { it.nombre },
-                                    isSelected = { it.nombre == (uiState.selectedCampo?.nombre ?: "") },
-                                    onSelected = { onCampoSelected(it); collapse() },
-                                )
-                            },
-                        )
-
-                        // DISTRITO
-                        FilterBlock(
-                            label         = stringResource(R.string.login_label_distrito),
-                            placeholder   = stringResource(R.string.login_placeholder_distrito),
-                            query         = distritoQuery,
-                            selectedName  = uiState.selectedDistrito?.nombre ?: "",
-                            isExpanded    = active == ActiveDropdown.DISTRITO,
-                            onQueryChange = { q -> distritoQuery = q; if (active != ActiveDropdown.DISTRITO) expand(ActiveDropdown.DISTRITO) },
-                            onToggle      = { if (active == ActiveDropdown.DISTRITO) collapse() else expand(ActiveDropdown.DISTRITO) },
-                            resultsContent = {
-                                FilterItemList(
-                                    items      = filteredDistritos,
-                                    itemLabel  = { it.nombre },
-                                    isSelected = { it.nombre == (uiState.selectedDistrito?.nombre ?: "") },
-                                    onSelected = { onDistritoSelected(it); collapse() },
-                                )
-                            },
-                        )
-
-                        // IGLESIA
-                        FilterBlock(
-                            label         = stringResource(R.string.login_label_iglesia),
-                            placeholder   = stringResource(R.string.login_placeholder_iglesia),
-                            query         = iglesiaQuery,
-                            selectedName  = uiState.selectedIglesia?.nombre ?: "",
-                            isExpanded    = active == ActiveDropdown.IGLESIA,
-                            onQueryChange = { q -> iglesiaQuery = q; if (active != ActiveDropdown.IGLESIA) expand(ActiveDropdown.IGLESIA) },
-                            onToggle      = { if (active == ActiveDropdown.IGLESIA) collapse() else expand(ActiveDropdown.IGLESIA) },
-                            resultsContent = {
-                                IglesiaItemList(
-                                    items      = filteredIglesias,
-                                    selected   = uiState.selectedIglesia,
-                                    onSelected = { onIglesiaSelected(it); collapse() },
-                                )
-                            },
-                        )
-
-                        Spacer(Modifier.height(4.dp))
+                        if (iglesiaTabOpen) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                IglesiaResultList(filteredIglesias) { selectedIglesiaLogin = it; iglesiaQuery = ""; iglesiaTabOpen = false; focusManager.clearFocus() }
+                            }
+                        } else {
+                            Spacer(Modifier.height(20.dp))
+                            SeccionEyebrow(color = Gold, texto = "CONTRASEÑA DE IGLESIA")
+                            NeuTextField(
+                                value          = iglesiaPass,
+                                onValueChange  = { iglesiaPass = it },
+                                placeholder    = "Contraseña",
+                                isPassword     = true,
+                                leadingContent = { Icon(Icons.Default.Lock, null, tint = Muted, modifier = Modifier.size(18.dp)) },
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            InfoNota(fondo = Gold.copy(alpha = 0.14f), texto = "Ingresás como administrador de iglesia: aprobás aportes y ves todos los GP de tu iglesia.")
+                            Spacer(Modifier.weight(1f))
+                            CtaPrimario(
+                                color   = Gold,
+                                texto   = "Ingresar como iglesia",
+                                enabled = selectedIglesiaLogin != null,
+                                onClick = { selectedIglesiaLogin?.let { onLoginIglesia(it, iglesiaPass) } },
+                            )
+                        }
                     }
                 }
-
-                MasOpcionesButton(
-                    mostrarFiltros = true,
-                    onClick        = { mostrarFiltros = false; collapse() },
-                )
             }
-
-            // ── Error / Loading ───────────────────────────────────────────────
-            if (uiState.error != null) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text     = uiState.error,
-                    style    = MaterialTheme.typography.bodyMedium,
-                    color    = Blush,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            if (uiState.isLoading) {
-                Box(
-                    modifier         = Modifier.fillMaxWidth().height(56.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator(color = Accent)
-                }
-            }
-            } // fin else iglesiaMode
-            } // formulario
         }
 
-        TextButton(onClick = onIngresarComoIglesia) {
-            Text(
-                text  = "Ingresar como Iglesia [DEV]",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Muted,
-            )
-        }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text  = "Ayuda para ingresar",
+            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp),
+            color = Color(0xFFB7BFCC),
+        )
+        Spacer(Modifier.height(6.dp))
     }
 
         // ── Overlay splash: logo desliza hacia el header ─────────────────────
@@ -759,39 +514,6 @@ private fun LoginScreenContent(
             }
         }
     } // BoxWithConstraints
-
-    // ── Diálogo contraseña iglesia (DEV — entra sin escribir) ─────────────────
-    if (uiState.showIglesiaPasswordDialog) {
-        AlertDialog(
-            onDismissRequest = onDismissIglesiaPasswordDialog,
-            title = {
-                Text(
-                    text  = uiState.pendingIglesiaLogin?.nombre ?: "",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Ink,
-                )
-            },
-            text = {
-                Text(
-                    text  = "Acceso DEV — confirma para ingresar sin contraseña.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Mid,
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = onConfirmarAccesoIglesia) {
-                    Text("Entrar", color = Accent, fontWeight = FontWeight.SemiBold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = onDismissIglesiaPasswordDialog) {
-                    Text("Cancelar", color = Muted)
-                }
-            },
-            containerColor = Background,
-        )
-    }
-
     } // SharedTransitionLayout
 }
 
@@ -1579,3 +1301,162 @@ private fun String.sinAcentos(): String =
 /** contains() insensible a mayúsculas Y a acentos. */
 private fun String.contieneBusqueda(query: String): Boolean =
     this.sinAcentos().contains(query.sinAcentos())
+
+// ── Rediseño login: selector de perfil + piezas ──────────────────────────────
+
+private enum class PerfilTab { GP, IGLESIA }
+
+private val GoldDark = Color(0xFF8A7328)
+
+@Composable
+private fun PerfilSegmento(seleccion: PerfilTab, onSeleccion: (PerfilTab) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .neuInset(cornerRadius = 18.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(Background)
+            .padding(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        SegmentoOpcion("Grupo pequeño", seleccion == PerfilTab.GP, Ink, Modifier.weight(1f)) { onSeleccion(PerfilTab.GP) }
+        SegmentoOpcion("Iglesia", seleccion == PerfilTab.IGLESIA, GoldDark, Modifier.weight(1f)) { onSeleccion(PerfilTab.IGLESIA) }
+    }
+}
+
+@Composable
+private fun SegmentoOpcion(texto: String, activo: Boolean, colorActivo: Color, modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .then(if (activo) Modifier.neuElevated(cornerRadius = 13.dp) else Modifier)
+            .clip(RoundedCornerShape(13.dp))
+            .background(if (activo) Background else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(vertical = 11.dp),
+    ) {
+        Text(
+            text       = texto,
+            style      = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+            color      = if (activo) colorActivo else Muted,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+@Composable
+private fun SeccionEyebrow(color: Color, texto: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier          = Modifier.padding(top = 20.dp, bottom = 9.dp),
+    ) {
+        Box(modifier = Modifier.size(7.dp).clip(RoundedCornerShape(2.dp)).background(color))
+        Spacer(Modifier.width(8.dp))
+        Text(texto, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 2.sp), color = Muted)
+    }
+}
+
+@Composable
+private fun InfoNota(fondo: Color, texto: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(fondo)
+            .padding(horizontal = 15.dp, vertical = 13.dp),
+    ) {
+        Text(texto, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.5.sp, lineHeight = 19.sp), color = Mid)
+    }
+}
+
+@Composable
+private fun CtaPrimario(color: Color, texto: String, enabled: Boolean = true, onClick: () -> Unit) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(54.dp)
+            .then(if (enabled) Modifier.neuGlow(cornerRadius = 16.dp, glowColor = color.copy(alpha = 0.38f)) else Modifier)
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (enabled) color else color.copy(alpha = 0.4f))
+            .clickable(enabled = enabled, onClick = onClick),
+    ) {
+        Text(
+            text       = texto,
+            style      = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
+            color      = Color.White,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+/** Lista de resultados de GP (nombre + ubicación), scrollable. */
+@Composable
+private fun GrupoResultList(grupos: List<GrupoItem>, onTap: (GrupoItem) -> Unit) {
+    if (grupos.isEmpty()) {
+        Text(
+            text      = stringResource(R.string.login_sin_resultados),
+            style     = MaterialTheme.typography.bodyMedium,
+            color     = Muted,
+            textAlign = TextAlign.Center,
+            modifier  = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        )
+        return
+    }
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        Spacer(Modifier.height(4.dp))
+        grupos.forEachIndexed { idx, grupo ->
+            val subtitulo = listOf(grupo.iglesiaNombre, grupo.districtNombre, grupo.campoNombre)
+                .filter { it.isNotBlank() }.joinToString(" · ")
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { onTap(grupo) }.padding(horizontal = 4.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(grupo.nombre, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = Ink)
+                    if (subtitulo.isNotBlank()) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(subtitulo, style = MaterialTheme.typography.bodyMedium, color = Muted)
+                    }
+                }
+            }
+            if (idx < grupos.lastIndex) HorizontalDivider(color = Muted.copy(alpha = 0.15f))
+        }
+        Spacer(Modifier.height(4.dp))
+    }
+}
+
+/** Lista de resultados de iglesias (para el login de iglesia). */
+@Composable
+private fun IglesiaResultList(iglesias: List<IglesiaItem>, onTap: (IglesiaItem) -> Unit) {
+    if (iglesias.isEmpty()) {
+        Text(
+            text      = stringResource(R.string.login_sin_resultados),
+            style     = MaterialTheme.typography.bodyMedium,
+            color     = Muted,
+            textAlign = TextAlign.Center,
+            modifier  = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        )
+        return
+    }
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        Spacer(Modifier.height(4.dp))
+        iglesias.forEachIndexed { idx, iglesia ->
+            val subtitulo = listOf(iglesia.districtNombre, iglesia.campoNombre).filter { it.isNotBlank() }.joinToString(" · ")
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { onTap(iglesia) }.padding(horizontal = 4.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(iglesia.nombre, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = Ink)
+                    if (subtitulo.isNotBlank()) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(subtitulo, style = MaterialTheme.typography.bodyMedium, color = Muted)
+                    }
+                }
+            }
+            if (idx < iglesias.lastIndex) HorizontalDivider(color = Muted.copy(alpha = 0.15f))
+        }
+        Spacer(Modifier.height(4.dp))
+    }
+}

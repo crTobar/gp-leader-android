@@ -246,6 +246,32 @@ class LoginViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Login de iglesia inline (pestaña "Iglesia" del rediseño). Resuelve la sesión y entra directo
+     * a IglesiaHome (nivel CHURCH). TODO: validar la contraseña real contra el GP general
+     * (`general-<churchId>`) — hoy es DEV y acepta cualquier contraseña, como el resto del auth.
+     */
+    fun loginIglesiaDirecto(iglesia: IglesiaItem, @Suppress("UNUSED_PARAMETER") password: String) {
+        val distrito = _uiState.value.allDistritos.find { it.id == iglesia.districtId }
+        val campo    = distrito?.let { d -> _uiState.value.allCampos.find { it.id == d.campoId } }
+        session.iglesiaId      = iglesia.id
+        session.iglesiaNombre  = iglesia.nombre
+        session.districtId     = distrito?.id ?: ""
+        session.districtNombre = distrito?.nombre ?: ""
+        session.campoId        = campo?.id ?: ""
+        session.campoNombre    = campo?.nombre ?: ""
+        session.isIglesiaLeader = true
+        viewModelScope.launch {
+            campo?.id?.takeIf { it.isNotBlank() }?.let { cid ->
+                runCatching { grupoRepo.getUnionByCampo(cid) }.getOrNull()?.let { union ->
+                    session.unionId     = union.id
+                    session.unionNombre = union.nombre
+                }
+            }
+            _uiState.update { it.copy(navigateToIglesiaHome = true) }
+        }
+    }
+
     /** El usuario elige con qué nivel entrar (DEV). */
     fun onNivelElegido(nivel: String) {
         session.isIglesiaLeader = true
